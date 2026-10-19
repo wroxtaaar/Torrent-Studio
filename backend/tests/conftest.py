@@ -20,6 +20,7 @@ def pytest_runtest_logreport(report):
     if not (report.failed and os.environ.get("GITHUB_ACTIONS")):
         return
     lines = [line for line in (report.longreprtext or "").strip().splitlines() if line.strip()]
-    message = " | ".join(lines[-8:])[:1200]
+    error_lines = [line for line in lines if line.startswith("E ")]
+    message = " | ".join((error_lines or lines)[:6])[:1400]
     message = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
     print(f"\n::error title=pytest {report.nodeid} ({report.when})::{message}", flush=True)
