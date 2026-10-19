@@ -41,3 +41,16 @@ def extract(app) -> dict:
         "startup": [getattr(fn, "__name__", str(fn)) for fn in getattr(router, "on_startup", [])],
         "shutdown": [getattr(fn, "__name__", str(fn)) for fn in getattr(router, "on_shutdown", [])],
     }
+
+
+def describe_non_endpoint_routes(app) -> list:
+    """Debug aid: routes that have no `endpoint` (nested routers, mounts)."""
+    out = []
+    for route in app.routes:
+        if getattr(route, "endpoint", None) is None:
+            out.append([
+                type(route).__name__,
+                getattr(route, "path", None),
+                sorted(a for a in dir(route) if not a.startswith("_"))[:40],
+            ])
+    return out

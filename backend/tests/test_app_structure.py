@@ -33,7 +33,8 @@ def _structure(module_name: str) -> dict:
     code = (
         "import json, sys; sys.path.insert(0, 'tests'); "
         f"import app_structure, {module_name}; "
-        f"print('STRUCTURE=' + json.dumps(app_structure.extract({module_name}.app)))"
+        f"print('STRUCTURE=' + json.dumps(app_structure.extract({module_name}.app))); "
+        f"print('OTHER=' + json.dumps(app_structure.describe_non_endpoint_routes({module_name}.app)))"
     )
     env = {**os.environ, "CACHE_ONLY_MODE": "true", "SEEDR_SESSION_SECRET": "test-only-session-secret"}
     proc = subprocess.run(
@@ -41,7 +42,10 @@ def _structure(module_name: str) -> dict:
     )
     assert proc.returncode == 0, proc.stderr[-1500:]
     line = next(l for l in proc.stdout.splitlines() if l.startswith("STRUCTURE="))
-    return json.loads(line[len("STRUCTURE="):])
+    other = next((l for l in proc.stdout.splitlines() if l.startswith("OTHER=")), "OTHER=[]")
+    result = json.loads(line[len("STRUCTURE="):])
+    result["_other_routes"] = json.loads(other[len("OTHER="):])
+    return result
 
 
 def _describe(expected: dict, actual: dict) -> str:
@@ -73,7 +77,8 @@ def expected():
 @pytest.mark.parametrize("module_name", ["main", "fullstack_app"])
 def test_app_structure_matches_snapshot(module_name, expected):
     actual = _structure(module_name)
-    assert actual == expected[module_name], _describe(expected[module_name], actual)
+    other = actual.pop("_other_routes", [])
+    assert actual == expected[module_name], _describe(expected[module_name], actual) + f" || non-endpoint routes: {other}"
 
 
 def test_names_used_by_maintenance_scripts_still_exist_on_main():
