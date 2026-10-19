@@ -7400,9 +7400,10 @@ async def _build_extra_catalogue(key: str) -> None:
 
     try:
         if not fixed_mode:
-            jobs = await _discover_latest_catalogue_jobs(key)
-            state.update({"status": "building", "completed": 0, "total": len(jobs), "resultCount": 0, "error": ""})
-        tasks = [asyncio.create_task(search_job(title, year)) for title, year in jobs]
+            # Every configured catalogue uses mode "fixed". A "latest" discovery
+            # helper was referenced here but never written.
+            raise NotImplementedError("Extra catalogue mode 'latest' is not implemented")
+        tasks =[asyncio.create_task(search_job(title, year)) for title, year in jobs]
         for task in asyncio.as_completed(tasks):
             try:
                 items = await task
@@ -8838,14 +8839,14 @@ async def api_tmdb_marvel_tv_catalogue(page: int = Query(1, ge=1, le=500)):
             target = _normalize_title(title)
             candidates = [row for row in (payload.get("results") or []) if isinstance(row, dict) and row.get("id")]
             candidates.sort(key=lambda row: (
-                _normalize_title(str(row.get("title") if is_anime_film else row.get("name") or "")) == target,
-                str(row.get("release_date" if is_anime_film else "first_air_date") or "").startswith(str(year)),
+                _normalize_title(str(row.get("name") or "")) == target,
+                str(row.get("first_air_date") or "").startswith(str(year)),
                 float(row.get("popularity") or 0),
             ), reverse=True)
             if not candidates:
                 return fallback
             item = candidates[0]
-            air_date = str(item.get("release_date" if is_anime_film else "first_air_date") or "").strip()
+            air_date = str(item.get("first_air_date") or "").strip()
             year_match = re.match(r"^(\d{4})", air_date)
             poster_path = str(item.get("poster_path") or "").strip()
             backdrop_path = str(item.get("backdrop_path") or "").strip()
