@@ -59,6 +59,8 @@ def _describe(expected: dict, actual: dict) -> str:
             else:
                 extra = exp[len(act):] or act[len(exp):]
                 message += f"; extra items: {extra[:3]}"
+        if part == "routes" and isinstance(act, list):
+            message += f"; actual last routes: {[r[1] for r in act[-6:]]}"
         problems.append(message)
     return " || ".join(problems)
 
