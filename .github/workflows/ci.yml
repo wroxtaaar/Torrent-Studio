@@ -22,6 +22,12 @@ jobs:
         run: pip install -r backend/requirements-dev.txt
       - name: Compile check
         run: python -m compileall -q backend scripts
+      # Catches names that are used but never defined or imported, which is the
+      # main risk when code is moved between modules.
+      - name: Undefined names (ruff)
+        run: |
+          pip install "ruff>=0.9,<1"
+          ruff check --no-cache --select F821,F823 backend scripts
       - name: Run tests
         working-directory: backend
         run: python -m pytest -q tests
