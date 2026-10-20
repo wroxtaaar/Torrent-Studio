@@ -152,13 +152,6 @@
     [
      "GET"
     ],
-    "/api/catalogue/imdb-ratings",
-    "api_catalogue_imdb_ratings"
-   ],
-   [
-    [
-     "GET"
-    ],
     "/api/search/metadata/batch",
     "api_search_metadata_batch"
    ],
@@ -168,6 +161,13 @@
     ],
     "/api/search",
     "api_search"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/catalogue/imdb-ratings",
+    "api_catalogue_imdb_ratings"
    ],
    [
     [
@@ -833,13 +833,6 @@
     [
      "GET"
     ],
-    "/api/catalogue/imdb-ratings",
-    "api_catalogue_imdb_ratings"
-   ],
-   [
-    [
-     "GET"
-    ],
     "/api/search/metadata/batch",
     "api_search_metadata_batch"
    ],
@@ -849,6 +842,13 @@
     ],
     "/api/search",
     "api_search"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/catalogue/imdb-ratings",
+    "api_catalogue_imdb_ratings"
    ],
    [
     [
