@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
   Search,
   X,
@@ -15,113 +15,38 @@ import {
   Film,
   Maximize2
 } from 'lucide-react';
-import { api, API_BASE, ImdbRatingResult, MarvelCatalogueResponse, MovieCatalogueItem, MovieCatalogueKey, MovieCataloguePage, SearchMediaMetadata, TorrentSearchResult, TvCataloguePage } from '../api/client.ts';
+import { api, API_BASE, MarvelCatalogueResponse, MovieCatalogueItem, MovieCatalogueKey, TorrentSearchResult } from '../api/client.ts';
 import { formatBytes } from '../utils/formatters.ts';
 import { TvShowCard } from './torrent-search/TvShowCard.tsx';
 import { MovieCompactCard, MoviePrepareCard, imdbTitleLink, setHighQualityPostersReady } from './MovieCards.tsx';
 import searchLimits from '../../search_limits.json';
 import { TorrentQualityGroup, compareReleaseDateDescending, episodeSeriesTitle, groupTorrentResults, imdbRatingKey, imdbRatingQueryTitle, mergeSearchMetadataItems, normalizeGroupTitle, normalizeSavedOttTitle, releaseDateSortValue, searchMetadataForGroup, torrentGroupReleaseYear, torrentMediaIdentity, torrentQualityDetails, torrentResultKey } from './torrent-search/grouping.ts';
 import { PLAYABLE_FILE_PATTERN, displayOttProviderName, normalizeOttProviderName, normalizeSavedOttProviders, toCardProviders, uniqueOttProviders } from './torrent-search/ottProviders.ts';
-import { CachedFranchiseSearchMode, persistImdbRatings, persistSearchAvailability, persistSearchMetadata, readFranchisePageCache, readPersistentImdbRatings, readPersistentSearchAvailability, readPersistentSearchMetadata, writeFranchisePageCache } from './torrent-search/persistentCaches.ts';
+import { CachedFranchiseSearchMode, persistImdbRatings, persistSearchAvailability, persistSearchMetadata, readFranchisePageCache, readPersistentSearchAvailability, readPersistentSearchMetadata, writeFranchisePageCache } from './torrent-search/persistentCaches.ts';
 import { isPresetSearchLabel } from './torrent-search/formatting.tsx';
 import { fetchNexStreamEpisodeMetadata, nexStreamEpisodeCache, nexStreamEpisodeCacheKey, normalizeTorrentTitleForNexStream, prefetchNexStreamEpisodeMetadata } from './torrent-search/nexstream.ts';
 import { cataloguePosterOverride, cataloguePosterSource, imdbFallbackForCatalogueMovie, imdbRatingForCatalogueMovie, isTheCrow2024 } from './torrent-search/cataloguePosters.ts';
 import { cachedPosterForTitle, posterTitleCacheKeys, readPosterTitleCache, savePosterTitleCache } from './torrent-search/posterCache.ts';
 import { lowQualityPosterUrl, posterImageUrlForResult, posterKeyFor, posterResolveCandidateUrlsFor } from './torrent-search/posterUrls.ts';
 import { apiFetchRecent, catalogueMovieIdentity, extractedQuality, normalizeMatchText, writeLocalCache } from './torrent-search/helpers.ts';
-import { ActiveTopSection, CachedFranchiseKey, ClassicsContentTab, FranchiseTmdbKey, MainCatalogueMenu, MarvelFilmFilter, NexStreamTitle, RegionalCatalogueGroup, RegionalCatalogueMode, RegionalContentTab, RegionalTvGroup, RegionalTvMode } from './torrent-search/types.ts';
-import { useOttAvailability } from './torrent-search/useOttAvailability.ts';
+import { CachedFranchiseKey, FranchiseTmdbKey, MarvelFilmFilter, NexStreamTitle, RegionalCatalogueGroup, RegionalCatalogueMode, RegionalTvGroup, RegionalTvMode } from './torrent-search/types.ts';
+import { useNexStreamState } from './torrent-search/state/useNexStreamState.ts';
+import { useSearchMetadataState } from './torrent-search/state/useSearchMetadataState.ts';
+import { useMoviePreviewState } from './torrent-search/state/useMoviePreviewState.ts';
+import { useCatalogueNavigationState } from './torrent-search/state/useCatalogueNavigationState.ts';
+import { useWebSeriesState } from './torrent-search/state/useWebSeriesState.ts';
+import { useSearchInputState } from './torrent-search/state/useSearchInputState.ts';
+import { usePosterState } from './torrent-search/state/usePosterState.ts';
+import { SeedrSearchFile, TorrentSearchPanelProps } from './torrent-search/props.ts';
+import { usePrepareState } from './torrent-search/state/usePrepareState.ts';
+import { MOVIE_TORRENT_CACHE_STORAGE_KEY, MOVIE_TORRENT_CACHE_TTL_MS, NEXSTREAM_CACHE_TTL_MS, NEXSTREAM_RESOLVE_CACHE_KEY, NEXSTREAM_RESOLVE_CACHE_TTL_MS, NEXSTREAM_SEARCH_CACHE_KEY } from './torrent-search/constants.ts';
 
-type SeedrSearchFile = {
-  id: string;
-  streamId?: string;
-  name: string;
-  size: number;
-  folderId: string;
-  folderPath: string;
-};
-
-interface TorrentSearchPanelProps {
-  onPrepare: (
-    result: TorrentSearchResult,
-    metadata?: {
-      name: string;
-      hash: string;
-      files: { index: number; name: string; size: number; path: string; type: string; priority?: number }[];
-      totalSize: number;
-    }
-  ) => Promise<{ files: SeedrSearchFile[]; deletedFolderIds?: string[] }>;
-  onCancelPrepare?: () => void | Promise<void>;
-  onOpenProgress?: () => void;
-  seedrFiles?: SeedrSearchFile[];
-  seedrDeletedFolderIds?: string[];
-  onPlaySeedrFile?: (file: SeedrSearchFile) => void | Promise<void>;
-}
 
 export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepare, onCancelPrepare, onOpenProgress, seedrFiles = [], seedrDeletedFolderIds = [], onPlaySeedrFile }) => {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<TorrentSearchResult[]>([]);
-  const [nexStreamResults, setNexStreamResults] = useState<NexStreamTitle[]>([]);
-  const [nexStreamSearchMode, setNexStreamSearchMode] = useState<'movie' | 'tv' | null>(null);
-  const [nexStreamLoading, setNexStreamLoading] = useState(false);
-  const [nexStreamLoadingTitle, setNexStreamLoadingTitle] = useState('');
-  const [nexStreamEpisodePrefetchStatus, setNexStreamEpisodePrefetchStatus] = useState<Record<string, 'loading' | 'ready' | 'error'>>({});
-  const nexStreamSearchControllerRef = useRef<AbortController | null>(null);
-  const nexStreamSearchGenerationRef = useRef(0);
-  const [nexStreamError, setNexStreamError] = useState('');
-  const [nexStreamPlayer, setNexStreamPlayer] = useState<{ title: string; year?: string; sourceName: string; url: string; type: 'movie' | 'tv'; season?: number; episode?: number } | null>(null);
-  const [nexStreamResolvingId, setNexStreamResolvingId] = useState<string | null>(null);
-  const [searchMetadata, setSearchMetadata] = useState<SearchMediaMetadata[]>(readPersistentSearchMetadata);
-  const [searchMetadataStatus, setSearchMetadataStatus] = useState<'idle' | 'loading' | 'ready' | 'not_found' | 'unavailable'>('idle');
-  const [imdbRatingsByKey, setImdbRatingsByKey] = useState<Record<string, ImdbRatingResult>>(readPersistentImdbRatings);
-  const imdbRatingRequestedRef = useRef(new Set<string>());
-  const [imdbRetryTick, setImdbRetryTick] = useState(0);
-  const imdbInFlightRef = useRef(0);
-  const imdbRetryCountRef = useRef(0);
-  const tvMetadataRequestedRef = useRef(new Set<string>());
-  const [searchAvailabilityByGroup, setSearchAvailabilityByGroup] = useState(readPersistentSearchAvailability);
-  const [selectedQualityByGroup, setSelectedQualityByGroup] = useState<Record<string, string>>({});
-  // Search results are compact cards until the user opens one with Get.
-  // The live search, posters, OTT lookups and metadata prefetch keep running independently.
-  const [expandedSearchGroupKey, setExpandedSearchGroupKey] = useState<string | null>(null);
-  const [movieTorrentPreviewGroup, setMovieTorrentPreviewGroup] = useState<TorrentQualityGroup | null>(null);
-  // A TMDB ID alone is not unique across catalogue views. Scope a Prepare
-  // preview to the exact catalogue item the user clicked.
-  const [movieTorrentPreviewCatalogueId, setMovieTorrentPreviewCatalogueId] = useState<string | null>(null);
-  const [pendingPosterAction, setPendingPosterAction] = useState<
-    | { kind: 'catalogue'; movie: MovieCatalogueItem; catalogue: string; page: number }
-    | { kind: 'search'; groupKey: string; page: number }
-    | null
-  >(null);
-  // Preserve the exact poster URL from the catalogue card the user clicked.
-  // The selected inline card must keep using that same source, even while the
-  // catalogue list re-renders or torrent metadata is substituted.
-  const [movieTorrentPreviewPosterUrl, setMovieTorrentPreviewPosterUrl] = useState('');
-  // Capture the URL of the poster that actually loaded in the original catalogue card.
-  const cataloguePosterUrlsRef = useRef<Record<string, string>>({});
-  const searchPosterUrlsRef = useRef<Record<string, string>>({});
-  const [movieTorrentPickerGroups, setMovieTorrentPickerGroups] = useState<TorrentQualityGroup[] | null>(null);
-  const [movieTorrentSearchLoading, setMovieTorrentSearchLoading] = useState(false);
-  const [movieTorrentSearchTitle, setMovieTorrentSearchTitle] = useState('');
-  const [movieTorrentSearchError, setMovieTorrentSearchError] = useState('');
-  const [selectedMovieTorrentQualityByGroup, setSelectedMovieTorrentQualityByGroup] = useState<Record<string, string>>({});
-  const movieTorrentSearchControllerRef = useRef<AbortController | null>(null);
-  const movieTorrentSearchGenerationRef = useRef(0);
-  const prepareClickIntentRef = useRef(false);
-  const prepareTraceIdRef = useRef<string | null>(null);
-  // Keep per-title torrent results and grouped quality variants in memory across
-  // catalogue switches, so reopening a Bollywood/Hollywood movie uses the same
-  // already-resolved details as Marvel instead of repeating provider searches.
-  const movieTorrentDetailsCacheRef = useRef(new Map<string, {
-    groups: TorrentQualityGroup[];
-    savedAt: number;
-  }>());
-  const MOVIE_TORRENT_CACHE_STORAGE_KEY = 'home_movie_torrent_details_v1';
-  const MOVIE_TORRENT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-  const NEXSTREAM_SEARCH_CACHE_KEY = 'home_nexstream_search_v1';
-  const NEXSTREAM_RESOLVE_CACHE_KEY = 'home_nexstream_resolve_v1';
-  const NEXSTREAM_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-  const NEXSTREAM_RESOLVE_CACHE_TTL_MS = 4 * 60 * 1000;
+  const { query, setQuery, results, setResults, resolutionFilter, setResolutionFilter, sizeSort, setSizeSort, timeSort, setTimeSort, showRecentSearches, setShowRecentSearches, metadataCacheRef, recentSearchRef, searchRequestRef, searchGenerationRef } = useSearchInputState();
+  const { nexStreamResults, setNexStreamResults, nexStreamSearchMode, setNexStreamSearchMode, nexStreamLoading, setNexStreamLoading, nexStreamLoadingTitle, setNexStreamLoadingTitle, nexStreamEpisodePrefetchStatus, setNexStreamEpisodePrefetchStatus, nexStreamSearchControllerRef, nexStreamSearchGenerationRef, nexStreamError, setNexStreamError, nexStreamPlayer, setNexStreamPlayer, nexStreamResolvingId, setNexStreamResolvingId, nexStreamEpisodePicker, setNexStreamEpisodePicker, nexStreamSeasons, setNexStreamSeasons, nexStreamEpisodes, setNexStreamEpisodes, nexStreamSelectedSeason, setNexStreamSelectedSeason, nexStreamEpisodesLoading, setNexStreamEpisodesLoading, nexStreamEpisodesError, setNexStreamEpisodesError } = useNexStreamState();
+  const { searchMetadata, setSearchMetadata, searchMetadataStatus, setSearchMetadataStatus, imdbRatingsByKey, setImdbRatingsByKey, imdbRatingRequestedRef, imdbRetryTick, setImdbRetryTick, imdbInFlightRef, imdbRetryCountRef, tvMetadataRequestedRef, searchAvailabilityByGroup, setSearchAvailabilityByGroup, selectedQualityByGroup, setSelectedQualityByGroup } = useSearchMetadataState();
+  const { expandedSearchGroupKey, setExpandedSearchGroupKey, movieTorrentPreviewGroup, setMovieTorrentPreviewGroup, movieTorrentPreviewCatalogueId, setMovieTorrentPreviewCatalogueId, pendingPosterAction, setPendingPosterAction, movieTorrentPreviewPosterUrl, setMovieTorrentPreviewPosterUrl, cataloguePosterUrlsRef, searchPosterUrlsRef, movieTorrentPickerGroups, setMovieTorrentPickerGroups, movieTorrentSearchLoading, setMovieTorrentSearchLoading, movieTorrentSearchTitle, setMovieTorrentSearchTitle, movieTorrentSearchError, setMovieTorrentSearchError, selectedMovieTorrentQualityByGroup, setSelectedMovieTorrentQualityByGroup, movieTorrentSearchControllerRef, movieTorrentSearchGenerationRef, prepareClickIntentRef, prepareTraceIdRef, movieTorrentDetailsCacheRef } = useMoviePreviewState();
 
   const persistMovieTorrentCache = () => {
     try {
@@ -167,51 +92,12 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     } catch {}
   }, []);
 
-  const [isSearching, setIsSearching] = useState(false);
-  const [isPresetCatalogueAction, setIsPresetCatalogueAction] = useState(false);
-  const [searched, setSearched] = useState(false);
-  const [error, setError] = useState('');
-  const [catalogueBuildProgress, setCatalogueBuildProgress] = useState('');
-  const [movieCatalogue, setMovieCatalogue] = useState<MovieCataloguePage | null>(null);
-  const [movieCatalogueSearchText, setMovieCatalogueSearchText] = useState('');
-  const [releasedOnly, setReleasedOnly] = useState(true);
-  const [tmdbFranchiseKey, setTmdbFranchiseKey] = useState<FranchiseTmdbKey>('marvel');
-  const [openCachedLanguageMenu, setOpenCachedLanguageMenu] = useState<CachedFranchiseKey | null>(null);
-  const [openMainCatalogueMenu, setOpenMainCatalogueMenu] = useState<MainCatalogueMenu | null>(null);
-  const [activeTopSection, setActiveTopSection] = useState<ActiveTopSection>(null);
-  const [dcContentTab, setDcContentTab] = useState<'movies' | 'animated' | 'web-series'>('movies');
-  const [regionalContentTabs, setRegionalContentTabs] = useState<Record<RegionalCatalogueGroup, RegionalContentTab>>({ bollywood: null, hollywood: null });
-  const [marvelContentTab, setMarvelContentTab] = useState<RegionalContentTab>(null);
-  const [classicsContentTab, setClassicsContentTab] = useState<ClassicsContentTab>('movies');
-  const [activeFranchiseSearchMode, setActiveFranchiseSearchMode] = useState<CachedFranchiseSearchMode | null>(null);
-  const franchisePageRequestRef = useRef<AbortController | null>(null);
-  const franchisePageGenerationRef = useRef(0);
-  const franchiseLoadedPagesRef = useRef(new Map<CachedFranchiseSearchMode, Set<number>>());
-  const [franchiseGridPage, setFranchiseGridPage] = useState(1);
-  // Hold explicit Prepare clicks until the visible catalogue posters settle.
-  const prepareBuildPendingRef = useRef(false);
-  const previousPosterPageRef = useRef(1);
-  const [posterFirstPageReady, setPosterFirstPageReady] = useState(false);
-  const posterFirstPageReadyRef = useRef(false);
-  const [catalogueExpectedTitles, setCatalogueExpectedTitles] = useState(0);
-  const franchiseGridPageSize = 18;
+  const { isSearching, setIsSearching, isPresetCatalogueAction, setIsPresetCatalogueAction, searched, setSearched, error, setError, catalogueBuildProgress, setCatalogueBuildProgress, movieCatalogue, setMovieCatalogue, movieCatalogueSearchText, setMovieCatalogueSearchText, releasedOnly, tmdbFranchiseKey, setTmdbFranchiseKey, openCachedLanguageMenu, setOpenCachedLanguageMenu, activeTopSection, setActiveTopSection, dcContentTab, setDcContentTab, regionalContentTabs, setRegionalContentTabs, marvelContentTab, setMarvelContentTab, classicsContentTab, setClassicsContentTab, activeFranchiseSearchMode, setActiveFranchiseSearchMode, franchisePageRequestRef, franchisePageGenerationRef, franchiseLoadedPagesRef, franchiseGridPage, setFranchiseGridPage, prepareBuildPendingRef, previousPosterPageRef, posterFirstPageReady, setPosterFirstPageReady, posterFirstPageReadyRef, catalogueExpectedTitles, setCatalogueExpectedTitles, franchiseGridPageSize, openRegionalCatalogueMenu, setOpenRegionalCatalogueMenu, regionalCatalogueModes, setRegionalCatalogueModes, openRegionalTvMenu, setOpenRegionalTvMenu, regionalTvModes, setRegionalTvModes, isClearingTmdbCache, setIsClearingTmdbCache, tmdbCacheMessage, setTmdbCacheMessage, streamingOnly, ottAvailability, setOttAvailability, ottAvailabilityRef, ottQueueRef, ottQueuedIdsRef, ottLookupGenerationRef, ottLiveCheckedRef, ottRetryAttemptsRef, queueOttLookups, ottAvailabilityForMovie, marvelFilmFilter, setMarvelFilmFilter, isMarvelEnglishResults, setIsMarvelEnglishResults, showMarvelWebSeries, setShowMarvelWebSeries, isDcLiveActionEnglishResults, setIsDcLiveActionEnglishResults } = useCatalogueNavigationState();
   useEffect(() => persistSearchMetadata(searchMetadata), [searchMetadata]);
   useEffect(() => persistSearchAvailability(searchAvailabilityByGroup), [searchAvailabilityByGroup]);
   useEffect(() => persistImdbRatings(imdbRatingsByKey), [imdbRatingsByKey]);
   const renderFranchisePagination = (total: number) => total > franchiseGridPageSize ? <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2"><button type="button" disabled={franchiseGridPage <= 1} onClick={() => navigateFranchisePage(Math.max(1, franchiseGridPage - 1))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-200 disabled:opacity-40">← Previous</button><span className="text-xs text-slate-400">Page {franchiseGridPage} of {Math.max(1, Math.ceil(total / franchiseGridPageSize))} · {total} titles</span><button type="button" disabled={franchiseGridPage >= Math.ceil(total / franchiseGridPageSize)} onClick={() => navigateFranchisePage(Math.min(Math.ceil(total / franchiseGridPageSize), franchiseGridPage + 1))} className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-40">Next →</button></div> : null;
-  const [openRegionalCatalogueMenu, setOpenRegionalCatalogueMenu] = useState<RegionalCatalogueGroup | null>(null);
-  const [regionalCatalogueModes, setRegionalCatalogueModes] = useState<Record<RegionalCatalogueGroup, RegionalCatalogueMode>>({
-    bollywood: 'popular',
-    hollywood: 'popular',
-  });
-  const [openRegionalTvMenu, setOpenRegionalTvMenu] = useState<RegionalTvGroup | null>(null);
-  const [regionalTvModes, setRegionalTvModes] = useState<Record<RegionalTvGroup, RegionalTvMode>>({
-    indian: 'popular',
-    hollywood: 'popular',
-  });
-  const [regionalWebSeriesCatalogue, setRegionalWebSeriesCatalogue] = useState<TvCataloguePage | null>(null);
-  const [regionalWebSeriesLoading, setRegionalWebSeriesLoading] = useState(false);
-  const [regionalWebSeriesError, setRegionalWebSeriesError] = useState('');
+  const { regionalWebSeriesCatalogue, setRegionalWebSeriesCatalogue, regionalWebSeriesLoading, setRegionalWebSeriesLoading, regionalWebSeriesError, setRegionalWebSeriesError, showDcWebSeries, setShowDcWebSeries, dcWebSeriesCatalogue, setDcWebSeriesCatalogue, dcWebSeriesLoading, setDcWebSeriesLoading, dcWebSeriesError, setDcWebSeriesError, marvelWebSeriesCatalogue, setMarvelWebSeriesCatalogue, marvelWebSeriesLoading, setMarvelWebSeriesLoading, marvelWebSeriesError, setMarvelWebSeriesError } = useWebSeriesState();
 
   useEffect(() => {
     if (!openCachedLanguageMenu) return;
@@ -311,22 +197,13 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     void openMovieCatalogue(key, label, 1);
   };
 
-  const [isClearingTmdbCache, setIsClearingTmdbCache] = useState(false);
-  const [tmdbCacheMessage, setTmdbCacheMessage] = useState('');
 
   const tmdbFranchiseLabels: Record<FranchiseTmdbKey, string> = {
     marvel: 'Marvel',
     'dc-live-action': 'DC',
     'dc-animated': 'DC Animated',
   };
-  const [streamingOnly, setStreamingOnly] = useState(false);
-  const { ottAvailability, setOttAvailability, ottAvailabilityRef, ottQueueRef, ottQueuedIdsRef, ottLookupGenerationRef, ottLiveCheckedRef, ottRetryAttemptsRef, queueOttLookups, ottAvailabilityForMovie } = useOttAvailability();
 
-  // Initialize state used by visibleMovieCatalogueItems before evaluating its memo dependencies.
-  const [marvelFilmFilter, setMarvelFilmFilter] = useState<MarvelFilmFilter>('all');
-  const [isMarvelEnglishResults, setIsMarvelEnglishResults] = useState(false);
-  const [showMarvelWebSeries, setShowMarvelWebSeries] = useState(false);
-  const [isDcLiveActionEnglishResults, setIsDcLiveActionEnglishResults] = useState(false);
 
   const visibleMovieCatalogueItems = useMemo(() => {
     let movies = movieCatalogue?.results || [];
@@ -385,65 +262,14 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     return !status || status === 'loading';
   }).length || 0;
 
-  // Seed count is the default ranking so the strongest swarms appear first.
-  // 720p/1080p are mutually exclusive. Size and Time are independent sort toggles.
-  const [resolutionFilter, setResolutionFilter] = useState<'720p' | '1080p' | null>(null);
-  const [sizeSort, setSizeSort] = useState<'asc' | 'desc' | null>(null);
-  const [timeSort, setTimeSort] = useState<'desc' | 'asc' | null>(null);
-  const [showDcWebSeries, setShowDcWebSeries] = useState(false);
-  const [dcWebSeriesCatalogue, setDcWebSeriesCatalogue] = useState<TvCataloguePage | null>(null);
-  const [dcWebSeriesLoading, setDcWebSeriesLoading] = useState(false);
-  const [dcWebSeriesError, setDcWebSeriesError] = useState('');
-  const [marvelWebSeriesCatalogue, setMarvelWebSeriesCatalogue] = useState<TvCataloguePage | null>(null);
-  const [marvelWebSeriesLoading, setMarvelWebSeriesLoading] = useState(false);
-  const [marvelWebSeriesError, setMarvelWebSeriesError] = useState('');
-  const [showRecentSearches, setShowRecentSearches] = useState(false);
-  const [preparingTorrentKey, setPreparingTorrentKey] = useState<string | null>(null);
-  const [playingTorrentKey, setPlayingTorrentKey] = useState<string | null>(null);
-  const [copiedTorrentKey, setCopiedTorrentKey] = useState<string | null>(null);
-  const [prepareWaitTitle, setPrepareWaitTitle] = useState('');
-  const [prepareWaitOpen, setPrepareWaitOpen] = useState(false);
-  const [prepareError, setPrepareError] = useState('');
-  const [fullTorrentTitle, setFullTorrentTitle] = useState<string | null>(null);
-  const [fullTorrentTitleKey, setFullTorrentTitleKey] = useState<string | null>(null);
-  const [fullTorrentTitleFading, setFullTorrentTitleFading] = useState(false);
+  const { preparingTorrentKey, setPreparingTorrentKey, playingTorrentKey, setPlayingTorrentKey, copiedTorrentKey, setCopiedTorrentKey, prepareWaitTitle, setPrepareWaitTitle, prepareWaitOpen, setPrepareWaitOpen, prepareError, setPrepareError, setFullTorrentTitle, setFullTorrentTitleKey, setFullTorrentTitleFading, fullTorrentTitleFadeTimerRef, fullTorrentTitleHideTimerRef, preparedByKeyRef } = usePrepareState();
 
-  // Metadata is prefetched in small batches so search remains fast while the
-  // most likely results are already resolved when the user clicks Add.
-  const metadataCacheRef = useRef(new Map<string, {
-    name: string;
-    hash: string;
-    files: { index: number; name: string; size: number; path: string; type: string; priority?: number }[];
-    totalSize: number;
-  }>());
-  const recentSearchRef = useRef<HTMLDivElement | null>(null);
-  const searchRequestRef = useRef<AbortController | null>(null);
-  const searchGenerationRef = useRef(0);
-  const fullTorrentTitleFadeTimerRef = useRef<number | null>(null);
-  const fullTorrentTitleHideTimerRef = useRef<number | null>(null);
 
-  // Poster resolution runs independently of torrent search and ranking.
-  // Results are queued in seed order, but only two background resolutions run
-  // at once so this never becomes a search bottleneck.
-  const [posterOverrides, setPosterOverrides] = useState<Record<string, string>>({});
-  const [metadataPosterFailed, setMetadataPosterFailed] = useState<Record<string, boolean>>({});
-  const posterTitleCacheLoadedRef = useRef(false);
+  const { posterOverrides, setPosterOverrides, metadataPosterFailed, setMetadataPosterFailed, posterTitleCacheLoadedRef, posterLoadedRef, posterMetadataFailedRef, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterBackgroundActiveRef, posterBackgroundActiveKeysRef, posterBackgroundGenerationRef, posterBackgroundAttemptsRef, posterResolveCacheRef } = usePosterState();
   if (!posterTitleCacheLoadedRef.current) {
     readPosterTitleCache();
     posterTitleCacheLoadedRef.current = true;
   }
-  const posterLoadedRef = useRef(new Set<string>());
-  const posterMetadataFailedRef = useRef(new Set<string>());
-  const posterBackgroundQueueRef = useRef<Array<{ key: string; result: TorrentSearchResult }>>([]);
-  const posterBackgroundQueuedRef = useRef(new Set<string>());
-  const posterBackgroundActiveRef = useRef(0);
-  // Track the keys currently being resolved; queued-only checks miss active jobs.
-  const posterBackgroundActiveKeysRef = useRef(new Set<string>());
-  const posterBackgroundGenerationRef = useRef(0);
-  const posterBackgroundAttemptsRef = useRef(new Map<string, number>());
-  // Avoid repeating an identical failed poster request for every quality/variant
-  // of the same title. 404s expire after ten minutes so later retries can recover.
-  const posterResolveCacheRef = useRef(new Map<string, { url: string; expiresAt: number }>());
 
   const fullTorrentTitleFor = (result: TorrentSearchResult) => {
     // Indexer search pages can truncate the displayed title, while the magnet's
@@ -651,7 +477,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     return localFiles.length ? localFiles : findPreparedFiles(result);
   };
 
-  const preparedByKeyRef = useRef(new Map<string, { files: SeedrSearchFile[] }>());
   // Recent searches belong to this Home deployment. Use the same-origin API
   // base as every other Home request; a hard-coded Render URL causes browser CORS
   // failures when Home is opened from the Oracle VPS.
@@ -867,12 +692,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     }
   };
 
-  const [nexStreamEpisodePicker, setNexStreamEpisodePicker] = useState<NexStreamTitle | null>(null);
-  const [nexStreamSeasons, setNexStreamSeasons] = useState<Array<{ seasonNumber: number; name: string; episodeCount: number }>>([]);
-  const [nexStreamEpisodes, setNexStreamEpisodes] = useState<Array<{ episodeNumber: number; name: string; overview: string; airDate: string; still: string | null }>>([]);
-  const [nexStreamSelectedSeason, setNexStreamSelectedSeason] = useState(1);
-  const [nexStreamEpisodesLoading, setNexStreamEpisodesLoading] = useState(false);
-  const [nexStreamEpisodesError, setNexStreamEpisodesError] = useState('');
 
   const loadNexStreamEpisodes = async (item: NexStreamTitle, season: number) => {
     const cached = nexStreamEpisodeCache.get(nexStreamEpisodeCacheKey(item.id, season));
