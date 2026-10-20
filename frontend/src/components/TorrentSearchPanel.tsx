@@ -17,19 +17,20 @@ import {
 } from 'lucide-react';
 import { api, API_BASE, ImdbRatingResult, MarvelCatalogueResponse, MovieCatalogueItem, MovieCatalogueKey, MovieCataloguePage, SearchMediaMetadata, TorrentSearchResult, TvCataloguePage } from '../api/client.ts';
 import { formatBytes } from '../utils/formatters.ts';
+import { TvShowCard } from './torrent-search/TvShowCard.tsx';
 import { MovieCompactCard, MoviePrepareCard, imdbTitleLink, setHighQualityPostersReady } from './MovieCards.tsx';
 import searchLimits from '../../search_limits.json';
 import { TorrentQualityGroup, compareReleaseDateDescending, episodeSeriesTitle, groupTorrentResults, imdbRatingKey, imdbRatingQueryTitle, mergeSearchMetadataItems, normalizeGroupTitle, normalizeSavedOttTitle, releaseDateSortValue, searchMetadataForGroup, torrentGroupReleaseYear, torrentMediaIdentity, torrentQualityDetails, torrentResultKey } from './torrent-search/grouping.ts';
-import { PLAYABLE_FILE_PATTERN, displayOttProviderName, normalizeOttProviderName, normalizeSavedOttProviders, savedOttAvailabilityForMovie, toCardProviders, uniqueOttProviders } from './torrent-search/ottProviders.ts';
+import { PLAYABLE_FILE_PATTERN, displayOttProviderName, normalizeOttProviderName, normalizeSavedOttProviders, toCardProviders, uniqueOttProviders } from './torrent-search/ottProviders.ts';
 import { CachedFranchiseSearchMode, persistImdbRatings, persistSearchAvailability, persistSearchMetadata, readFranchisePageCache, readPersistentImdbRatings, readPersistentSearchAvailability, readPersistentSearchMetadata, writeFranchisePageCache } from './torrent-search/persistentCaches.ts';
 import { isPresetSearchLabel } from './torrent-search/formatting.tsx';
-import { MovieOttCardState, fetchNexStreamEpisodeMetadata, nexStreamEpisodeCache, nexStreamEpisodeCacheKey, normalizeTorrentTitleForNexStream, prefetchNexStreamEpisodeMetadata } from './torrent-search/nexstream.ts';
+import { fetchNexStreamEpisodeMetadata, nexStreamEpisodeCache, nexStreamEpisodeCacheKey, normalizeTorrentTitleForNexStream, prefetchNexStreamEpisodeMetadata } from './torrent-search/nexstream.ts';
 import { cataloguePosterOverride, cataloguePosterSource, imdbFallbackForCatalogueMovie, imdbRatingForCatalogueMovie, isTheCrow2024 } from './torrent-search/cataloguePosters.ts';
 import { cachedPosterForTitle, posterTitleCacheKeys, readPosterTitleCache, savePosterTitleCache } from './torrent-search/posterCache.ts';
 import { lowQualityPosterUrl, posterImageUrlForResult, posterKeyFor, posterResolveCandidateUrlsFor } from './torrent-search/posterUrls.ts';
 import { apiFetchRecent, catalogueMovieIdentity, extractedQuality, normalizeMatchText, writeLocalCache } from './torrent-search/helpers.ts';
 import { ActiveTopSection, CachedFranchiseKey, ClassicsContentTab, FranchiseTmdbKey, MainCatalogueMenu, MarvelFilmFilter, NexStreamTitle, RegionalCatalogueGroup, RegionalCatalogueMode, RegionalContentTab, RegionalTvGroup, RegionalTvMode } from './torrent-search/types.ts';
-
+import { useOttAvailability } from './torrent-search/useOttAvailability.ts';
 
 type SeedrSearchFile = {
   id: string;
@@ -56,7 +57,6 @@ interface TorrentSearchPanelProps {
   seedrDeletedFolderIds?: string[];
   onPlaySeedrFile?: (file: SeedrSearchFile) => void | Promise<void>;
 }
-
 
 export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepare, onCancelPrepare, onOpenProgress, seedrFiles = [], seedrDeletedFolderIds = [], onPlaySeedrFile }) => {
   const [query, setQuery] = useState('');
@@ -156,7 +156,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     return null;
   };
 
-
   useEffect(() => {
     try {
       const entries = JSON.parse(localStorage.getItem(MOVIE_TORRENT_CACHE_STORAGE_KEY) || '[]') as Array<[string, { groups: TorrentQualityGroup[]; savedAt: number }]>;
@@ -213,7 +212,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
   const [regionalWebSeriesCatalogue, setRegionalWebSeriesCatalogue] = useState<TvCataloguePage | null>(null);
   const [regionalWebSeriesLoading, setRegionalWebSeriesLoading] = useState(false);
   const [regionalWebSeriesError, setRegionalWebSeriesError] = useState('');
-
 
   useEffect(() => {
     if (!openCachedLanguageMenu) return;
@@ -322,159 +320,7 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     'dc-animated': 'DC Animated',
   };
   const [streamingOnly, setStreamingOnly] = useState(false);
-  const [ottAvailability, setOttAvailability] = useState<Record<string, MovieOttCardState>>({});
-  const ottAvailabilityRef = useRef<Record<string, MovieOttCardState>>({});
-  const ottQueueRef = useRef<string[]>([]);
-  const ottQueuedIdsRef = useRef(new Set<string>());
-  const ottActiveWorkersRef = useRef(0);
-  const ottLookupGenerationRef = useRef(0);
-  const ottQueuePumpRef = useRef<() => void>(() => {});
-  // Movies seen by the card grid, live lookups already made this session, and
-  // failed-lookup retry counts. Missing streaming info is re-checked automatically.
-  const ottKnownMoviesRef = useRef(new Map<string, MovieCatalogueItem>());
-  const ottLiveCheckedRef = useRef(new Set<string>());
-  const ottRetryAttemptsRef = useRef(new Map<string, number>());
-  const ottRetryTimerRef = useRef<number | null>(null);
-
-  const setOttState = (movieId: string, state: MovieOttCardState) => {
-    const next = { ...ottAvailabilityRef.current, [movieId]: state };
-    ottAvailabilityRef.current = next;
-    setOttAvailability(next);
-  };
-
-  // Failed lookups are retried automatically (bounded) instead of staying on an error forever.
-  const scheduleOttRetry = () => {
-    if (ottRetryTimerRef.current !== null) return;
-    const generation = ottLookupGenerationRef.current;
-    ottRetryTimerRef.current = window.setTimeout(() => {
-      ottRetryTimerRef.current = null;
-      if (generation !== ottLookupGenerationRef.current) return;
-      const retry = [...ottKnownMoviesRef.current.values()].filter(movie => {
-        const id = String(movie.id);
-        const state = ottAvailabilityRef.current[id];
-        const hasData = !!state && state.status !== 'error' && state.status !== 'loading';
-        return !hasData && (ottRetryAttemptsRef.current.get(id) || 0) < 5;
-      });
-      if (retry.length) queueOttLookups(retry, true);
-    }, 30000);
-  };
-
-  // Limit upstream load. The backend caches provider hits for 24 hours and misses for 6 hours,
-  // and coalesces simultaneous requests, so repeated visitors reuse the same result.
-  const pumpOttQueue = () => {
-    while (ottActiveWorkersRef.current < 3 && ottQueueRef.current.length > 0) {
-      const movieId = ottQueueRef.current.shift();
-      if (!movieId) continue;
-      ottActiveWorkersRef.current += 1;
-      const lookupGeneration = ottLookupGenerationRef.current;
-      void (async () => {
-        try {
-          const availability = await api.getMovieOttAvailability(Number(movieId), 'IN');
-          if (lookupGeneration === ottLookupGenerationRef.current) {
-            const current = ottAvailabilityRef.current[movieId];
-            const providerCount = (value: any) =>
-              (Array.isArray(value?.streamingProviders) ? value.streamingProviders.length : 0) +
-              (Array.isArray(value?.rentProviders) ? value.rentProviders.length : 0) +
-              (Array.isArray(value?.buyProviders) ? value.buyProviders.length : 0);
-            // A page-specific refresh can return an empty/incomplete response.
-            // Never let it erase provider names already hydrated from the saved catalogue.
-            if (providerCount(availability) === 0 && providerCount(current) > 0) {
-              setOttState(movieId, current);
-            } else {
-              setOttState(movieId, availability);
-            }
-          }
-        } catch (error: any) {
-          if (lookupGeneration === ottLookupGenerationRef.current) {
-            const current = ottAvailabilityRef.current[movieId];
-            // Keep saved/cached provider info on screen if the live re-check fails.
-            if (!current || current.status === 'loading' || current.status === 'error') {
-              setOttState(movieId, {
-                status: 'error',
-                message: String(error?.message || 'OTT availability could not be checked.'),
-              });
-            }
-            scheduleOttRetry();
-          }
-        } finally {
-          if (lookupGeneration === ottLookupGenerationRef.current) {
-            ottQueuedIdsRef.current.delete(movieId);
-          }
-          ottActiveWorkersRef.current -= 1;
-          ottQueuePumpRef.current();
-        }
-      })();
-    }
-  };
-  ottQueuePumpRef.current = pumpOttQueue;
-
-  const queueOttLookups = (movies: MovieCatalogueItem[], retryErrors = false) => {
-    const next = { ...ottAvailabilityRef.current };
-    let changed = false;
-    const hasProviders = (state?: MovieOttCardState) => {
-      const value = state as any;
-      return !!value && (
-        (value.streamingProviders?.length || 0) + (value.rentProviders?.length || 0) + (value.buyProviders?.length || 0) > 0
-      );
-    };
-    const recheckAfterMs = 6 * 60 * 60 * 1000;
-    for (const movie of movies) {
-      const movieId = String(movie.id);
-      if (!/^\d+$/.test(movieId)) continue;
-      ottKnownMoviesRef.current.set(movieId, movie);
-      const existing = next[movieId];
-      const isRetry = retryErrors && (!existing || existing.status === 'error' || existing.status === 'loading');
-
-      // Hydrate saved provider data before checking whether a live lookup is
-      // already queued. This matters when revisiting a page while a request for
-      // the same title is still in flight.
-      let state = existing && !isRetry ? existing : undefined;
-      const saved = movie.ottAvailability;
-      if (!state) {
-        state = savedOttAvailabilityForMovie(movie);
-      }
-      if (state) {
-        next[movieId] = state;
-        changed = true;
-      }
-
-      if (ottQueuedIdsRef.current.has(movieId)) continue;
-      if (existing && !isRetry && ottLiveCheckedRef.current.has(movieId)) continue;
-
-      const checkedMs = Date.parse(String((state as any)?.checkedAt || ''));
-      const savedIsFreshMiss = !!state && state.status !== 'loading' && state.status !== 'error' &&
-        !hasProviders(state) && !(state as any).incomplete && !(saved as any)?.incomplete && Number.isFinite(checkedMs) && Date.now() - checkedMs < recheckAfterMs;
-      const needsLive = isRetry || !state || state.status === 'loading' || state.status === 'error' ||
-        (!hasProviders(state) && !savedIsFreshMiss);
-      if (!needsLive) {
-        ottLiveCheckedRef.current.add(movieId);
-        continue;
-      }
-      const attempts = ottRetryAttemptsRef.current.get(movieId) || 0;
-      if (isRetry && attempts >= 5) continue;
-      ottRetryAttemptsRef.current.set(movieId, attempts + 1);
-      ottLiveCheckedRef.current.add(movieId);
-      ottQueuedIdsRef.current.add(movieId);
-      ottQueueRef.current.push(movieId);
-      if (!state) {
-        next[movieId] = { status: 'loading' };
-        changed = true;
-      }
-    }
-    if (changed) {
-      ottAvailabilityRef.current = next;
-      setOttAvailability(next);
-    }
-    ottQueuePumpRef.current();
-  };
-
-  const ottAvailabilityForMovie = (movie: MovieCatalogueItem): MovieOttCardState | undefined => {
-    const current = ottAvailability[String(movie.id)];
-    if (!current || current.status === 'loading' || current.status === 'error') {
-      return savedOttAvailabilityForMovie(movie) || current;
-    }
-    return current;
-  };
+  const { ottAvailability, setOttAvailability, ottAvailabilityRef, ottQueueRef, ottQueuedIdsRef, ottLookupGenerationRef, ottLiveCheckedRef, ottRetryAttemptsRef, queueOttLookups, ottAvailabilityForMovie } = useOttAvailability();
 
   // Initialize state used by visibleMovieCatalogueItems before evaluating its memo dependencies.
   const [marvelFilmFilter, setMarvelFilmFilter] = useState<MarvelFilmFilter>('all');
@@ -599,7 +445,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
   // of the same title. 404s expire after ten minutes so later retries can recover.
   const posterResolveCacheRef = useRef(new Map<string, { url: string; expiresAt: number }>());
 
-
   const fullTorrentTitleFor = (result: TorrentSearchResult) => {
     // Indexer search pages can truncate the displayed title, while the magnet's
     // dn parameter normally carries the actual full torrent name.
@@ -618,10 +463,8 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     return String(result.title || result.mediaTitle || '').trim();
   };
 
-
   // Load lightweight w185 thumbnails first; MovieCards upgrades them to w780 only
   // after card metadata, ratings and OTT availability have settled.
-
 
   const resolvePosterInBackground = async (url: string, generation: number) => {
     if (generation !== posterBackgroundGenerationRef.current) return '';
@@ -782,7 +625,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
   const posterUrlFor = (result: TorrentSearchResult) =>
     lowQualityPosterUrl(posterOverrides[posterKeyFor(result)] || '');
 
-
   const findPreparedFiles = (result: TorrentSearchResult): SeedrSearchFile[] => {
     const title = normalizeMatchText(result.title);
     if (!title || title.length < 4) return [];
@@ -920,7 +762,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
       return next;
     });
   };
-
 
   const cancelSearch = () => {
     // Invalidate the active request before aborting so late responses cannot update the UI.
@@ -3067,7 +2908,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     void runSearch(undefined, category, mode);
   };
 
-
   // A prepared movie is an inline view, not persistent catalogue selection.
   // Clear it before changing sections, subsections, filters or numbered pages;
   // cancel any stale lookup so its late result cannot reopen the old card.
@@ -3404,40 +3244,28 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
           {nexStreamSearchMode === 'tv' && nexStreamResults.length > 0 && (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               {nexStreamResults.filter(item => item.type === 'tv').map(item => (
-                <article key={'nexstream-tv-' + item.id} className="min-w-0 overflow-hidden rounded-xl border border-violet-500/25 bg-slate-950">
-                  <div className="aspect-[2/3] bg-slate-900">
-                    {item.poster ? <img src={lowQualityPosterUrl(item.poster)} alt={item.title} loading="eager" onLoad={event => {
-                            const image = event.currentTarget;
-                            if (!image.dataset.highQualityTried && image.currentSrc.includes('/t/p/w185/')) {
-                              image.dataset.highQualityTried = 'true';
-                              image.src = image.currentSrc.replace('/t/p/w185/', '/t/p/w780/');
-                            }
-                          }} className="h-full w-full object-cover" onError={event => {
-                            const image = event.currentTarget;
-                            if (image.dataset.highQualityTried === 'true' && image.src.includes('/t/p/w780/')) {
-                              image.src = image.src.replace('/t/p/w780/', '/t/p/w185/');
-                              return;
-                            }
-                            image.style.display = 'none';
-                          }} /> : <div className="flex h-full items-center justify-center text-slate-600"><Film className="h-8 w-8" /></div>}
-                  </div>
-                  <div className="flex flex-col gap-2 p-2.5">
-                    <h4 className="line-clamp-2 text-sm font-bold text-slate-100">{item.title}</h4>
-                    <p className="text-[11px] text-slate-500">{item.date ? item.date.slice(0, 4) : 'Release year unknown'} · TV series</p>
-                    {item.overview && <p className="line-clamp-3 text-[11px] leading-relaxed text-slate-400">{item.overview}</p>}
+                <TvShowCard
+                  key={'nexstream-tv-' + item.id}
+                  show={{ id: item.id, title: item.title, year: Number(item.date?.slice(0, 4)) || null, posterUrl: item.poster || undefined, overview: item.overview }}
+                  imdb={imdbRatingsByKey[imdbRatingKey(item.title, item.date ? item.date.slice(0, 4) : null, 'tv')]}
+                  onOpen={() => {
+                    if (nexStreamResolvingId === 'tv:' + item.id || nexStreamEpisodePrefetchStatus[String(item.id)] === 'loading') return;
+                    void playWithNexStream(item);
+                  }}
+                  footer={
                     <button
                       type="button"
                       disabled={nexStreamResolvingId === 'tv:' + item.id || nexStreamEpisodePrefetchStatus[String(item.id)] === 'loading'}
                       onClick={() => void playWithNexStream(item)}
-                      className="mt-auto w-full rounded-lg bg-violet-500 px-3 py-2 text-xs font-bold text-white hover:bg-violet-400 disabled:cursor-wait disabled:opacity-60"
+                      className="w-full rounded-lg bg-violet-500 px-3 py-2 text-xs font-bold text-white hover:bg-violet-400 disabled:cursor-wait disabled:opacity-60"
                     >
                       {nexStreamResolvingId === 'tv:' + item.id ? <><Loader2 className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />Resolving…</>
                         : nexStreamEpisodePrefetchStatus[String(item.id)] === 'loading' ? <><Loader2 className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />Preparing episodes…</>
                         : nexStreamEpisodePrefetchStatus[String(item.id)] === 'ready' ? <><Play className="mr-1.5 inline h-3.5 w-3.5" />Choose episode</>
                         : <><Play className="mr-1.5 inline h-3.5 w-3.5" />{nexStreamEpisodePrefetchStatus[String(item.id)] === 'error' ? 'Retry episode data' : 'Choose episode'}</>}
                     </button>
-                  </div>
-                </article>
+                  }
+                />
               ))}
             </div>
           )}
@@ -3946,35 +3774,7 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
                   {renderFranchisePagination(marvelWebSeriesCatalogue.results.length)}
                   <div className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
                     {[...marvelWebSeriesCatalogue.results].sort(compareReleaseDateDescending).slice((franchiseGridPage - 1) * franchiseGridPageSize, franchiseGridPage * franchiseGridPageSize).map(show => (
-                      <article key={String(show.id)} className="min-w-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-900 transition hover:border-violet-400/50 hover:bg-slate-900/95 flex flex-col">
-                        <button type="button" onClick={() => playCatalogueTvWithNexStream(show)} aria-label={`Play ${show.title} with NexStream`} className="relative aspect-[2/3] w-full overflow-hidden bg-slate-950 text-left cursor-pointer">
-                          {show.posterUrl ? <img src={lowQualityPosterUrl(show.posterUrl)} alt={show.title} loading="eager" className="h-full w-full object-cover" onError={event => {
-                            const image = event.currentTarget;
-                            if (image.src.includes('/t/p/w780/')) {
-                              image.src = image.src.replace('/t/p/w780/', '/t/p/w185/');
-                              return;
-                            }
-                            // TMDB can return a stale/missing poster path. Retry through
-                            // the same-origin title/year poster resolver before showing a blank card.
-                            if (image.dataset.posterFallbackTried !== 'true') {
-                              image.dataset.posterFallbackTried = 'true';
-                              const params = new URLSearchParams({ title: show.title, size: 'w185' });
-                              if (show.year) params.set('year', String(show.year));
-                              image.src = '/api/poster?' + params.toString();
-                              return;
-                            }
-                            image.style.display = 'none';
-                          }} /> : <div className="absolute inset-0 flex items-center justify-center text-slate-600"><Film className="h-8 w-8" /></div>}
-                          {show.rating ? <span className="absolute left-2 top-2 rounded-md border border-amber-300/60 bg-slate-950/95 px-2 py-1 text-[10px] font-bold text-amber-300 shadow">⭐ {show.rating.toFixed(1)}/10</span> : null}
-                          <span className="absolute bottom-2 right-2 rounded-md border border-violet-300/50 bg-slate-950/90 px-2 py-1 text-[10px] font-bold text-violet-200">▶ NexStream</span>
-                        </button>
-                        <div className="flex flex-1 flex-col gap-2 p-2.5">
-                          <div><h3 className="line-clamp-2 text-sm font-bold leading-snug text-slate-100">{show.title}</h3>
-                            <div className="mt-0.5 text-xs text-slate-500">{show.year || 'Year unknown'} · OTT Web Series</div></div>
-                          {show.overview && <p className="line-clamp-3 text-[11px] leading-relaxed text-slate-400">{show.overview}</p>}
-                          {show.streamingProviders?.length ? <div className="flex flex-wrap gap-1">{uniqueOttProviders(show.streamingProviders.filter(provider => ['subscription','free','ads'].includes(provider.type))).map(provider => <span key={normalizeOttProviderName(provider.name)} className="rounded bg-slate-800 px-1.5 py-1 text-[10px] text-cyan-200">{displayOttProviderName(provider.name)}</span>)}</div> : null}
-                        </div>
-                      </article>
+                      <TvShowCard key={String(show.id)} show={show} imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]} onOpen={() => playCatalogueTvWithNexStream(show)} />
                     ))}
                   </div>
                   {renderFranchisePagination(marvelWebSeriesCatalogue.results.length)}
@@ -4012,34 +3812,7 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
               })()}
               <div className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
                 {regionalWebSeriesCatalogue.results.map(show => (
-                  <article key={String(show.id)} className="min-w-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-900 flex flex-col">
-                    <button type="button" onClick={() => playCatalogueTvWithNexStream(show)} aria-label={`Find ${show.title} on NexStream`} className="relative aspect-[2/3] w-full overflow-hidden bg-slate-950 text-left cursor-pointer">
-                      {show.posterUrl ? <img src={lowQualityPosterUrl(show.posterUrl)} alt={show.title} loading="eager" className="h-full w-full object-cover" onError={event => {
-                            const image = event.currentTarget;
-                            if (image.src.includes('/t/p/w780/')) {
-                              image.src = image.src.replace('/t/p/w780/', '/t/p/w185/');
-                              return;
-                            }
-                            // TMDB can return a stale/missing poster path. Retry through
-                            // the same-origin title/year poster resolver before showing a blank card.
-                            if (image.dataset.posterFallbackTried !== 'true') {
-                              image.dataset.posterFallbackTried = 'true';
-                              const params = new URLSearchParams({ title: show.title, size: 'w185' });
-                              if (show.year) params.set('year', String(show.year));
-                              image.src = '/api/poster?' + params.toString();
-                              return;
-                            }
-                            image.style.display = 'none';
-                          }} /> : <div className="absolute inset-0 flex items-center justify-center text-slate-600"><Film className="h-8 w-8" /></div>}
-                      {show.rating ? <span className="absolute left-2 top-2 rounded-md border border-amber-300/60 bg-slate-950/95 px-2 py-1 text-[10px] font-bold text-amber-300">⭐ {show.rating.toFixed(1)}/10</span> : null}
-                    </button>
-                    <div className="flex flex-1 flex-col gap-2 p-2.5">
-                      <div><h3 className="line-clamp-2 text-sm font-bold leading-snug text-slate-100">{show.title}</h3>
-                        <div className="mt-0.5 text-xs text-slate-500">{show.year || 'Year unknown'} · OTT Web Series</div></div>
-                      {show.overview && <p className="line-clamp-3 text-[11px] leading-relaxed text-slate-400">{show.overview}</p>}
-                      {show.streamingProviders?.length ? <div className="flex flex-wrap gap-1">{uniqueOttProviders(show.streamingProviders.filter(provider => ['subscription','free','ads'].includes(provider.type))).map(provider => <span key={normalizeOttProviderName(provider.name)} className="rounded bg-slate-800 px-1.5 py-1 text-[10px] text-cyan-200">{displayOttProviderName(provider.name)}</span>)}</div> : null}
-                    </div>
-                  </article>
+                  <TvShowCard key={String(show.id)} show={show} imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]} onOpen={() => playCatalogueTvWithNexStream(show)} />
                 ))}
               </div>
               {(() => {
@@ -4075,34 +3848,7 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
                   {renderFranchisePagination(dcWebSeriesCatalogue.results.length)}
                   <div className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
                     {[...dcWebSeriesCatalogue.results].sort(compareReleaseDateDescending).slice((franchiseGridPage - 1) * franchiseGridPageSize, franchiseGridPage * franchiseGridPageSize).map(show => (
-                      <article key={String(show.id)} className="min-w-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-900 transition hover:border-cyan-500/40 hover:bg-slate-900/95 flex flex-col">
-                        <button type="button" onClick={() => playCatalogueTvWithNexStream(show)} aria-label={`Find ${show.title} on NexStream`} className="relative aspect-[2/3] w-full overflow-hidden bg-slate-950 text-left cursor-pointer">
-                          {show.posterUrl ? <img src={lowQualityPosterUrl(show.posterUrl)} alt={show.title} loading="eager" className="h-full w-full object-cover" onError={event => {
-                            const image = event.currentTarget;
-                            if (image.src.includes('/t/p/w780/')) {
-                              image.src = image.src.replace('/t/p/w780/', '/t/p/w185/');
-                              return;
-                            }
-                            // TMDB can return a stale/missing poster path. Retry through
-                            // the same-origin title/year poster resolver before showing a blank card.
-                            if (image.dataset.posterFallbackTried !== 'true') {
-                              image.dataset.posterFallbackTried = 'true';
-                              const params = new URLSearchParams({ title: show.title, size: 'w185' });
-                              if (show.year) params.set('year', String(show.year));
-                              image.src = '/api/poster?' + params.toString();
-                              return;
-                            }
-                            image.style.display = 'none';
-                          }} /> : <div className="absolute inset-0 flex items-center justify-center text-slate-600"><Film className="h-8 w-8" /></div>}
-                          {show.rating ? <span className="absolute left-2 top-2 rounded-md border border-amber-300/60 bg-slate-950/95 px-2 py-1 text-[10px] font-bold text-amber-300 shadow">⭐ {show.rating.toFixed(1)}/10</span> : null}
-                        </button>
-                        <div className="flex flex-1 flex-col gap-2 p-2.5">
-                          <div><h3 className="line-clamp-2 text-sm font-bold leading-snug text-slate-100">{show.title}</h3>
-                            <div className="mt-0.5 text-xs text-slate-500">{show.year || 'Year unknown'} · OTT Web Series</div></div>
-                          {show.overview && <p className="line-clamp-3 text-[11px] leading-relaxed text-slate-400">{show.overview}</p>}
-                          {show.streamingProviders?.length ? <div className="flex flex-wrap gap-1">{uniqueOttProviders(show.streamingProviders.filter(provider => ['subscription','free','ads'].includes(provider.type))).map(provider => <span key={normalizeOttProviderName(provider.name)} className="rounded bg-slate-800 px-1.5 py-1 text-[10px] text-cyan-200">{displayOttProviderName(provider.name)}</span>)}</div> : null}
-                        </div>
-                      </article>
+                      <TvShowCard key={String(show.id)} show={show} imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]} onOpen={() => playCatalogueTvWithNexStream(show)} />
                     ))}
                   </div>
                   {renderFranchisePagination(dcWebSeriesCatalogue.results.length)}
@@ -4123,34 +3869,7 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
                       .sort(compareReleaseDateDescending)
                       .slice((franchiseGridPage - 1) * franchiseGridPageSize, franchiseGridPage * franchiseGridPageSize)
                       .map(show => (
-                      <article key={String(show.id)} className="min-w-0 overflow-hidden rounded-xl border border-slate-800 bg-slate-900 transition hover:border-cyan-500/40 hover:bg-slate-900/95 flex flex-col">
-                        <button type="button" onClick={() => playCatalogueTvWithNexStream(show)} aria-label={`Find ${show.title} on NexStream`} className="relative aspect-[2/3] w-full overflow-hidden bg-slate-950 text-left cursor-pointer">
-                          {show.posterUrl ? <img src={lowQualityPosterUrl(show.posterUrl)} alt={show.title} loading="eager" className="h-full w-full object-cover" onError={event => {
-                            const image = event.currentTarget;
-                            if (image.src.includes('/t/p/w780/')) {
-                              image.src = image.src.replace('/t/p/w780/', '/t/p/w185/');
-                              return;
-                            }
-                            // TMDB can return a stale/missing poster path. Retry through
-                            // the same-origin title/year poster resolver before showing a blank card.
-                            if (image.dataset.posterFallbackTried !== 'true') {
-                              image.dataset.posterFallbackTried = 'true';
-                              const params = new URLSearchParams({ title: show.title, size: 'w185' });
-                              if (show.year) params.set('year', String(show.year));
-                              image.src = '/api/poster?' + params.toString();
-                              return;
-                            }
-                            image.style.display = 'none';
-                          }} /> : <div className="absolute inset-0 flex items-center justify-center text-slate-600"><Film className="h-8 w-8" /></div>}
-                          {show.rating ? <span className="absolute left-2 top-2 rounded-md border border-amber-300/60 bg-slate-950/95 px-2 py-1 text-[10px] font-bold text-amber-300 shadow">⭐ {show.rating.toFixed(1)}/10</span> : null}
-                        </button>
-                        <div className="flex flex-1 flex-col gap-2 p-2.5">
-                          <div><h3 className="line-clamp-2 text-sm font-bold leading-snug text-slate-100">{show.title}</h3>
-                            <div className="mt-0.5 text-xs text-slate-500">{show.year || 'Year unknown'} · OTT Web Series</div></div>
-                          {show.overview && <p className="line-clamp-3 text-[11px] leading-relaxed text-slate-400">{show.overview}</p>}
-                          {show.streamingProviders?.length ? <div className="flex flex-wrap gap-1">{uniqueOttProviders(show.streamingProviders.filter(provider => ['subscription','free','ads'].includes(provider.type))).map(provider => <span key={normalizeOttProviderName(provider.name)} className="rounded bg-slate-800 px-1.5 py-1 text-[10px] text-cyan-200">{displayOttProviderName(provider.name)}</span>)}</div> : null}
-                        </div>
-                      </article>
+                      <TvShowCard key={String(show.id)} show={show} imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]} onOpen={() => playCatalogueTvWithNexStream(show)} />
                     ))}
                   </div>
                   {renderFranchisePagination(marvelWebSeriesCatalogue.results.length)}

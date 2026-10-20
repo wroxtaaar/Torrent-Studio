@@ -23,6 +23,16 @@ can pick up at the first open box.
 > F4–F7 are exploratory: re-read the state graph at the start of each step and
 > adjust the list (and this document) before moving code.
 
+## Rule: one initial card, one prepare card
+
+Every section must render the shared cards, so a change to a card applies everywhere:
+
+* **Initial card** = `MovieCompactCard` (`components/MovieCards.tsx`). Movie sections use it directly;
+  TV / web-series sections (4 catalogue grids + NexStream TV search) use it through `torrent-search/TvShowCard.tsx`.
+* **Prepare card** = `MoviePrepareCard` (movie catalogue sections and normal search results).
+* No section may hand-write card markup: CI fails on `<article` outside `MovieCatalogueCard.tsx`.
+* When splitting JSX (F5/F7) the new section components must keep using these; never copy a card.
+
 ## How to do a step
 
 The authoring sandbox has no npm access, so the checks that CI does with `tsc` and `vite build`

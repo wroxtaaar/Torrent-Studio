@@ -42,6 +42,14 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm install
+      # Every section must render the shared MovieCompactCard / MoviePrepareCard so a
+      # change to a card applies everywhere. Card frames live only in MovieCatalogueCard.
+      - name: Shared card guard
+        run: |
+          if grep -rn "<article" frontend/src --include=*.tsx | grep -v "frontend/src/components/MovieCatalogueCard.tsx"; then
+            echo "::error::Do not hand-write card markup in a section. Use MovieCompactCard / MoviePrepareCard (see MovieCards.tsx)."
+            exit 1
+          fi
       - name: Type check
         working-directory: frontend
         run: npm run lint

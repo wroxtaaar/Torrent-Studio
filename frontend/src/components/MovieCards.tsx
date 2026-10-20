@@ -16,9 +16,11 @@ export { requestHighQualityPoster, setHighQualityPostersReady } from './movie-ca
  *   2. MoviePrepareCard  - torrent details: quality picker, seeders, source,
  *      Direct Stream + Prepare, and Play / Download / Copy once prepared.
  *
- * Web series cards are intentionally separate. These components are purely
- * presentational: callers supply data and handlers, so a design or behaviour
- * change made here applies to every movie card at once.
+ * TV / web-series sections use the SAME initial card (via torrent-search/TvShowCard.tsx,
+ * which only maps a series to MovieCompactCard's props). These components are purely
+ * presentational: callers supply data and handlers, so a design or behaviour change
+ * made here applies to every section at once. Do not copy this markup into a section;
+ * CI fails on card frames (<article>) outside MovieCatalogueCard.
  */
 
 export type MovieCardImdb = Pick<ImdbRatingResult, 'imdbRating' | 'imdbVotes' | 'imdbId' | 'imdbUrl'> | null | undefined;
@@ -65,6 +67,8 @@ export interface MovieCompactCardProps {
   providersAriaLabel: string;
   /** Text shown when there are no streaming providers to list. */
   providersFallbackText: string;
+  /** Optional action area pinned to the bottom of the card (e.g. a progress button). */
+  footer?: React.ReactNode;
 }
 
 export const MovieCompactCard: React.FC<MovieCompactCardProps> = ({
@@ -83,6 +87,7 @@ export const MovieCompactCard: React.FC<MovieCompactCardProps> = ({
   providers,
   providersAriaLabel,
   providersFallbackText,
+  footer,
 }) => {
   const showImdb = hasImdbRating(imdb);
   const showTmdb = !showImdb && tmdbRating != null && tmdbRating > 0;
@@ -212,6 +217,7 @@ export const MovieCompactCard: React.FC<MovieCompactCardProps> = ({
         ) : (
           <div className="text-[10px] leading-relaxed text-slate-500">{providersFallbackText}</div>
         )}
+        {footer ? <div className="mt-auto">{footer}</div> : null}
       </div>
     </MovieCatalogueCard>
   );
