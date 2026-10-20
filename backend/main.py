@@ -41,61 +41,98 @@ from cache_diagnostics import (
 )
 from nexstream import nexstream_api_key_configured, resolve_nexstream_movie
 
-_TRUTHY = {"1", "true", "yes", "on"}
-# Cache-only deployments (e.g. Render free without provider keys) must never
-# call TMDB/Watchmode/OMDb/poster providers; prefilled sections read the bundled cache.
-_PROVIDER_KEY_ENV_NAMES = (
-    "TMDB_API_KEY", "TMDB_API_KEYS", "TMDB_READ_ACCESS_TOKEN", "TMDB_READ_ACCESS_TOKENS",
-    "WATCHMODE_API_KEY", "WATCHMODE_API_KEYS", "OMDB_API_KEY", "OMDB_API_KEYS",
+from settings import (
+    ALLOW_LEGACY_SEEDR_TOKEN,
+    APP_NAME,
+    CACHE_ONLY_MODE,
+    CORS_ORIGINS,
+    CORS_ORIGIN_REGEX,
+    DC_TV_CATALOGUE_CACHE_FILE,
+    DEBUG_ENDPOINTS_ENABLED,
+    FAST_SEARCH_TEST_URL,
+    FAST_SEARCH_TRACKERS,
+    FEEDBACK_GLOBAL_RATE_LIMIT,
+    FEEDBACK_RATE_LIMIT,
+    FEEDBACK_RATE_WINDOW_SECONDS,
+    GITHUB_FEEDBACK_REPO,
+    GITHUB_FEEDBACK_TOKEN,
+    IMDB_RATING_CACHE_FILE,
+    IMDB_RATING_CACHE_TTL_SECONDS,
+    IMDB_RATING_LOOKUP_VERSION,
+    IMDB_RATING_NOT_FOUND_TTL_SECONDS,
+    KNABEN_API_URL,
+    MARVEL_TV_CATALOGUE_CACHE_FILE,
+    MAX_SEARCH_RESULT_SIZE_BYTES,
+    MIN_SEARCH_RESULT_SIZE_BYTES,
+    REGIONAL_MOVIE_CACHE_PAGE_SIZE,
+    REGIONAL_MOVIE_CACHE_TTL_SECONDS,
+    REGIONAL_MOVIE_CATALOGUE_KEYS,
+    REGIONAL_MOVIE_PREWARM_PAGES,
+    REGIONAL_MOVIE_TRENDING_ARCHIVE_FILE,
+    REGIONAL_MOVIE_TRENDING_ARCHIVE_WEEKS,
+    REGIONAL_TV_PREBUILT_CACHE_FILE,
+    SEARCH_CACHE_MAX_ENTRIES,
+    SEARCH_CACHE_MIN_RESULTS,
+    SEARCH_CACHE_SECONDS,
+    SEARCH_CACHE_STALE_SECONDS,
+    SEARCH_COMPOUND_ALIASES,
+    SEARCH_SOURCE_TIMEOUT_SECONDS,
+    SEARCH_TOTAL_TIMEOUT_SECONDS,
+    SEEDR_BASE,
+    SEEDR_DEVICE_AUTHORIZE_URL,
+    SEEDR_DEVICE_CLIENT_ID,
+    SEEDR_DEVICE_CODE_URL,
+    SEEDR_MEDIA_BASE,
+    SEEDR_PAT_BASE,
+    SEEDR_SESSION_COOKIE,
+    SEEDR_SESSION_SAMESITE,
+    SEEDR_SESSION_SECRET,
+    SEEDR_SESSION_TTL_SECONDS,
+    SEEDR_TOKEN,
+    SEEDR_V2_BASE,
+    STREAMING_AVAILABILITY_API_BASE,
+    STREAMING_AVAILABILITY_API_KEY,
+    SYNOPSIS_CACHE_RETRY_INTERVAL_SECONDS,
+    TMDB_API_BASE,
+    TMDB_API_KEYS,
+    TMDB_CATALOGUE_CACHE_FILE,
+    TMDB_CATALOGUE_CACHE_SECONDS,
+    TMDB_COMPANY_CACHE_SECONDS,
+    TMDB_IMAGE_BASE,
+    TMDB_OTT_CACHE_FILE,
+    TMDB_OTT_CACHE_SECONDS,
+    TMDB_OTT_INCOMPLETE_CACHE_SECONDS,
+    TMDB_OTT_MISSING_CACHE_SECONDS,
+    TMDB_READ_ACCESS_TOKENS,
+    TMDB_SEARCH_METADATA_CACHE_FILE,
+    TMDB_SEARCH_METADATA_QUERY_TTL_SECONDS,
+    TMDB_SYNOPSIS_LOOKUP_VERSION,
+    TORRENT_METADATA_API_URL,
+    TORRENT_METADATA_BACKGROUND_RETRY_SECONDS,
+    TORRENT_METADATA_BACKGROUND_TTL_SECONDS,
+    TORRENT_METADATA_CACHE_FILE,
+    TORRENT_METADATA_ITORRENTS_BASE_URL,
+    TORRENT_METADATA_ITORRENTS_TIMEOUT_SECONDS,
+    TORRENT_METADATA_JOB_RETENTION_SECONDS,
+    TORRENT_METADATA_JOB_TIMEOUT_SECONDS,
+    TORRENT_SEARCH_API_URL,
+    WATCHMODE_API_BASE,
+    WATCHMODE_API_KEYS,
+    YTS_API_HOSTS,
+    _CACHE_SEED_DIR,
+    _split_env_keys,
+    logger,
 )
-_CACHE_ONLY_ENV = os.getenv("CACHE_ONLY_MODE", "").strip().casefold()
-if _CACHE_ONLY_ENV in _TRUTHY or os.getenv("OTT_CACHE_ONLY", "false").strip().casefold() in _TRUTHY:
-    CACHE_ONLY_MODE = True
-elif _CACHE_ONLY_ENV in {"0", "false", "no", "off"}:
-    CACHE_ONLY_MODE = False
-else:
-    # No explicit setting: a deployment without any provider key can only serve
-    # from the bundled cache, so behave as cache-only instead of failing live calls.
-    CACHE_ONLY_MODE = not any(os.getenv(name, "").strip() for name in _PROVIDER_KEY_ENV_NAMES)
 
-
-
-APP_NAME = "Torrent Studio API"
-logger = logging.getLogger("torrent-studio")
-
-# Live torrent-provider searches are allowed only inside the explicit manual-search route.
-_MANUAL_TORRENT_SEARCH = contextvars.ContextVar("manual_torrent_search", default=False)
-_REGIONAL_MOVIE_CATALOGUE_FORCE_REFRESH = contextvars.ContextVar(
-    "regional_movie_catalogue_force_refresh",
-    default=False,
+from shared import (
+    SeedrError,
+    _MANUAL_TORRENT_SEARCH,
+    _REGIONAL_MOVIE_CATALOGUE_FORCE_REFRESH,
+    _REGIONAL_MOVIE_SOURCE_FORCE_REFRESH,
+    _REGIONAL_MOVIE_SOURCE_REFRESHED_KEYS,
+    _seedr_request_session_id,
+    _seedr_request_token,
 )
-_REGIONAL_MOVIE_SOURCE_FORCE_REFRESH = contextvars.ContextVar(
-    "regional_movie_source_force_refresh",
-    default=False,
-)
-_REGIONAL_MOVIE_SOURCE_REFRESHED_KEYS = contextvars.ContextVar(
-    "regional_movie_source_refreshed_keys",
-    default=None,
-)
-
-# TMDB provides dynamic, paginated movie discovery. Credentials stay server-side;
-# use a free developer key for non-commercial use or the API Read Access Token.
-TMDB_API_KEY = os.getenv("TMDB_API_KEY", "").strip()
-def _split_env_keys(*values: str) -> list[str]:
-    return list(dict.fromkeys(item.strip() for value in values
-        for item in str(value or "").replace("\\n", "\n").replace(",", "\n").splitlines()
-        if item.strip()))
-
-TMDB_API_KEYS = _split_env_keys(os.getenv("TMDB_API_KEYS", ""), os.getenv("TMDB_API_KEY", ""))
-TMDB_READ_ACCESS_TOKENS = _split_env_keys(os.getenv("TMDB_READ_ACCESS_TOKENS", ""),
-    os.getenv("TMDB_READ_ACCESS_TOKEN", ""), os.getenv("TMDB_BEARER_TOKEN", ""))
-TMDB_READ_ACCESS_TOKEN = TMDB_READ_ACCESS_TOKENS[0] if TMDB_READ_ACCESS_TOKENS else ""
-TMDB_API_BASE = "https://api.themoviedb.org/3"
-WATCHMODE_API_KEYS = _split_env_keys(os.getenv("WATCHMODE_API_KEYS", ""), os.getenv("WATCHMODE_API_KEY", ""))
-WATCHMODE_API_KEY = WATCHMODE_API_KEYS[0] if WATCHMODE_API_KEYS else ""
-WATCHMODE_API_BASE = "https://api.watchmode.com/v1"
-STREAMING_AVAILABILITY_API_KEY = os.getenv("STREAMING_AVAILABILITY_API_KEY", "").strip()
-STREAMING_AVAILABILITY_API_BASE = "https://api.movieofthenight.com/v4"
 _PROVIDER_KEY_COOLDOWNS: dict[str, float] = {}
 _PROVIDER_KEY_FAILURES: dict[str, int] = {}
 _PROVIDER_KEY_CURSORS: dict[str, int] = {}
@@ -106,7 +143,6 @@ _WATCHMODE_HTTP_CLIENT: httpx.AsyncClient | None = None
 _WATCHMODE_REQUEST_SEMAPHORE = asyncio.Semaphore(3)
 _WATCHMODE_RATE_LIMITED_UNTIL = 0.0
 _WATCHMODE_RESOLVED_TITLE_IDS: dict[int, int | None] = {}
-TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
 
 
 def _provider_key_id(provider: str, key: str) -> str:
@@ -248,54 +284,13 @@ async def _watchmode_get(path: str, *, params: dict[str, Any] | None = None,
     if not eligible:
         logger.info("All Watchmode keys are cooling down for %s", path)
     return None
-
-
-# If TMDB API connections are reset before TLS completes# If TMDB API connections are reset before TLS completes, pause new API attempts
-# briefly so catalogue requests fail fast and can fall back to persistent caches.
-TMDB_API_CONNECT_FAILURE_COOLDOWN_SECONDS = max(15, int(os.getenv("TMDB_API_CONNECT_FAILURE_COOLDOWN_SECONDS", "60")))
 _tmdb_api_connect_failure_until = 0.0
-TMDB_CATALOGUE_CACHE_SECONDS = max(300, int(os.getenv("TMDB_CATALOGUE_CACHE_SECONDS", str(6 * 60 * 60))))
-REGIONAL_MOVIE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
-REGIONAL_MOVIE_CACHE_PAGE_SIZE = 18
-REGIONAL_MOVIE_PREWARM_PAGES = 3
-REGIONAL_MOVIE_TRENDING_ARCHIVE_FILE = Path(os.getenv(
-    "REGIONAL_MOVIE_TRENDING_ARCHIVE_FILE",
-    "/app/data/regional_movie_trending_archive.json",
-))
-REGIONAL_MOVIE_TRENDING_ARCHIVE_WEEKS = 52
-REGIONAL_MOVIE_CATALOGUE_KEYS = (
-    "popular-hollywood",
-    "trending-hollywood",
-    "latest-hollywood",
-    "popular-bollywood",
-    "trending-bollywood",
-    "latest-bollywood",
-)
-TMDB_COMPANY_CACHE_SECONDS = max(3600, int(os.getenv("TMDB_COMPANY_CACHE_SECONDS", str(24 * 60 * 60))))
-TMDB_CATALOGUE_CACHE_FILE = Path(os.getenv("TMDB_CATALOGUE_CACHE_FILE", "/app/data/tmdb_movie_catalogue_cache.json"))
-TMDB_SEARCH_METADATA_CACHE_FILE = Path(os.getenv("TMDB_SEARCH_METADATA_CACHE_FILE", "/app/data/tmdb_search_metadata_cache.json"))
-TMDB_SEARCH_METADATA_QUERY_TTL_SECONDS = max(3600, int(os.getenv("TMDB_SEARCH_METADATA_QUERY_TTL_SECONDS", str(30 * 24 * 60 * 60))))
-IMDB_RATING_CACHE_FILE = Path(os.getenv("IMDB_RATING_CACHE_FILE", "/app/data/imdb_rating_cache.json"))
-IMDB_RATING_CACHE_TTL_SECONDS = max(86400, int(os.getenv("IMDB_RATING_CACHE_TTL_SECONDS", str(30 * 24 * 60 * 60))))
-IMDB_RATING_LOOKUP_VERSION = 5
-# Misses are re-checked sooner than hits: OMDb data and title matching improve over time.
-IMDB_RATING_NOT_FOUND_TTL_SECONDS = max(3600, int(os.getenv("IMDB_RATING_NOT_FOUND_TTL_SECONDS", str(24 * 60 * 60))))
 _OMDB_HTTP_CLIENT: httpx.AsyncClient | None = None
 _OMDB_REQUEST_SEMAPHORE = asyncio.Semaphore(4)
 _OMDB_RATE_LIMITED_UNTIL = 0.0
 _IMDB_RATING_CACHE: dict[str, dict[str, Any]] | None = None
 _IMDB_RATING_CACHE_LOCK = asyncio.Lock()
 _IMDB_RATING_INFLIGHT: dict[str, asyncio.Task[dict[str, Any]]] = {}
-TMDB_SYNOPSIS_LOOKUP_VERSION = 5
-SYNOPSIS_CACHE_RETRY_INTERVAL_SECONDS = max(300, int(os.getenv("SYNOPSIS_CACHE_RETRY_INTERVAL_SECONDS", "900")))
-TMDB_OTT_CACHE_SECONDS = max(3600, int(os.getenv("TMDB_OTT_CACHE_SECONDS", str(24 * 60 * 60))))
-# Results with no provider names (not_confirmed, release dates only) may just mean the
-# upstream lookup missed or failed, so they are re-checked much sooner than hits.
-TMDB_OTT_INCOMPLETE_CACHE_SECONDS = max(300, int(os.getenv("TMDB_OTT_INCOMPLETE_CACHE_SECONDS", "1800")))
-TMDB_OTT_MISSING_CACHE_SECONDS = max(900, int(os.getenv("TMDB_OTT_MISSING_CACHE_SECONDS", str(6 * 60 * 60))))
-TMDB_OTT_CACHE_FILE = Path(os.getenv("TMDB_OTT_CACHE_FILE", "/app/data/tmdb_ott_availability_cache.json"))
-MARVEL_TV_CATALOGUE_CACHE_FILE = Path(os.getenv("MARVEL_TV_CATALOGUE_CACHE_FILE", "/app/data/marvel_tv_catalogue_cache.json"))
-DC_TV_CATALOGUE_CACHE_FILE = Path(os.getenv("DC_TV_CATALOGUE_CACHE_FILE", "/app/data/dc_tv_catalogue_cache.json"))
 _tmdb_ott_cache: dict[tuple[int, str], tuple[float, dict[str, Any]]] = {}
 _tmdb_ott_inflight: dict[tuple[int, str], asyncio.Task[dict[str, Any]]] = {}
 _tmdb_movie_catalogue_cache: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
@@ -303,41 +298,8 @@ _tmdb_movie_catalogue_inflight: dict[tuple[str, int], asyncio.Task[dict[str, Any
 _tmdb_company_id_cache: dict[str, tuple[float, list[str]]] = {}
 _tmdb_company_inflight: dict[str, asyncio.Task[list[str]]] = {}
 _tmdb_cache_clear_last_at = 0.0
-
-GITHUB_FEEDBACK_TOKEN = os.getenv("GITHUB_FEEDBACK_TOKEN", "").strip()
-GITHUB_FEEDBACK_REPO = os.getenv("GITHUB_FEEDBACK_REPO", "wroxtaaar/new-test").strip()
-SEEDR_BASE = "https://www.seedr.cc/api/v0.1/p"
-SEEDR_MEDIA_BASE = "https://www.seedr.cc/api"
-SEEDR_V2_BASE = "https://v2.seedr.cc/api/v0.1/p"
-SEEDR_PAT_BASE = "https://www.seedr.cc/api/v0.1/p"
-# Legacy developer-level Seedr credentials remain supported only when explicitly enabled.
-# Normal requests use a per-browser Seedr connection established through device auth.
-SEEDR_TOKEN = os.getenv("SEEDR_API_TOKEN", "").strip()
-ALLOW_LEGACY_SEEDR_TOKEN = os.getenv("ALLOW_LEGACY_SEEDR_TOKEN", "false").strip().lower() in {"1", "true", "yes", "on"}
-# A shared folder ID cannot be used safely across different users. Personal
-# connections always start at each Seedr account's own root folder.
-SEEDR_LIBRARY_FOLDER_ID = "0"
-SEEDR_DEVICE_CLIENT_ID = os.getenv("SEEDR_DEVICE_CLIENT_ID", "seedr_xbmc").strip() or "seedr_xbmc"
-SEEDR_DEVICE_CODE_URL = "https://www.seedr.cc/api/device/code"
-SEEDR_DEVICE_AUTHORIZE_URL = "https://www.seedr.cc/api/device/authorize"
-SEEDR_SESSION_COOKIE = os.getenv("SEEDR_SESSION_COOKIE", "torrent_studio_seedr_session").strip() or "torrent_studio_seedr_session"
-SEEDR_SESSION_TTL_SECONDS = int(float(os.getenv("SEEDR_SESSION_TTL_SECONDS", str(30 * 24 * 60 * 60))))
-# The bundled frontend is served from the same origin, so Lax is enough and gives
-# better CSRF protection. Set SEEDR_SESSION_SAMESITE=none only if the frontend is
-# hosted on a different origin (and list that origin in CORS_ORIGINS).
-SEEDR_SESSION_SAMESITE = os.getenv("SEEDR_SESSION_SAMESITE", "lax").strip().lower()
-if SEEDR_SESSION_SAMESITE not in {"lax", "strict", "none"}:
-    SEEDR_SESSION_SAMESITE = "lax"
-# Diagnostic endpoints that reveal server internals are off unless explicitly enabled.
-DEBUG_ENDPOINTS_ENABLED = os.getenv("DEBUG_ENDPOINTS_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
-
-# Simple in-memory sliding-window limiter for the public feedback endpoint.
-FEEDBACK_RATE_LIMIT = int(os.getenv("FEEDBACK_RATE_LIMIT", "5"))
-FEEDBACK_RATE_WINDOW_SECONDS = int(os.getenv("FEEDBACK_RATE_WINDOW_SECONDS", "3600"))
-FEEDBACK_GLOBAL_RATE_LIMIT = int(os.getenv("FEEDBACK_GLOBAL_RATE_LIMIT", "100"))
 _feedback_hits: dict[str, deque] = {}
 _feedback_global_hits: deque = deque()
-SEEDR_SESSION_SECRET = os.getenv("SEEDR_SESSION_SECRET", "").strip()
 if SEEDR_SESSION_SECRET:
     _seedr_fernet_key = base64.urlsafe_b64encode(hashlib.sha256(SEEDR_SESSION_SECRET.encode("utf-8")).digest())
 else:
@@ -346,73 +308,11 @@ else:
 _seedr_fernet = Fernet(_seedr_fernet_key)
 
 _seedr_sessions: dict[str, dict[str, Any]] = {}
-_seedr_request_token: contextvars.ContextVar[str] = contextvars.ContextVar("seedr_request_token", default="")
-_seedr_request_session_id: contextvars.ContextVar[str] = contextvars.ContextVar("seedr_request_session_id", default="")
-SEARCH_STOPWORDS = {"the", "a", "an", "movie", "film", "series", "season", "episode", "web", "show", "tv"}
-TORRENT_SEARCH_API_URL = os.getenv("TORRENT_SEARCH_API_URL", "https://torrent-search-api-ujfa.onrender.com").rstrip("/")
-KNABEN_API_URL = os.getenv("KNABEN_API_URL", "https://api.knaben.org/v2/search").rstrip("/")
-TORRENT_METADATA_API_URL = os.getenv("TORRENT_METADATA_API_URL", "https://torrentmeta.fly.dev").rstrip("/")
-FAST_SEARCH_TEST_URL = os.getenv("FAST_SEARCH_TEST_URL", "https://torrent-search-test.onrender.com").rstrip("/")
-SEARCH_SOURCE_TIMEOUT_SECONDS = float(os.getenv("SEARCH_SOURCE_TIMEOUT_SECONDS", "2.25"))
-SEARCH_TOTAL_TIMEOUT_SECONDS = float(os.getenv("SEARCH_TOTAL_TIMEOUT_SECONDS", "3.5"))
-SEARCH_GRACE_SECONDS = float(os.getenv("SEARCH_GRACE_SECONDS", "0.2"))
-SEARCH_CACHE_SECONDS = float(os.getenv("SEARCH_CACHE_SECONDS", "60"))
-SEARCH_CACHE_STALE_SECONDS = float(os.getenv("SEARCH_CACHE_STALE_SECONDS", "600"))
-SEARCH_CACHE_MAX_ENTRIES = int(os.getenv("SEARCH_CACHE_MAX_ENTRIES", "75"))
-SEARCH_CACHE_MIN_RESULTS = int(os.getenv("SEARCH_CACHE_MIN_RESULTS", "8"))
 # Catalogue warm-ups query many titles at once. Keep outbound provider requests bounded.
 _X1337_REQUEST_SEMAPHORE = asyncio.Semaphore(2)
 _LIMETORRENTS_REQUEST_SEMAPHORE = asyncio.Semaphore(2)
 _KNABEN_REQUEST_SEMAPHORE = asyncio.Semaphore(1)
 _YTS_REQUEST_SEMAPHORE = asyncio.Semaphore(2)
-# Shared root config is used by both the backend and frontend.
-_SEARCH_LIMITS_CANDIDATES = (
-    Path(__file__).resolve().parent / "search_limits.json",
-    Path(__file__).resolve().parent.parent / "search_limits.json",
-)
-_SEARCH_LIMITS = {}
-for _limits_path in _SEARCH_LIMITS_CANDIDATES:
-    try:
-        with _limits_path.open("r", encoding="utf-8") as _limits_file:
-            _SEARCH_LIMITS = json.load(_limits_file)
-        break
-    except (OSError, json.JSONDecodeError):
-        continue
-MIN_SEARCH_RESULT_SIZE_BYTES = max(0, int(_SEARCH_LIMITS.get("minSizeMb", 100))) * 1024 * 1024
-MAX_SEARCH_RESULT_SIZE_BYTES = max(MIN_SEARCH_RESULT_SIZE_BYTES, int(_SEARCH_LIMITS.get("maxSizeGb", 5))) * 1024 * 1024 * 1024
-SEARCH_COMPOUND_ALIASES = {
-    "antman": "ant man",
-    "spiderman": "spider man",
-    "ironman": "iron man",
-    "blackpanther": "black panther",
-    "doctorstrange": "doctor strange",
-    "captainamerica": "captain america",
-    "guardiansofthegalaxy": "guardians of the galaxy",
-}
-# Match the movie app's mirror strategy. YTS availability varies by ISP/domain,
-# so keep multiple API mirrors and allow an environment override for ordering.
-# YTS domains are inconsistent across networks. The accelerator API is a
-# keyless YTS-compatible mirror, followed by the public YTS domains.
-YTS_API_HOSTS = tuple(
-    host.strip()
-    for host in os.getenv(
-        "YTS_API_HOSTS",
-        "movies-api.accel.li,yts.bz,yts.mx,yts.am,yts.lt,yts.rs",
-    ).split(",")
-    if host.strip()
-)
-FAST_SEARCH_TRACKERS = (
-    "http://tracker.dler.org:6969/announce",
-    "http://tracker2.dler.org:80/announce",
-    "http://1337.abcvg.info:80/announce",
-)
-TORRENT_METADATA_CACHE_FILE = Path(os.getenv("TORRENT_METADATA_CACHE_FILE", "/app/.torrent_metadata_cache.json"))
-TORRENT_METADATA_JOB_TIMEOUT_SECONDS = float(os.getenv("TORRENT_METADATA_JOB_TIMEOUT_SECONDS", "60"))
-TORRENT_METADATA_ITORRENTS_BASE_URL = os.getenv("TORRENT_METADATA_ITORRENTS_BASE_URL", "https://itorrents.net/torrent").rstrip("/")
-TORRENT_METADATA_ITORRENTS_TIMEOUT_SECONDS = float(os.getenv("TORRENT_METADATA_ITORRENTS_TIMEOUT_SECONDS", "5"))
-TORRENT_METADATA_BACKGROUND_TTL_SECONDS = float(os.getenv("TORRENT_METADATA_BACKGROUND_TTL_SECONDS", str(6 * 60 * 60)))
-TORRENT_METADATA_BACKGROUND_RETRY_SECONDS = float(os.getenv("TORRENT_METADATA_BACKGROUND_RETRY_SECONDS", "30"))
-TORRENT_METADATA_JOB_RETENTION_SECONDS = float(os.getenv("TORRENT_METADATA_JOB_RETENTION_SECONDS", str(60 * 60)))
 _search_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 _search_inflight: dict[str, asyncio.Task[list[dict[str, Any]]]] = {}
 
@@ -456,13 +356,6 @@ _metadata_jobs: dict[str, dict[str, Any]] = {}
 _libtorrent_session: Any | None = None
 _libtorrent_session_lock: asyncio.Lock | None = None
 
-class SeedrError(Exception):
-    def __init__(self, code: str, status_code: int, detail: str):
-        self.code = code
-        self.status_code = status_code
-        self.detail = detail
-        super().__init__(detail)
-
 
 app = FastAPI(title=APP_NAME)
 
@@ -494,20 +387,6 @@ async def handle_seedr_error(request: Request, exc: SeedrError):
         },
     )
 
-CORS_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv("CORS_ORIGINS", "").split(",")
-    if origin.strip()
-]
-# Credentials are allowed below, so the default must NOT trust shared hosting
-# domains such as *.vercel.app or *.onrender.com: anyone can deploy a page there
-# and make credentialed requests to this API. Deployed frontends must be listed
-# explicitly in CORS_ORIGINS (or matched by a deliberate CORS_ORIGIN_REGEX).
-CORS_ORIGIN_REGEX = os.getenv(
-    "CORS_ORIGIN_REGEX",
-    r"http://localhost(:\d+)?|http://127\.0\.0\.1(:\d+)?",
-)
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
@@ -517,131 +396,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---- Fast catalogue serving -------------------------------------------------
-# Catalogue snapshots are several MB. Parse/normalise once per file version and
-# keep the serialized (and gzipped) response so each page view is a memory copy.
-_FILE_MEMO: dict[str, tuple[tuple[int, int], Any]] = {}
-_RESPONSE_MEMO: dict[str, tuple[Any, bytes, bytes]] = {}
-
-
-def _file_signature(path: Path) -> tuple[int, int]:
-    try:
-        st = path.stat()
-        return (st.st_mtime_ns, st.st_size)
-    except OSError:
-        return (0, 0)
-
-
-def _memoized_file_read(memo_key: str, path: Path, reader):
-    sig = _file_signature(path)
-    hit = _FILE_MEMO.get(memo_key)
-    if hit and hit[0] == sig:
-        return hit[1]
-    value = reader()
-    # The reader may rewrite the file after normalising; re-stat so we cache the final version.
-    _FILE_MEMO[memo_key] = (_file_signature(path), value)
-    return value
-
-
-def _fast_json_response(request: Request, memo_key: str, signature: Any, build) -> Response:
-    entry = _RESPONSE_MEMO.get(memo_key)
-    if entry is None or entry[0] != signature:
-        raw = json.dumps(build(), ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        entry = (signature, raw, gzip.compress(raw, compresslevel=6))
-        _RESPONSE_MEMO[memo_key] = entry
-    headers = {"Cache-Control": "public, max-age=300", "Vary": "Accept-Encoding"}
-    if "gzip" in (request.headers.get("accept-encoding") or "").casefold():
-        headers["Content-Encoding"] = "gzip"
-        return Response(entry[2], media_type="application/json", headers=headers)
-    return Response(entry[1], media_type="application/json", headers=headers)
-
-
-def _catalogue_group_key(item: dict[str, Any], index: int = 0) -> str:
-    title = re.sub(r"[^a-z0-9]+", "", str(
-        item.get("catalogueTitle") or item.get("marvelCatalogueTitle")
-        or item.get("mediaTitle") or item.get("title") or ""
-    ).casefold())
-    if title:
-        return title
-    # Preserve grouping for rows that lack titles but carry a stable media/release ID.
-    for field in ("tmdbId", "tmdb_id", "movieId", "movie_id", "imdbId", "imdb_id",
-                  "infoHash", "info_hash", "magnet", "id"):
-        value = str(item.get(field) or "").strip().casefold()
-        if value:
-            return field + ":" + value
-    # Avoid treating all malformed/untitled rows as the same movie.
-    return "__untitled_row_" + str(index)
-
-
-def _page_catalogue_payload(
-    payload: dict[str, Any],
-    page: int,
-    page_size: int,
-    sort_by_release_date: bool = False,
-) -> dict[str, Any]:
-    """Slice a catalogue by movie (all torrent rows of a title stay together)."""
-    if page <= 0 or page_size <= 0:
-        return payload
-    groups: dict[str, list[dict[str, Any]]] = {}
-    for index, row in enumerate(payload["results"]):
-        groups.setdefault(_catalogue_group_key(row, index), []).append(row)
-    keys = list(groups)
-    if sort_by_release_date:
-        def sort_key(key: str) -> tuple[int, str]:
-            rows = groups[key]
-            movie = next((row for row in rows if row.get("releaseDate") or row.get("release_date")), rows[0])
-            raw_date = str(movie.get("releaseDate") or movie.get("release_date") or "").strip()
-            try:
-                release_date = datetime.strptime(raw_date[:10], "%Y-%m-%d").date()
-            except (TypeError, ValueError):
-                year_match = re.search(r"\b((?:19|20)\d{2})\b", raw_date)
-                try:
-                    year = int(movie.get("year") or (year_match.group(1) if year_match else 0))
-                except (TypeError, ValueError):
-                    year = 0
-                release_date = date(year, 1, 1) if 1 <= year <= 9999 else date.min
-            title = str(
-                movie.get("catalogueTitle") or movie.get("marvelCatalogueTitle")
-                or movie.get("mediaTitle") or movie.get("title") or ""
-            )
-            normalized_title = re.sub(r"[^a-z0-9]+", "", title.casefold())
-            return -release_date.toordinal(), normalized_title
-
-        keys.sort(key=sort_key)
-    total_pages = max(1, -(-len(keys) // page_size))
-    start = (page - 1) * page_size
-    rows = [row for key in keys[start:start + page_size] for row in groups[key]]
-    return {**payload, "results": rows, "page": page, "pageSize": page_size,
-            "totalPages": total_pages, "totalMovies": len(keys)}
-
-
-_PREBUILT_PAGE_SIZE = 18
-_PREBUILT_PAGE_MEMO: dict[str, bytes] = {}
-_DATE_SORTED_EXTRA_CATALOGUES = {
-    "dc-live-action",
-    "dc-live-action-hindi",
-    "dc-animated",
-    "classics",
-}
-
-
-def _prebuilt_catalogue_page(request: Request, key: str, page: int, page_size: int) -> Response | None:
-    """Serve a build-time pre-split catalogue page without parsing the big file."""
-    if page <= 0 or page_size != _PREBUILT_PAGE_SIZE:
-        return None
-    memo_key = f"{key}:{page}"
-    blob = _PREBUILT_PAGE_MEMO.get(memo_key)
-    if blob is None:
-        try:
-            blob = (_CACHE_SEED_DIR / "pages" / key / f"{page}.json.gz").read_bytes()
-        except OSError:
-            return None
-        _PREBUILT_PAGE_MEMO[memo_key] = blob
-    headers = {"Cache-Control": "public, max-age=300", "Vary": "Accept-Encoding"}
-    if "gzip" in (request.headers.get("accept-encoding") or "").casefold():
-        headers["Content-Encoding"] = "gzip"
-        return Response(blob, media_type="application/json", headers=headers)
-    return Response(gzip.decompress(blob), media_type="application/json", headers=headers)
+from http_cache import (
+    _DATE_SORTED_EXTRA_CATALOGUES,
+    _fast_json_response,
+    _file_signature,
+    _memoized_file_read,
+    _page_catalogue_payload,
+    _prebuilt_catalogue_page,
+)
 
 
 def _seedr_empty_session() -> dict[str, Any]:
@@ -6141,11 +5903,6 @@ _EXTRA_CATALOGUE_PATHS = {
     key: Path(os.getenv("CATALOGUE_" + key.upper().replace("-", "_") + "_PATH", "/app/data/" + config["file"]))
     for key, config in _EXTRA_CATALOGUES.items()
 }
-
-# Bundled snapshots let ephemeral hosts (such as Render) start with the same
-# catalogues as the VPS. Seed only missing/empty data files; never replace a
-# populated persistent cache with an older image snapshot.
-_CACHE_SEED_DIR = Path(os.getenv("CACHE_SEED_DIR", "/app/cache-seed"))
 _CACHE_SEED_FILES = (
     "dc_animated_catalogue.json",
     "dc_live_action_catalogue.json",
@@ -9170,7 +8927,6 @@ def _save_regional_tv_prebuilt_pages(catalogue_key: str, rows: list[dict[str, An
 _REGIONAL_TV_PAGE_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
 _REGIONAL_TV_PAGE_CACHE_TTL = 6 * 60 * 60
 _REGIONAL_TV_DISCOVERY_CACHE = _REGIONAL_TV_PAGE_CACHE
-REGIONAL_TV_PREBUILT_CACHE_FILE = Path(os.getenv("REGIONAL_TV_PREBUILT_CACHE_FILE", "/app/data/regional_tv_prebuilt_cache.json"))
 _INDIAN_LINEAR_TV_NETWORKS = {
     "starplus", "colors", "zee tv", "zeetv", "sony entertainment television",
     "sony sab", "sab tv", "dd national", "andtv", "&tv", "star bharat",

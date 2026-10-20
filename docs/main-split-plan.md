@@ -13,7 +13,7 @@ turned out different) in the same commit as the step.
 ## Progress
 
 - [x] **Step 1 – Safety net and tooling** (`scripts/refactor/`, structure snapshot test, ruff check in CI)
-- [ ] **Step 2 – `settings.py` + `http_cache.py`**: env vars, feature flags, API keys/bases, TTLs, file paths, logger, `SeedrError`; plus the small response-memo helpers (`_file_signature` … `_prebuilt_catalogue_page`)
+- [x] **Step 2 – `settings.py` + `shared.py` + `http_cache.py`**: all plain configuration (env vars, flags, keys/bases, TTLs, file paths, search limits, CORS values, logger); request-scoped context variables and `SeedrError` in `shared.py`; response-memo helpers in `http_cache.py`. Runtime *state* (caches, semaphores, HTTP clients, rate-limit timestamps) deliberately stayed in `main.py` and moves with its owner in the later steps.
 - [ ] **Step 3 – `seedr_session.py` + `feedback.py`**: cookie session, CSRF, token normalisation (`normalize_seedr_token` moves here to break a cycle), feedback route and rate limit
 - [ ] **Step 4 – `seedr_client.py`**: low-level Seedr API (`seedr_request`, tasks, folders, cleanup worker)
 - [ ] **Step 5 – `torrent_metadata.py`**: .torrent decoding, libtorrent, metadata jobs, inspect-magnet routes
