@@ -22,8 +22,8 @@ turned out different) in the same commit as the step.
 - [x] **Step 8 – `search_providers.py`**: 1337x, YTS, EZTV, LimeTorrents, Knaben, torrents-csv, apibay, ranking, `/api/search*`
 - [x] **Step 9 – `catalogues_extra.py`** (one module; synopsis enrichment lives in it because the retry loop, the extra-catalogue and TMDB synopsis state are intertwined, `synopsis_enrichment.py` was not needed). The `app.router.add_event_handler(...)` lines stay in main.py. Moving `/api/catalogue/marvel` into the router moved it 11 positions earlier in the snapshot; reviewed as safe (static path, no earlier parameter route can match it), snapshot regenerated. `ALLOW_STRUCTURE_CHANGE=1` makes `apply` skip the structure check for such reviewed cases. Original scope: Marvel and extra catalogues, bundled-cache seeding, synopsis enrichment
 - [x] **Step 10 – `catalogues_tv.py`**
-- [ ] **Step 11 – `catalogues_movies.py`**: regional movie catalogues, schedulers
-- [ ] **Step 12 – `search_metadata.py` + `imdb.py`**: availability, metadata, IMDb ratings
+- [x] **Step 11 – `catalogues_movies.py`**: regional movie catalogues, schedulers
+- [ ] **Step 12 – `search_metadata.py`** (`imdb.py` was already extracted in step 11 because the regional movie catalogue needs the IMDb rating record): availability, metadata, IMDb ratings
 - [ ] **Step 13 – Seedr routes, part 1**: connect / auth / quota / add / task progress
 - [ ] **Step 14 – Seedr routes, part 2**: library, folders, downloads
 - [ ] **Step 15 – Seedr media**: HLS, ffprobe, subtitles, audio/video streaming, cancel and delete
