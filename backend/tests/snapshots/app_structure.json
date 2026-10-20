@@ -271,6 +271,34 @@
     [
      "GET"
     ],
+    "/api/movies/catalogue-cache/synopsis-enrichment",
+    "api_tmdb_catalogue_synopsis_enrichment_status"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/regional-movies/prebuilt",
+    "api_regional_movie_prebuilt"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/cache/report",
+    "api_cache_report"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/health",
+    "api_health"
+   ],
+   [
+    [
+     "GET"
+    ],
     "/api/catalogue/synopsis-enrichment",
     "api_catalogue_synopsis_enrichment_status"
    ],
@@ -280,13 +308,6 @@
     ],
     "/api/catalogue/marvel",
     "api_marvel_catalogue"
-   ],
-   [
-    [
-     "GET"
-    ],
-    "/api/movies/catalogue-cache/synopsis-enrichment",
-    "api_tmdb_catalogue_synopsis_enrichment_status"
    ],
    [
     [
@@ -392,27 +413,6 @@
     ],
     "/api/catalogue/imdb-ratings",
     "api_catalogue_imdb_ratings"
-   ],
-   [
-    [
-     "GET"
-    ],
-    "/api/regional-movies/prebuilt",
-    "api_regional_movie_prebuilt"
-   ],
-   [
-    [
-     "GET"
-    ],
-    "/api/cache/report",
-    "api_cache_report"
-   ],
-   [
-    [
-     "GET"
-    ],
-    "/api/health",
-    "api_health"
    ],
    [
     [
@@ -563,13 +563,6 @@
    ],
    [
     [
-     "POST"
-    ],
-    "/api/feedback",
-    "submit_feedback"
-   ],
-   [
-    [
      "GET"
     ],
     "/api/qbt/settings",
@@ -651,6 +644,13 @@
     ],
     "/api/search/episode",
     "search_episode_release"
+   ],
+   [
+    [
+     "POST"
+    ],
+    "/api/feedback",
+    "submit_feedback"
    ]
   ],
   "middleware": [
@@ -952,6 +952,34 @@
     [
      "GET"
     ],
+    "/api/movies/catalogue-cache/synopsis-enrichment",
+    "api_tmdb_catalogue_synopsis_enrichment_status"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/regional-movies/prebuilt",
+    "api_regional_movie_prebuilt"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/cache/report",
+    "api_cache_report"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/health",
+    "api_health"
+   ],
+   [
+    [
+     "GET"
+    ],
     "/api/catalogue/synopsis-enrichment",
     "api_catalogue_synopsis_enrichment_status"
    ],
@@ -961,13 +989,6 @@
     ],
     "/api/catalogue/marvel",
     "api_marvel_catalogue"
-   ],
-   [
-    [
-     "GET"
-    ],
-    "/api/movies/catalogue-cache/synopsis-enrichment",
-    "api_tmdb_catalogue_synopsis_enrichment_status"
    ],
    [
     [
@@ -1073,27 +1094,6 @@
     ],
     "/api/catalogue/imdb-ratings",
     "api_catalogue_imdb_ratings"
-   ],
-   [
-    [
-     "GET"
-    ],
-    "/api/regional-movies/prebuilt",
-    "api_regional_movie_prebuilt"
-   ],
-   [
-    [
-     "GET"
-    ],
-    "/api/cache/report",
-    "api_cache_report"
-   ],
-   [
-    [
-     "GET"
-    ],
-    "/api/health",
-    "api_health"
    ],
    [
     [
@@ -1244,13 +1244,6 @@
    ],
    [
     [
-     "POST"
-    ],
-    "/api/feedback",
-    "submit_feedback"
-   ],
-   [
-    [
      "GET"
     ],
     "/api/qbt/settings",
@@ -1332,6 +1325,13 @@
     ],
     "/api/search/episode",
     "search_episode_release"
+   ],
+   [
+    [
+     "POST"
+    ],
+    "/api/feedback",
+    "submit_feedback"
    ],
    [
     [
