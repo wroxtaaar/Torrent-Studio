@@ -52,7 +52,7 @@ def feedback_env(monkeypatch):
     _FakeGitHubClient.calls = []
     monkeypatch.setattr(feedback, "GITHUB_FEEDBACK_TOKEN", "test-token")
     monkeypatch.setattr(feedback, "GITHUB_FEEDBACK_REPO", "example/repo")
-    monkeypatch.setattr(main, "_InstrumentedAsyncClient", _FakeGitHubClient)
+    monkeypatch.setattr(feedback, "_InstrumentedAsyncClient", _FakeGitHubClient)
     monkeypatch.setattr(feedback, "FEEDBACK_RATE_LIMIT", 2)
     monkeypatch.setattr(feedback, "FEEDBACK_GLOBAL_RATE_LIMIT", 100)
     feedback._feedback_hits.clear()
