@@ -54,6 +54,13 @@
     [
      "GET"
     ],
+    "/api/catalogue/marvel",
+    "api_marvel_catalogue"
+   ],
+   [
+    [
+     "GET"
+    ],
     "/api/movies/catalogue-cache/synopsis-enrichment",
     "api_tmdb_catalogue_synopsis_enrichment_status"
    ],
@@ -126,13 +133,6 @@
     ],
     "/api/catalogue/ott/search",
     "api_search_saved_ott"
-   ],
-   [
-    [
-     "GET"
-    ],
-    "/api/catalogue/marvel",
-    "api_marvel_catalogue"
    ],
    [
     [
@@ -735,6 +735,13 @@
     [
      "GET"
     ],
+    "/api/catalogue/marvel",
+    "api_marvel_catalogue"
+   ],
+   [
+    [
+     "GET"
+    ],
     "/api/movies/catalogue-cache/synopsis-enrichment",
     "api_tmdb_catalogue_synopsis_enrichment_status"
    ],
@@ -807,13 +814,6 @@
     ],
     "/api/catalogue/ott/search",
     "api_search_saved_ott"
-   ],
-   [
-    [
-     "GET"
-    ],
-    "/api/catalogue/marvel",
-    "api_marvel_catalogue"
    ],
    [
     [
