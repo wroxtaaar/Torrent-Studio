@@ -20,7 +20,7 @@ export { requestHighQualityPoster, setHighQualityPostersReady } from './movie-ca
  * which only maps a series to MovieCompactCard's props). These components are purely
  * presentational: callers supply data and handlers, so a design or behaviour change
  * made here applies to every section at once. Do not copy this markup into a section;
- * CI fails on card frames (<article>) outside MovieCatalogueCard.
+ * CI fails on hand-written card frames outside MovieCatalogueCard.
  */
 
 export type MovieCardImdb = Pick<ImdbRatingResult, 'imdbRating' | 'imdbVotes' | 'imdbId' | 'imdbUrl'> | null | undefined;
