@@ -47,11 +47,6 @@ from settings import (
 router = APIRouter()
 
 
-@router.get("/")
-async def root():
-    return {"name": APP_NAME, "status": "ok"}
-
-
 @router.get("/health")
 async def health():
     return {"status": "ok", "seedrConfigured": bool(current_seedr_token()), "torrentSearchApi": TORRENT_SEARCH_API_URL}

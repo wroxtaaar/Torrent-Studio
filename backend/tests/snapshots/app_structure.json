@@ -250,13 +250,6 @@
     [
      "GET"
     ],
-    "/",
-    "root"
-   ],
-   [
-    [
-     "GET"
-    ],
     "/health",
     "health"
    ],
@@ -294,6 +287,13 @@
     ],
     "/api/health",
     "api_health"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/",
+    "root"
    ],
    [
     [

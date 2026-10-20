@@ -366,6 +366,13 @@ app.include_router(posters_router)
 
 from misc_routes import router as misc_routes_router
 app.include_router(misc_routes_router)
+
+
+# Registered directly on `app` (not via a router): fullstack_app.py removes this
+# route by path/name so the SPA can serve "/" instead.
+@app.get("/")
+async def root():
+    return {"name": APP_NAME, "status": "ok"}
 app.router.add_event_handler("startup", start_seedr_cleanup_worker)
 
 from catalogues_extra import (
