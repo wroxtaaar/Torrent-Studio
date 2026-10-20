@@ -16,7 +16,7 @@ turned out different) in the same commit as the step.
 - [x] **Step 2 – `settings.py` + `shared.py` + `http_cache.py`**: all plain configuration (env vars, flags, keys/bases, TTLs, file paths, search limits, CORS values, logger); request-scoped context variables and `SeedrError` in `shared.py`; response-memo helpers in `http_cache.py`. Runtime *state* (caches, semaphores, HTTP clients, rate-limit timestamps) deliberately stayed in `main.py` and moves with its owner in the later steps.
 - [x] **Step 3 – `seedr_session.py` + `feedback.py`**: cookie session, CSRF, token normalisation (`normalize_seedr_token` moves here to break a cycle), feedback route and rate limit
 - [x] **Step 4 – `seedr_client.py`**: low-level Seedr API (`seedr_request`, legacy + v2 helpers, task helpers, magnet normalisation). The cleanup worker (`_cleanup_seedr_job` calls the `seedr_folder_delete` route, and `_seedr_cleanup_jobs` is rebound next to the cancel helpers) stays in main.py and moves in step 15 with the delete routes.
-- [ ] **Step 5 – `torrent_metadata.py`**: .torrent decoding, libtorrent, metadata jobs, inspect-magnet routes
+- [x] **Step 5 – `torrent_metadata.py`**: .torrent decoding, libtorrent, metadata jobs, inspect-magnet routes
 - [ ] **Step 6 – `tmdb.py` (+ `ott.py`)**: TMDB / Watchmode / OMDB HTTP clients, persistent TMDB caches, OTT lookups
 - [ ] **Step 7 – `posters.py`**
 - [ ] **Step 8 – `search_providers.py`**: 1337x, YTS, EZTV, LimeTorrents, Knaben, torrents-csv, apibay, ranking, `/api/search*`
