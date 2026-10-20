@@ -11,13 +11,14 @@ can pick up at the first open box.
 ## Progress
 
 - [x] **F1 – Tooling + `TorrentSearchPanel` top-level helpers** → `components/torrent-search/` (`grouping`, `ottProviders`, `persistentCaches`, `formatting`, `nexstream`, `posterCache`, `cataloguePosters`). 5,590 → 4,646 lines; the component itself is still ~4,580 lines.
-- [ ] **F2 – Other large files with plain top-level code**: `api/client.ts` (1.5k: split types from endpoint groups, keep `api` object re-exported), `MediaPlayerModal.tsx` (1.5k), `AddMagnetModal.tsx` (0.9k), `MovieCards.tsx` (0.7k): move helpers/types out with `extract-top.cjs`.
+- [x] **F2 – Other large files with plain top-level code**: `api/client.ts` (1.5k) is now `api/types.ts` (response types), `api/http.ts` (`API_BASE`, `apiFetch`, CSRF token with getter/setter), and four method groups `api/search.ts`, `api/torrents.ts`, `api/seedr.ts`, `api/compat.ts`; `client.ts` is a 15-line facade (`api = { ...groups }`, re-exports `API_BASE` and all types), so no importer changed. `MovieCards.tsx`: staged poster upgrade code → `movie-cards/posterUpgrade.ts` (the two public helpers are re-exported). `MediaPlayerModal.tsx` (1.5k) and `AddMagnetModal.tsx` (0.9k) turned out to be a single component each with nothing top-level to move: see F8.
 - [ ] **F3 – `TorrentSearchPanel` inner helpers**: the 12 type aliases and the pure functions declared *inside* the component body (e.g. `loadCachedFranchisePage` if it only needs its arguments) become module-level code. Needs `extract-inner` (extend the tool: only statements whose free names are not component-scope variables).
 - [ ] **F4 – `TorrentSearchPanel` hooks**: split the ~240 body statements into custom hooks by concern (NexStream, poster workers, IMDb/metadata prefetch, franchise/catalogue browsing, search runner). Types come from `ReturnType<typeof useX>` so no props have to be typed by hand; hooks are called in the original order so React's hook order is unchanged.
 - [ ] **F5 – `TorrentSearchPanel` JSX**: the 1,370-line `return` becomes sub-components (search bar, results, movie catalogue, NexStream player, preview modal) taking the hook outputs.
 - [ ] **F6 – `App.tsx` hooks**: same as F4 for the single `App` component (Seedr library loading, add/prepare flow, playback, delete, notifications).
 - [ ] **F7 – `App.tsx` JSX**: the 984-line `return` becomes view components (header/nav, library, search tab, modals).
-- [ ] **F8 – Final cleanup**: no file over ~800 lines (target), README note, remove tooling that is no longer needed.
+- [ ] **F8 – `MediaPlayerModal` and `AddMagnetModal`**: same hook / sub-component treatment as F4–F5 (player controls, HLS/subtitle/audio tracks; magnet inspect, file selection).
+- [ ] **F9 – Final cleanup**: no file over ~800 lines (target), README note, remove tooling that is no longer needed.
 
 > F4–F7 are exploratory: re-read the state graph at the start of each step and
 > adjust the list (and this document) before moving code.
