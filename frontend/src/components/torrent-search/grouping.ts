@@ -8,7 +8,6 @@ export interface TorrentQualityGroup {
   posterResult: TorrentSearchResult;
 }
 
-
 export function torrentGroupReleaseYear(group: TorrentQualityGroup): number {
   // The year shown on the card is the most trustworthy user-facing sort key.
   const displayedYear = group.title.match(/\(((?:19|20)\d{2})\)\s*$/)?.[1];
@@ -24,7 +23,6 @@ export function torrentGroupReleaseYear(group: TorrentQualityGroup): number {
   return 0;
 }
 
-
 export function releaseDateSortValue(item: { releaseDate?: string | null; year?: number | string | null }): number {
   const rawDate = String(item.releaseDate || '').trim();
   // TMDB release dates are ISO YYYY-MM-DD. Use the full date so later months
@@ -36,7 +34,6 @@ export function releaseDateSortValue(item: { releaseDate?: string | null; year?:
   const year = Number(item.year) || Number(rawDate.slice(0, 4)) || 0;
   return year ? Date.UTC(year, 0, 1) : 0;
 }
-
 
 export function compareReleaseDateDescending(
   a: { title?: string; releaseDate?: string | null; year?: number | string | null },
@@ -51,11 +48,9 @@ export function compareReleaseDateDescending(
   return String(a.title || '').localeCompare(String(b.title || ''), undefined, { numeric: true });
 }
 
-
 export function torrentResultKey(result: TorrentSearchResult): string {
   return String(result.guid || result.infoHash || result.magnetUrl || result.downloadUrl || result.title);
 }
-
 
 export function normalizeGroupTitle(value: string): string {
   return String(value || '')
@@ -69,7 +64,6 @@ export function normalizeGroupTitle(value: string): string {
     .replace(/^(?:the|a|an)\s+/, '');
 }
 
-
 export function normalizeSavedOttTitle(value: string): string {
   // Saved franchise catalogues often store the canonical title without the
   // release year, while torrent cards include it (for example "(2019)").
@@ -79,7 +73,6 @@ export function normalizeSavedOttTitle(value: string): string {
   return normalizeGroupTitle(withoutTrailingYear);
 }
 
-
 export function episodeSeriesTitle(value: string): string | null {
   // Episode torrents usually contain the show name followed by SxxExx or 1x01.
   const raw = String(value || '').trim();
@@ -87,7 +80,6 @@ export function episodeSeriesTitle(value: string): string | null {
   const title = String(match?.[1] || '').replace(/[._]+/g, ' ').trim();
   return title.length >= 2 ? title : null;
 }
-
 
 export function imdbRatingKey(
   title: string,
@@ -101,7 +93,6 @@ export function imdbRatingKey(
   return (mediaType === 'tv' ? 'tv|' : 'movie|') + normalizedTitle + '|' + resolvedYear;
 }
 
-
 export function imdbRatingQueryTitle(title: string, year?: number | string | null): string {
   const raw = String(title || '').trim();
   const embeddedYear = raw.match(/\s*\(?((?:19|20)\d{2})\)?\s*$/)?.[1] || '';
@@ -109,7 +100,6 @@ export function imdbRatingQueryTitle(title: string, year?: number | string | nul
   const cleanTitle = embeddedYear ? raw.replace(/\s*\(?((?:19|20)\d{2})\)?\s*$/, '').trim() : raw;
   return cleanTitle + (resolvedYear ? ' (' + resolvedYear + ')' : '');
 }
-
 
 export function searchMetadataForGroup(
   group: TorrentQualityGroup,
@@ -144,7 +134,6 @@ export function searchMetadataForGroup(
   return candidates.length === 1 ? candidates[0] : undefined;
 }
 
-
 export function mergeSearchMetadataItems(
   current: SearchMediaMetadata[],
   incoming: SearchMediaMetadata[],
@@ -178,7 +167,6 @@ export function mergeSearchMetadataItems(
   }
   return merged;
 }
-
 
 export function torrentMediaIdentity(result: TorrentSearchResult): { title: string; normalized: string; year: string } {
   const source = String(result.mediaTitle || result.title || '').trim();
@@ -236,7 +224,6 @@ export function torrentMediaIdentity(result: TorrentSearchResult): { title: stri
   return { title, normalized: normalizeGroupTitle(title), year };
 }
 
-
 export function torrentQualityDetails(result: TorrentSearchResult): { key: string; label: string; rank: number } {
   const raw = `${String(result.quality || '')} ${String(result.title || '')}`;
   const resolution = raw.match(/\b(2160p|1440p|1080p|720p|576p|480p|4k|8k)\b/i)?.[1]?.toLowerCase() || '';
@@ -271,7 +258,6 @@ export function torrentQualityDetails(result: TorrentSearchResult): { key: strin
   const rank = resolutionRank * 1000 + (format?.[2] || 0);
   return { key: label.toLowerCase().replace(/[^a-z0-9]+/g, '-'), label, rank };
 }
-
 
 export function groupTorrentResults(results: TorrentSearchResult[]): TorrentQualityGroup[] {
   const titleBuckets = new Map<string, Array<{ result: TorrentSearchResult; identity: ReturnType<typeof torrentMediaIdentity> }>>();

@@ -23,7 +23,6 @@ export let highQualityFallbackTimer: number | null = null;
 
 export let lastPosterUserActivity = Date.now();
 
-
 if (typeof document !== 'undefined') {
   const notePosterUserActivity = () => {
     lastPosterUserActivity = Date.now();
@@ -33,7 +32,6 @@ if (typeof document !== 'undefined') {
   document.addEventListener('scroll', notePosterUserActivity, { passive: true });
   document.addEventListener('touchstart', notePosterUserActivity, { passive: true });
 }
-
 
 export function normalizeLowQualityPosterUrl(value: string): string {
   const url = String(value || '').trim();
@@ -56,7 +54,6 @@ export function normalizeLowQualityPosterUrl(value: string): string {
   }
 }
 
-
 export function cancelHighQualityUpgradeSchedule(): void {
   const idleWindow = window as Window & {
     cancelIdleCallback?: (handle: number) => void;
@@ -72,7 +69,6 @@ export function cancelHighQualityUpgradeSchedule(): void {
   highQualityUpgradeScheduled = false;
 }
 
-
 export function restoreLowQualityPoster(image: HTMLImageElement): void {
   if (!image.isConnected || image.dataset.highQualityTried !== 'true') return;
   const lowQualityUrl = normalizeLowQualityPosterUrl(image.currentSrc || image.src);
@@ -83,7 +79,6 @@ export function restoreLowQualityPoster(image: HTMLImageElement): void {
   image.loading = 'eager';
   if (lowQualityUrl && image.src !== lowQualityUrl) image.src = lowQualityUrl;
 }
-
 
 export function upgradeToHighQualityPoster(image: HTMLImageElement): boolean {
   if (
@@ -120,7 +115,6 @@ export function upgradeToHighQualityPoster(image: HTMLImageElement): boolean {
   highQualityUpgradeInFlight = true;
   return true;
 }
-
 
 export function scheduleHighQualityPosterUpgrades(): void {
   if (
@@ -172,7 +166,6 @@ export function scheduleHighQualityPosterUpgrades(): void {
   }
 }
 
-
 export function requestHighQualityPoster(image: HTMLImageElement): void {
   if (image.dataset.highQualityTried === 'true') {
     if (upgradedHighQualityPosters.has(image)) {
@@ -188,7 +181,6 @@ export function requestHighQualityPoster(image: HTMLImageElement): void {
     pendingHighQualityPosters.add(image);
   }
 }
-
 
 /** Pause and reset upgrades on navigation; resume only after the page details settle. */
 export function setHighQualityPostersReady(ready: boolean): void {
@@ -211,6 +203,5 @@ export function setHighQualityPostersReady(ready: boolean): void {
   }
   scheduleHighQualityPosterUpgrades();
 }
-
 
 export type PosterEventHandler = (event: React.SyntheticEvent<HTMLImageElement>) => void;

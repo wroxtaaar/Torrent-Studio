@@ -3,13 +3,11 @@ import { normalizeGroupTitle } from './grouping.ts';
 
 export type MovieOttCardState = MovieOttAvailability | { status: 'loading'; message?: string } | { status: 'error'; message?: string };
 
-
 export type NexStreamEpisode = { episodeNumber: number; name: string; overview: string; airDate: string; still: string | null };
 
 export type NexStreamSeason = { seasonNumber: number; name: string; episodeCount: number };
 
 export type NexStreamEpisodePayload = { seasons: NexStreamSeason[]; episodes: NexStreamEpisode[]; selectedSeason: number };
-
 
 // Episode metadata is prefetched after TV search results appear. Keep it in a
 // module cache so opening the picker and revisiting a title is usually instant.
@@ -20,7 +18,6 @@ export const nexStreamEpisodeRequests = new Map<string, Promise<NexStreamEpisode
 export const NEXSTREAM_EPISODE_CACHE_STORAGE_KEY = 'home_nexstream_episode_metadata_v1';
 
 export const nexStreamEpisodeCacheKey = (id: number, season: number) => String(id) + ':' + String(season);
-
 
 export function readPersistentNexStreamEpisodeCache(key: string): NexStreamEpisodePayload | null {
   try {
@@ -38,7 +35,6 @@ export function readPersistentNexStreamEpisodeCache(key: string): NexStreamEpiso
   return null;
 }
 
-
 export function writePersistentNexStreamEpisodeCache(key: string, payload: NexStreamEpisodePayload): void {
   try {
     const parsed = JSON.parse(localStorage.getItem(NEXSTREAM_EPISODE_CACHE_STORAGE_KEY) || '{}');
@@ -49,7 +45,6 @@ export function writePersistentNexStreamEpisodeCache(key: string, payload: NexSt
     // Storage can be unavailable or full. In-memory caching still works.
   }
 }
-
 
 export async function fetchNexStreamEpisodeMetadata(tmdbId: number, season: number): Promise<NexStreamEpisodePayload> {
   const key = nexStreamEpisodeCacheKey(tmdbId, season);
@@ -106,7 +101,6 @@ export async function fetchNexStreamEpisodeMetadata(tmdbId: number, season: numb
   }
 }
 
-
 export function prefetchNexStreamEpisodeMetadata(
   items: NexStreamTitleLike[],
   onStatus: (id: number, status: 'loading' | 'ready' | 'error') => void,
@@ -144,9 +138,7 @@ export function prefetchNexStreamEpisodeMetadata(
   pump();
 }
 
-
 export type NexStreamTitleLike = { id: number; type: 'movie' | 'tv' };
-
 
 export function normalizeTorrentTitleForNexStream(value: string): string {
   return normalizeGroupTitle(String(value || '')

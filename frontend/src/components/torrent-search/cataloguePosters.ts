@@ -2,18 +2,15 @@ import { ImdbRatingResult, MovieCatalogueItem } from '../../api/client.ts';
 
 export const CROW_2024_POSTER_URL = 'https://m.media-amazon.com/images/M/MV5BNjYyZjJjMzQtNmNlMS00NmE4LTljZTEtZDI5ZjIxYjE1MzI2XkEyXkFqcGc%40._V1_.jpg';
 
-
 export function isWonderWoman1984(movie: { title?: string; year?: number | string | null }): boolean {
   return /^wonder woman 1984$/i.test(String(movie.title || '').trim()) &&
     Number(movie.year || 0) === 2020;
 }
 
-
 export function isTheCrow2024(movie: { title?: string; year?: number | string | null }): boolean {
   return /^the crow$/i.test(String(movie.title || '').trim()) &&
     Number(movie.year || 0) === 2024;
 }
-
 
 export function imdbFallbackForCatalogueMovie(movie: { title?: string; year?: number | string | null }): ImdbRatingResult | undefined {
   if (isWonderWoman1984(movie)) {
@@ -41,7 +38,6 @@ export function imdbFallbackForCatalogueMovie(movie: { title?: string; year?: nu
   return undefined;
 }
 
-
 export function imdbRatingForCatalogueMovie(movie: MovieCatalogueItem): ImdbRatingResult | undefined {
   if (movie.imdbRatingStatus !== 'found' && movie.imdbRatingStatus !== 'not_found') {
     return undefined;
@@ -58,11 +54,9 @@ export function imdbRatingForCatalogueMovie(movie: MovieCatalogueItem): ImdbRati
   };
 }
 
-
 export function cataloguePosterOverride(movie: { title?: string; year?: number | string | null; posterUrl?: string | null }): string {
   return isTheCrow2024(movie) ? CROW_2024_POSTER_URL : String(movie.posterUrl || '').trim();
 }
-
 
 export function cataloguePosterSource(movie: { title?: string; year?: number | string | null; posterUrl?: string | null }): string {
   const known = cataloguePosterOverride(movie);

@@ -13,7 +13,6 @@ export function isPresetSearchLabel(value: string): boolean {
   ]).has(normalized);
 }
 
-
 export function providerNames(providers: MovieOttProvider[]): React.ReactNode {
   const shown = providers.slice(0, 3);
   return (
@@ -32,7 +31,6 @@ export function providerNames(providers: MovieOttProvider[]): React.ReactNode {
     </>
   );
 }
-
 
 export function formatPublished(value?: string) {
   if (!value) return 'Unknown date';

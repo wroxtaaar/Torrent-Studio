@@ -10,7 +10,6 @@ export type FranchisePageCacheEntry = {
   savedAt: number;
 };
 
-
 export const FRANCHISE_PAGE_CACHE_STORAGE_KEY = 'home_franchise_catalogue_pages_v1';
 
 export const FRANCHISE_PAGE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -31,7 +30,6 @@ export const IMDB_RATINGS_CACHE_STORAGE_KEY = 'home_imdb_ratings_v1';
 
 export const IMDB_RATINGS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-
 export function readFranchisePageCache(mode: CachedFranchiseSearchMode, page: number): FranchisePageCacheEntry | null {
   try {
     const stored = JSON.parse(localStorage.getItem(FRANCHISE_PAGE_CACHE_STORAGE_KEY) || '{}');
@@ -46,7 +44,6 @@ export function readFranchisePageCache(mode: CachedFranchiseSearchMode, page: nu
   }
   return null;
 }
-
 
 export function writeFranchisePageCache(
   mode: CachedFranchiseSearchMode,
@@ -70,7 +67,6 @@ export function writeFranchisePageCache(
   }
 }
 
-
 export function readPersistentSearchMetadata(): SearchMediaMetadata[] {
   try {
     const stored = JSON.parse(localStorage.getItem(SEARCH_METADATA_CACHE_STORAGE_KEY) || '{}');
@@ -88,7 +84,6 @@ export function readPersistentSearchMetadata(): SearchMediaMetadata[] {
   }
 }
 
-
 export function persistSearchMetadata(items: SearchMediaMetadata[]): void {
   try {
     const now = Date.now();
@@ -101,7 +96,6 @@ export function persistSearchMetadata(items: SearchMediaMetadata[]): void {
     console.warn('Could not save movie details in browser storage; they may be fetched again.');
   }
 }
-
 
 export function readPersistentSearchAvailability(): Record<string, {
   status: 'ready' | 'not_found' | 'not_confirmed' | 'unavailable' | 'loading';
@@ -139,7 +133,6 @@ export function readPersistentSearchAvailability(): Record<string, {
   }
 }
 
-
 export function persistSearchAvailability(value: ReturnType<typeof readPersistentSearchAvailability>): void {
   try {
     const now = Date.now();
@@ -153,7 +146,6 @@ export function persistSearchAvailability(value: ReturnType<typeof readPersisten
     console.warn('Could not save streaming details in browser storage; they may be checked again.');
   }
 }
-
 
 export function readPersistentImdbRatings(): Record<string, ImdbRatingResult> {
   try {
@@ -174,7 +166,6 @@ export function readPersistentImdbRatings(): Record<string, ImdbRatingResult> {
   }
   return {};
 }
-
 
 export function persistImdbRatings(value: Record<string, ImdbRatingResult>): void {
   try {

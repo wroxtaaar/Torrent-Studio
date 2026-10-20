@@ -12,7 +12,7 @@ can pick up at the first open box.
 
 - [x] **F1 – Tooling + `TorrentSearchPanel` top-level helpers** → `components/torrent-search/` (`grouping`, `ottProviders`, `persistentCaches`, `formatting`, `nexstream`, `posterCache`, `cataloguePosters`). 5,590 → 4,646 lines; the component itself is still ~4,580 lines.
 - [x] **F2 – Other large files with plain top-level code**: `api/client.ts` (1.5k) is now `api/types.ts` (response types), `api/http.ts` (`API_BASE`, `apiFetch`, CSRF token with getter/setter), and four method groups `api/search.ts`, `api/torrents.ts`, `api/seedr.ts`, `api/compat.ts`; `client.ts` is a 15-line facade (`api = { ...groups }`, re-exports `API_BASE` and all types), so no importer changed. `MovieCards.tsx`: staged poster upgrade code → `movie-cards/posterUpgrade.ts` (the two public helpers are re-exported). `MediaPlayerModal.tsx` (1.5k) and `AddMagnetModal.tsx` (0.9k) turned out to be a single component each with nothing top-level to move: see F8.
-- [ ] **F3 – `TorrentSearchPanel` inner helpers**: the 12 type aliases and the pure functions declared *inside* the component body (e.g. `loadCachedFranchisePage` if it only needs its arguments) become module-level code. Needs `extract-inner` (extend the tool: only statements whose free names are not component-scope variables).
+- [x] **F3 – `TorrentSearchPanel` inner helpers**: pure helpers and type aliases declared inside the component body (they use no props/state) → `torrent-search/posterUrls.ts`, `helpers.ts`, `types.ts`. `extract-top.cjs` got an inner mode (`... A-B,... ComponentName`) and `inner-candidates.cjs` lists what qualifies. Component: ~4,470 lines.
 - [ ] **F4 – `TorrentSearchPanel` hooks**: split the ~240 body statements into custom hooks by concern (NexStream, poster workers, IMDb/metadata prefetch, franchise/catalogue browsing, search runner). Types come from `ReturnType<typeof useX>` so no props have to be typed by hand; hooks are called in the original order so React's hook order is unchanged.
 - [ ] **F5 – `TorrentSearchPanel` JSX**: the 1,370-line `return` becomes sub-components (search bar, results, movie catalogue, NexStream player, preview modal) taking the hook outputs.
 - [ ] **F6 – `App.tsx` hooks**: same as F4 for the single `App` component (Seedr library loading, add/prepare flow, playback, delete, notifications).
@@ -35,6 +35,8 @@ node ../scripts/frontend-split/outline.cjs src/components/X.tsx     # top-level 
 node ../scripts/frontend-split/body.cjs    src/components/X.tsx X   # statements inside a component body
 node ../scripts/frontend-split/extract-top.cjs plan  src/components/X.tsx src/components/x/new.ts 100-220,300-340
 node ../scripts/frontend-split/extract-top.cjs apply src/components/X.tsx src/components/x/new.ts 100-220,300-340
+node ../scripts/frontend-split/inner-candidates.cjs src/components/X.tsx X      # statements inside component X that need no component state
+node ../scripts/frontend-split/extract-top.cjs apply src/components/X.tsx src/components/x/new.ts 622-629,649-653 X   # inner mode (note the component name)
 node ../scripts/frontend-split/frontcheck.cjs                       # must still be ok
 ```
 

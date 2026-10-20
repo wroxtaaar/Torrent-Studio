@@ -2,6 +2,8 @@
 //
 //   node extract-top.cjs plan  <src-file> <new-module> <A-B[,C-D...]>
 //   node extract-top.cjs apply <src-file> <new-module> <A-B[,C-D...]>
+//   ... <A-B,...> <ComponentName>   -> take the statements from INSIDE that component's body (see
+//                                      inner-candidates.cjs); they are dedented and exported.
 //
 // * line ranges are 1-based lines of the CURRENT source file (use outline.cjs); every top-level
 //   statement whose first line lies in a range is moved (with its leading comments if they are
@@ -15,7 +17,7 @@ const ts = require('/home/claude/.npm-global/lib/node_modules/typescript');
 const fs = require('fs');
 const path = require('path');
 
-const [mode, srcArg, modArg, rangesArg] = process.argv.slice(2);
+const [mode, srcArg, modArg, rangesArg, componentName] = process.argv.slice(2);
 if (!['plan', 'apply'].includes(mode) || !rangesArg) {
   console.error('usage: extract-top.cjs plan|apply <src-file> <new-module> <A-B,...>');
   process.exit(2);
@@ -62,10 +64,25 @@ for (const st of sf.statements) {
     imports.push(rec);
   } else tops.push(st);
 }
-const moved = [], staying = [];
-for (const st of tops) {
-  const start = lineOf(st.getStart());
-  (inRange(start) ? moved : staying).push(st);
+let moved = [], staying = [];
+let paramNames = [];
+if (componentName) {
+  let fn = null;
+  for (const s of sf.statements) {
+    if (ts.isFunctionDeclaration(s) && s.name && s.name.text === componentName) fn = s;
+    if (ts.isVariableStatement(s)) for (const d of s.declarationList.declarations)
+      if (d.name.getText() === componentName && d.initializer && (ts.isArrowFunction(d.initializer) || ts.isFunctionExpression(d.initializer))) fn = d.initializer;
+  }
+  if (!fn) { console.error('component not found: ' + componentName); process.exit(2); }
+  const w = n => { if (ts.isIdentifier(n)) paramNames.push(n.text); else if (ts.isObjectBindingPattern(n) || ts.isArrayBindingPattern(n)) n.elements.forEach(e => { if (!ts.isOmittedExpression(e)) w(e.name); }); };
+  fn.parameters.forEach(p => w(p.name));
+  for (const st of fn.body.statements) (inRange(lineOf(st.getStart())) ? moved : staying).push(st);
+  staying.push(...tops);   // top-level code that stays behind is also unavailable to the new module
+} else {
+  for (const st of tops) {
+    const start = lineOf(st.getStart());
+    (inRange(start) ? moved : staying).push(st);
+  }
 }
 if (!moved.length) { console.error('nothing selected'); process.exit(2); }
 
@@ -88,13 +105,14 @@ function usedNames(nodes) {
 // shorthand `{ foo }` in an object literal uses `foo`; the visitor above already counts it (Identifier is the name).
 
 const movedNames = new Set(moved.flatMap(declaredNames));
-const stayingNames = new Set(staying.flatMap(declaredNames));
+const stayingNames = new Set([...staying.flatMap(declaredNames), ...paramNames]);
 const usedByMoved = usedNames(moved);
 
 // moved code that needs something which stays
 const blockers = [];
 for (const name of usedByMoved) if (stayingNames.has(name) && !movedNames.has(name)) {
   const st = staying.find(s => declaredNames(s).includes(name));
+  if (!st) { blockers.push(`${name} is a parameter (prop) of ${componentName}; it cannot be used by moved code`); continue; }
   blockers.push(`${name} (line ${lineOf(st.getStart())}) is used by the moved code but stays in ${path.basename(srcPath)}; move it too`);
 }
 if (blockers.length) { console.log('cannot move yet:\n  - ' + blockers.join('\n  - ')); process.exit(1); }
@@ -139,6 +157,7 @@ let prevEnd = 0;
 for (const c of chunks) {
   let block = lines.slice(c.startLine - 1, c.endLine).join('\n');
   const names = declaredNames(c.st);
+  if (componentName) block = block.split('\n').map(l => l.replace(/^ {1,2}/, '')).join('\n');
   const hasExport = (ts.getCombinedModifierFlags(c.st) & ts.ModifierFlags.Export) !== 0;
   if (!hasExport && names.length) {
     // add `export ` in front of the declaration keyword (after leading comments)

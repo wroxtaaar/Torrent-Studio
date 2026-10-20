@@ -26,6 +26,9 @@ import { isPresetSearchLabel } from './torrent-search/formatting.tsx';
 import { MovieOttCardState, fetchNexStreamEpisodeMetadata, nexStreamEpisodeCache, nexStreamEpisodeCacheKey, normalizeTorrentTitleForNexStream, prefetchNexStreamEpisodeMetadata } from './torrent-search/nexstream.ts';
 import { cataloguePosterOverride, cataloguePosterSource, imdbFallbackForCatalogueMovie, imdbRatingForCatalogueMovie, isTheCrow2024 } from './torrent-search/cataloguePosters.ts';
 import { cachedPosterForTitle, posterTitleCacheKeys, readPosterTitleCache, savePosterTitleCache } from './torrent-search/posterCache.ts';
+import { lowQualityPosterUrl, posterImageUrlForResult, posterKeyFor, posterResolveCandidateUrlsFor } from './torrent-search/posterUrls.ts';
+import { apiFetchRecent, catalogueMovieIdentity, extractedQuality, normalizeMatchText, writeLocalCache } from './torrent-search/helpers.ts';
+import { ActiveTopSection, CachedFranchiseKey, ClassicsContentTab, FranchiseTmdbKey, MainCatalogueMenu, MarvelFilmFilter, NexStreamTitle, RegionalCatalogueGroup, RegionalCatalogueMode, RegionalContentTab, RegionalTvGroup, RegionalTvMode } from './torrent-search/types.ts';
 
 
 type SeedrSearchFile = {
@@ -58,7 +61,6 @@ interface TorrentSearchPanelProps {
 export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepare, onCancelPrepare, onOpenProgress, seedrFiles = [], seedrDeletedFolderIds = [], onPlaySeedrFile }) => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<TorrentSearchResult[]>([]);
-  type NexStreamTitle = { id: number; title: string; date: string; overview: string; poster: string | null; type: 'movie' | 'tv' };
   const [nexStreamResults, setNexStreamResults] = useState<NexStreamTitle[]>([]);
   const [nexStreamSearchMode, setNexStreamSearchMode] = useState<'movie' | 'tv' | null>(null);
   const [nexStreamLoading, setNexStreamLoading] = useState(false);
@@ -86,8 +88,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
   // A TMDB ID alone is not unique across catalogue views. Scope a Prepare
   // preview to the exact catalogue item the user clicked.
   const [movieTorrentPreviewCatalogueId, setMovieTorrentPreviewCatalogueId] = useState<string | null>(null);
-  const catalogueMovieIdentity = (movie: MovieCatalogueItem, catalogueKey?: string | null) =>
-    [String(catalogueKey || 'catalogue'), String(movie.id), normalizeGroupTitle(movie.title), String(movie.year || '')].join('|');
   const [pendingPosterAction, setPendingPosterAction] = useState<
     | { kind: 'catalogue'; movie: MovieCatalogueItem; catalogue: string; page: number }
     | { kind: 'search'; groupKey: string; page: number }
@@ -156,15 +156,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     return null;
   };
 
-  const writeLocalCache = <T,>(key: string, cacheKey: string, value: T) => {
-    try {
-      const entries = JSON.parse(localStorage.getItem(key) || '{}') as Record<string, { value: T; savedAt: number }>;
-      entries[cacheKey] = { value, savedAt: Date.now() };
-      const keys = Object.keys(entries);
-      for (const oldKey of keys.slice(0, Math.max(0, keys.length - 300))) delete entries[oldKey];
-      localStorage.setItem(key, JSON.stringify(entries));
-    } catch { /* Storage can be unavailable or full. */ }
-  };
 
   useEffect(() => {
     try {
@@ -185,19 +176,13 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
   const [movieCatalogue, setMovieCatalogue] = useState<MovieCataloguePage | null>(null);
   const [movieCatalogueSearchText, setMovieCatalogueSearchText] = useState('');
   const [releasedOnly, setReleasedOnly] = useState(true);
-  type FranchiseTmdbKey = 'marvel' | 'dc-live-action' | 'dc-animated';
-  type CachedFranchiseKey = 'marvel' | 'dc-live-action';
   const [tmdbFranchiseKey, setTmdbFranchiseKey] = useState<FranchiseTmdbKey>('marvel');
   const [openCachedLanguageMenu, setOpenCachedLanguageMenu] = useState<CachedFranchiseKey | null>(null);
-  type MainCatalogueMenu = 'dc' | 'bollywood' | 'hollywood';
   const [openMainCatalogueMenu, setOpenMainCatalogueMenu] = useState<MainCatalogueMenu | null>(null);
-  type ActiveTopSection = 'marvel' | 'dc' | 'hollywood' | 'bollywood' | 'classics' | null;
   const [activeTopSection, setActiveTopSection] = useState<ActiveTopSection>(null);
   const [dcContentTab, setDcContentTab] = useState<'movies' | 'animated' | 'web-series'>('movies');
-  type RegionalContentTab = 'movies' | 'web-series' | null;
   const [regionalContentTabs, setRegionalContentTabs] = useState<Record<RegionalCatalogueGroup, RegionalContentTab>>({ bollywood: null, hollywood: null });
   const [marvelContentTab, setMarvelContentTab] = useState<RegionalContentTab>(null);
-  type ClassicsContentTab = 'movies' | 'web-series' | 'anime';
   const [classicsContentTab, setClassicsContentTab] = useState<ClassicsContentTab>('movies');
   const [activeFranchiseSearchMode, setActiveFranchiseSearchMode] = useState<CachedFranchiseSearchMode | null>(null);
   const franchisePageRequestRef = useRef<AbortController | null>(null);
@@ -215,15 +200,11 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
   useEffect(() => persistSearchAvailability(searchAvailabilityByGroup), [searchAvailabilityByGroup]);
   useEffect(() => persistImdbRatings(imdbRatingsByKey), [imdbRatingsByKey]);
   const renderFranchisePagination = (total: number) => total > franchiseGridPageSize ? <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2"><button type="button" disabled={franchiseGridPage <= 1} onClick={() => navigateFranchisePage(Math.max(1, franchiseGridPage - 1))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-200 disabled:opacity-40">← Previous</button><span className="text-xs text-slate-400">Page {franchiseGridPage} of {Math.max(1, Math.ceil(total / franchiseGridPageSize))} · {total} titles</span><button type="button" disabled={franchiseGridPage >= Math.ceil(total / franchiseGridPageSize)} onClick={() => navigateFranchisePage(Math.min(Math.ceil(total / franchiseGridPageSize), franchiseGridPage + 1))} className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-40">Next →</button></div> : null;
-  type RegionalCatalogueGroup = 'bollywood' | 'hollywood';
-  type RegionalCatalogueMode = 'popular' | 'trending' | 'latest';
   const [openRegionalCatalogueMenu, setOpenRegionalCatalogueMenu] = useState<RegionalCatalogueGroup | null>(null);
   const [regionalCatalogueModes, setRegionalCatalogueModes] = useState<Record<RegionalCatalogueGroup, RegionalCatalogueMode>>({
     bollywood: 'popular',
     hollywood: 'popular',
   });
-  type RegionalTvGroup = 'indian' | 'hollywood';
-  type RegionalTvMode = 'popular' | 'trending' | 'latest';
   const [openRegionalTvMenu, setOpenRegionalTvMenu] = useState<RegionalTvGroup | null>(null);
   const [regionalTvModes, setRegionalTvModes] = useState<Record<RegionalTvGroup, RegionalTvMode>>({
     indian: 'popular',
@@ -496,7 +477,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
   };
 
   // Initialize state used by visibleMovieCatalogueItems before evaluating its memo dependencies.
-  type MarvelFilmFilter = 'all' | 'mcu' | 'x-men' | 'sony';
   const [marvelFilmFilter, setMarvelFilmFilter] = useState<MarvelFilmFilter>('all');
   const [isMarvelEnglishResults, setIsMarvelEnglishResults] = useState(false);
   const [showMarvelWebSeries, setShowMarvelWebSeries] = useState(false);
@@ -619,14 +599,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
   // of the same title. 404s expire after ten minutes so later retries can recover.
   const posterResolveCacheRef = useRef(new Map<string, { url: string; expiresAt: number }>());
 
-  const posterKeyFor = (result: TorrentSearchResult) =>
-    String(
-      result.guid ||
-      result.infoHash ||
-      result.magnetUrl ||
-      result.downloadUrl ||
-      result.title
-    );
 
   const fullTorrentTitleFor = (result: TorrentSearchResult) => {
     // Indexer search pages can truncate the displayed title, while the magnet's
@@ -646,137 +618,10 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     return String(result.title || result.mediaTitle || '').trim();
   };
 
-  const rawPosterUrlFor = (result: TorrentSearchResult) => {
-    const raw = String(result.posterUrl || '').trim();
-    if (!raw) return '';
-    return raw.startsWith('/') ? API_BASE + raw : raw;
-  };
 
   // Load lightweight w185 thumbnails first; MovieCards upgrades them to w780 only
   // after card metadata, ratings and OTT availability have settled.
-  const lowQualityPosterUrl = (value: unknown, size: 'w185' | 'w342' | 'w500' | 'w780' = 'w185') => {
-    const url = String(value || '').trim();
-    if (!url) return '';
-    try {
-      const parsed = new URL(url, window.location.origin);
-      // Same-origin poster endpoints support explicit low/high variants. Set this
-      // before assigning src so cached redirect URLs can never bypass the thumbnail.
-      if (parsed.pathname.replace(/\/+$/, '') === '/api/poster') {
-        parsed.searchParams.set('size', size === 'w780' ? 'w780' : 'w185');
-        return parsed.toString();
-      }
-      if (parsed.hostname !== 'image.tmdb.org') return url;
-      parsed.pathname = parsed.pathname.replace(/\/t\/p\/(?:original|w780|w500|w185|w342|w300|w200|w154|w92)\//, '/t/p/' + size + '/');
-      return parsed.toString();
-    } catch {
-      return url;
-    }
-  };
 
-  const posterResolveCandidateUrlsFor = (result: TorrentSearchResult) => {
-    const candidates: string[] = [];
-    const seen = new Set<string>();
-
-    const addCandidate = (title: string, year = '') => {
-      const clean = String(title || '')
-        .replace(/[._]+/g, ' ')
-        .replace(/\s+/g, ' ')
-        .replace(/^[-._\s]+|[-._\s]+$/g, '')
-        .trim();
-      if (!clean) return;
-
-      const yearMatches = [...clean.matchAll(/\b((?:19|20)\d{2})\b/g)];
-      const trailingYear = yearMatches[yearMatches.length - 1];
-      const inferredYear = year || trailingYear?.[1] || '';
-      // Keep years that are part of a title (e.g. Wonder Woman 1984). Strip a
-      // year from the query only when it matches the separately known release year.
-      const titleOnly = trailingYear && trailingYear[1] === inferredYear
-        ? clean.slice(0, trailingYear.index).trim() || clean
-        : clean;
-
-      const params = new URLSearchParams({ title: titleOnly });
-      if (inferredYear) params.set('year', inferredYear);
-      const url = API_BASE + '/api/poster/resolve?' + params.toString();
-      if (!seen.has(url)) {
-        seen.add(url);
-        candidates.push(url);
-      }
-    };
-
-    // Resolve from the actual title/year only. Indexer-provided poster URLs can
-    // be generic thumbnails for a different movie and must not be trusted.
-
-    const explicitYear = result.year ? String(result.year) : '';
-    const mediaTitle = String(result.mediaTitle || '').trim();
-    const rawTitle = String(result.title || '').trim();
-    const baseTitle = mediaTitle || rawTitle;
-
-    addCandidate(mediaTitle, explicitYear);
-
-    const cleaned = baseTitle
-      .replace(/[._]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    const yearMatch = cleaned.match(/\b((?:19|20)\d{2})\b/);
-    const year = explicitYear || yearMatch?.[1] || '';
-
-    if (!mediaTitle && yearMatch?.index != null) {
-      addCandidate(cleaned.slice(0, yearMatch.index), year);
-    }
-
-    const releaseCut = cleaned.split(
-      /\b(?:2160p|1440p|1080p|720p|576p|480p|4k|8k|web[- ]?dl|web[- ]?rip|webrip|bluray|brrip|hdrip|dvdrip|cam|hdcam|x264|x265|h264|h265|hevc|aac|ddp|atmos|proper|repack|remastered|extended|unrated|directors?\s+cut)\b/i
-    )[0].trim();
-    if (releaseCut) addCandidate(releaseCut, year);
-
-    const softClean = cleaned
-      .replace(
-        /\b(?:hindi|tamil|telugu|malayalam|kannada|bengali|marathi|punjabi|gujarati|urdu|dual\s+audio|multi\s+audio|dubbed|dub|multi|proper|repack|remastered|extended|unrated|imax|hdr10\+?|dolby\s+vision)\b/gi,
-        ' '
-      )
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (softClean) addCandidate(softClean, year);
-
-    const aliasPairs: Array<[RegExp, string]> = [
-      [/\bspiderman\b/gi, 'Spider Man'],
-      [/\bspider\s+man\b/gi, 'Spiderman'],
-      [/\bantman\b/gi, 'Ant Man'],
-      [/\bant\s+man\b/gi, 'Antman'],
-      [/\bironman\b/gi, 'Iron Man'],
-      [/\biron\s+man\b/gi, 'Ironman'],
-      [/\bblackpanther\b/gi, 'Black Panther'],
-      [/\bblack\s+panther\b/gi, 'Blackpanther'],
-      [/\bdoctorstrange\b/gi, 'Doctor Strange'],
-      [/\bdoctor\s+strange\b/gi, 'Doctorstrange'],
-      [/\bcaptainamerica\b/gi, 'Captain America'],
-      [/\bcaptain\s+america\b/gi, 'Captainamerica'],
-      [/\bguardiansofthegalaxy\b/gi, 'Guardians of the Galaxy'],
-    ];
-
-    for (const [pattern, replacement] of aliasPairs) {
-      if (pattern.test(cleaned)) {
-        addCandidate(cleaned.replace(pattern, replacement), year);
-      }
-    }
-
-    return candidates;
-  };
-
-  const posterImageUrlForResult = (result: TorrentSearchResult): string => {
-    const resolveUrl = posterResolveCandidateUrlsFor(result)[0];
-    if (!resolveUrl) return '';
-    try {
-      const url = new URL(resolveUrl, window.location.origin);
-      url.pathname = url.pathname.replace('/api/poster/resolve', '/api/poster');
-      url.searchParams.set('size', 'w185');
-      return url.toString();
-    } catch {
-      return resolveUrl.replace('/api/poster/resolve?', '/api/poster?') +
-        (resolveUrl.includes('?') ? '&' : '?') + 'size=w185';
-    }
-  };
 
   const resolvePosterInBackground = async (url: string, generation: number) => {
     if (generation !== posterBackgroundGenerationRef.current) return '';
@@ -937,13 +782,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
   const posterUrlFor = (result: TorrentSearchResult) =>
     lowQualityPosterUrl(posterOverrides[posterKeyFor(result)] || '');
 
-  const normalizeMatchText = (value: string) =>
-    String(value || '')
-      .toLowerCase()
-      .replace(/\.[a-z0-9]{2,5}$/i, '')
-      .replace(/[^a-z0-9]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
 
   const findPreparedFiles = (result: TorrentSearchResult): SeedrSearchFile[] => {
     const title = normalizeMatchText(result.title);
@@ -975,11 +813,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
   // Recent searches belong to this Home deployment. Use the same-origin API
   // base as every other Home request; a hard-coded Render URL causes browser CORS
   // failures when Home is opened from the Oracle VPS.
-  const apiFetchRecent = (input: RequestInfo | URL, init?: RequestInit) => {
-    const value = String(input);
-    const url = value.startsWith('/') ? API_BASE + value : value;
-    return fetch(url, { ...init, credentials: 'include' });
-  };
 
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
     try {
@@ -3234,10 +3067,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     void runSearch(undefined, category, mode);
   };
 
-  const extractedQuality = (result: TorrentSearchResult) => {
-    const details = torrentQualityDetails(result);
-    return details.label === 'Other release' ? '' : details.label;
-  };
 
   // A prepared movie is an inline view, not persistent catalogue selection.
   // Clear it before changing sections, subsections, filters or numbered pages;

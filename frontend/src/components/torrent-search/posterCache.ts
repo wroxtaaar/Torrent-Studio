@@ -10,7 +10,6 @@ export type CachedTitlePoster = { url: string; expiresAt: number };
 
 export const posterByTitleCache = new Map<string, CachedTitlePoster>();
 
-
 export function normalizePosterTitle(value: unknown): string {
   return String(value || '')
     .toLowerCase()
@@ -21,7 +20,6 @@ export function normalizePosterTitle(value: unknown): string {
     .trim();
 }
 
-
 export function posterTitleCacheKeys(result: TorrentSearchResult): string[] {
   const title = normalizePosterTitle(result.mediaTitle || result.title);
   if (!title) return [];
@@ -30,7 +28,6 @@ export function posterTitleCacheKeys(result: TorrentSearchResult): string[] {
   // With a known year only the exact title+year key is valid; never fall back to another year.
   return year ? [title + '|' + year] : [title + '|'];
 }
-
 
 export function readPosterTitleCache(): void {
   try {
@@ -46,7 +43,6 @@ export function readPosterTitleCache(): void {
   } catch {}
 }
 
-
 export function savePosterTitleCache(key: string, url: string): void {
   if (!key || !url) return;
   posterByTitleCache.set(key, { url, expiresAt: Date.now() + POSTER_TITLE_CACHE_TTL_MS });
@@ -58,7 +54,6 @@ export function savePosterTitleCache(key: string, url: string): void {
     localStorage.setItem(POSTER_TITLE_CACHE_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
   } catch {}
 }
-
 
 export function cachedPosterForTitle(result: TorrentSearchResult): string {
   const now = Date.now();

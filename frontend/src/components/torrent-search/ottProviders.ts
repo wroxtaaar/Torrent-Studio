@@ -10,7 +10,6 @@ export const PREFERRED_OTT_PROVIDERS = [
   'zee5',
 ];
 
-
 export function normalizeOttProviderName(name: string): string {
   const normalized = String(name || '')
     .toLowerCase()
@@ -41,7 +40,6 @@ export function normalizeOttProviderName(name: string): string {
   return normalized;
 }
 
-
 export function displayOttProviderName(name: string): string {
   const key = normalizeOttProviderName(name);
   const preferredLabels: Record<string, string> = {
@@ -59,7 +57,6 @@ export function displayOttProviderName(name: string): string {
     .replace(/\\s+with\\s+ads?$/i, '')
     .trim();
 }
-
 
 export function uniqueOttProviders<T extends { name: string; type?: string; webUrl?: string; providerId?: number | string | null }>(providers: T[]): T[] {
   const unique = new Map<string, T>();
@@ -83,7 +80,6 @@ export function uniqueOttProviders<T extends { name: string; type?: string; webU
   return (preferred.length ? preferred : all).map(([, provider]) => provider);
 }
 
-
 /** Maps provider objects to the shape the shared movie cards render. */
 export function toCardProviders(
   providers: Array<{ name: string; webUrl?: string; providerId?: number | string | null }>,
@@ -98,9 +94,7 @@ export function toCardProviders(
   });
 }
 
-
 export const PLAYABLE_FILE_PATTERN = /\.(mkv|mp4|m4v|webm|mov|avi|m3u8|ts|mp3|wav|flac|aac|ogg|m4a)$/i;
-
 
 export function normalizeSavedOttProviders(
   items: unknown,
@@ -127,7 +121,6 @@ export function normalizeSavedOttProviders(
     }];
   });
 }
-
 
 export function savedOttAvailabilityForMovie(movie: MovieCatalogueItem): MovieOttAvailability | undefined {
   const saved = movie.ottAvailability;
