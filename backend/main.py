@@ -298,16 +298,23 @@ _tmdb_movie_catalogue_inflight: dict[tuple[str, int], asyncio.Task[dict[str, Any
 _tmdb_company_id_cache: dict[str, tuple[float, list[str]]] = {}
 _tmdb_company_inflight: dict[str, asyncio.Task[list[str]]] = {}
 _tmdb_cache_clear_last_at = 0.0
-_feedback_hits: dict[str, deque] = {}
-_feedback_global_hits: deque = deque()
-if SEEDR_SESSION_SECRET:
-    _seedr_fernet_key = base64.urlsafe_b64encode(hashlib.sha256(SEEDR_SESSION_SECRET.encode("utf-8")).digest())
-else:
-    _seedr_fernet_key = Fernet.generate_key()
-    logger.warning("SEEDR_SESSION_SECRET is not configured; personal Seedr connections will reset on backend restart.")
-_seedr_fernet = Fernet(_seedr_fernet_key)
 
-_seedr_sessions: dict[str, dict[str, Any]] = {}
+from feedback import router as feedback_router
+
+from seedr_session import (
+    _clear_seedr_session_token,
+    _seedr_get_session,
+    _seedr_new_session,
+    _seedr_restore_session,
+    _seedr_session_auth_mode,
+    _seedr_session_cookie_value,
+    _seedr_session_csrf_ok,
+    _seedr_session_fingerprint,
+    _seedr_session_token,
+    _seedr_sessions,
+    current_seedr_token,
+    normalize_seedr_token,
+)
 # Catalogue warm-ups query many titles at once. Keep outbound provider requests bounded.
 _X1337_REQUEST_SEMAPHORE = asyncio.Semaphore(2)
 _LIMETORRENTS_REQUEST_SEMAPHORE = asyncio.Semaphore(2)
@@ -405,115 +412,6 @@ from http_cache import (
     _prebuilt_catalogue_page,
 )
 
-
-def _seedr_empty_session() -> dict[str, Any]:
-    now = time.time()
-    return {
-        "csrf_token": secrets.token_urlsafe(32),
-        "access_token": "",
-        "refresh_token": "",
-        "token_type": "Bearer",
-        "auth_mode": "legacy",
-        "device": None,
-        "created_at": now,
-        "last_seen": now,
-    }
-
-def _seedr_new_session() -> tuple[str, dict[str, Any]]:
-    session_id = secrets.token_urlsafe(32)
-    session = _seedr_empty_session()
-    _seedr_sessions[session_id] = session
-    return session_id, session
-
-def _seedr_get_session(session_id: str) -> dict[str, Any]:
-    return _seedr_sessions.setdefault(session_id, _seedr_empty_session())
-
-def _seedr_session_cookie_value(session_id: str, session: dict[str, Any]) -> str:
-    payload = {
-        "v": 1,
-        "sid": session_id,
-        "csrf": str(session.get("csrf_token") or ""),
-        "access": str(session.get("access_token") or ""),
-        "refresh": str(session.get("refresh_token") or ""),
-        "type": str(session.get("token_type") or "Bearer"),
-        "mode": str(session.get("auth_mode") or "legacy"),
-        "device": session.get("device") if isinstance(session.get("device"), dict) else None,
-        "created": float(session.get("created_at") or time.time()),
-        "last": time.time(),
-    }
-    encrypted = _seedr_fernet.encrypt(
-        json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    )
-    return "v1." + encrypted.decode("ascii")
-
-def _seedr_restore_session(raw_cookie: str) -> tuple[str, dict[str, Any]] | None:
-    if not raw_cookie.startswith("v1."):
-        return None
-    try:
-        payload = json.loads(_seedr_fernet.decrypt(raw_cookie[3:].encode("ascii")).decode("utf-8"))
-        if not isinstance(payload, dict):
-            return None
-        session_id = str(payload.get("sid") or "").strip()
-        csrf_token = str(payload.get("csrf") or "").strip()
-        if not session_id or not csrf_token:
-            return None
-        now = time.time()
-        last_seen = float(payload.get("last") or 0)
-        if not last_seen or now - last_seen > SEEDR_SESSION_TTL_SECONDS:
-            return None
-        return session_id, {
-            "csrf_token": csrf_token,
-            "access_token": normalize_seedr_token(str(payload.get("access") or "")),
-            "refresh_token": str(payload.get("refresh") or "").strip(),
-            "token_type": str(payload.get("type") or "Bearer").strip() or "Bearer",
-            "auth_mode": str(payload.get("mode") or "legacy").strip().lower() or "legacy",
-            "device": payload.get("device") if isinstance(payload.get("device"), dict) else None,
-            "created_at": float(payload.get("created") or now),
-            "last_seen": now,
-        }
-    except (InvalidToken, ValueError, TypeError, json.JSONDecodeError):
-        return None
-
-def current_seedr_token() -> str:
-    """Return the Seedr token for the current request's connected account."""
-    token = _seedr_request_token.get().strip()
-    if token:
-        return normalize_seedr_token(token)
-    if ALLOW_LEGACY_SEEDR_TOKEN and SEEDR_TOKEN:
-        return normalize_seedr_token(SEEDR_TOKEN)
-    return ""
-
-def _seedr_session_token(session_id: str) -> str:
-    session = _seedr_sessions.get(session_id)
-    return normalize_seedr_token(str(session.get("access_token") or "")) if session else ""
-
-
-def _seedr_session_auth_mode(session_id: str) -> str:
-    session = _seedr_sessions.get(session_id)
-    mode = str(session.get("auth_mode") or "legacy").strip().lower() if session else "legacy"
-    return mode if mode in {"legacy", "pat"} else "legacy"
-
-
-def _seedr_session_fingerprint(session_id: str) -> str:
-    """Short non-secret identifier for correlating session logs."""
-    if not session_id:
-        return "none"
-    return hashlib.sha256(session_id.encode("utf-8")).hexdigest()[:12]
-
-def _clear_seedr_session_token(session_id: str | None = None) -> None:
-    sid = session_id or _seedr_request_session_id.get().strip()
-    if not sid:
-        return
-    session = _seedr_sessions.get(sid)
-    if not session:
-        return
-    session["access_token"] = ""
-    session["refresh_token"] = ""
-    session["token_type"] = "Bearer"
-    session["auth_mode"] = "legacy"
-    session["device"] = None
-    session["last_seen"] = time.time()
-
 @app.middleware("http")
 async def attach_seedr_session(request: Request, call_next):
     raw_cookie = str(request.cookies.get(SEEDR_SESSION_COOKIE) or "").strip()
@@ -579,15 +477,6 @@ async def attach_seedr_session(request: Request, call_next):
 
     return response
 
-def _seedr_session_csrf_ok(request: Request) -> bool:
-    session_id = _seedr_request_session_id.get().strip()
-    session = _seedr_sessions.get(session_id)
-    if not session:
-        return False
-    expected = str(session.get("csrf_token") or "")
-    supplied = str(request.headers.get("X-Torrent-Studio-CSRF") or "")
-    return bool(expected and supplied and secrets.compare_digest(expected, supplied))
-
 
 @app.middleware("http")
 async def add_timing_allow_origin(request: Request, call_next):
@@ -596,12 +485,6 @@ async def add_timing_allow_origin(request: Request, call_next):
     response = await call_next(request)
     response.headers["Timing-Allow-Origin"] = "*"
     return response
-
-class FeedbackRequest(BaseModel):
-    type: str
-    rating: int | None = None
-    message: str
-    name: str | None = None
 
 
 class MagnetRequest(BaseModel):
@@ -1240,48 +1123,6 @@ def seedr_data(value: Any) -> Any:
     if isinstance(value, dict) and "data" in value:
         return value["data"]
     return value
-
-def normalize_seedr_token(value: str) -> str:
-    """Normalize common Seedr API Console token copy formats without logging it."""
-    raw = str(value or "").strip()
-    if not raw:
-        return ""
-
-    for _ in range(2):
-        if raw.lower().startswith("bearer "):
-            raw = raw[7:].strip()
-            continue
-
-        # A copied JSON response may be either an object or a JSON string.
-        try:
-            parsed = json.loads(raw)
-            if isinstance(parsed, str):
-                raw = parsed.strip()
-                continue
-            if isinstance(parsed, dict):
-                candidate = (
-                    parsed.get("access_token")
-                    or parsed.get("token")
-                    or parsed.get("personal_access_token")
-                )
-                if candidate:
-                    raw = str(candidate).strip()
-                    continue
-        except Exception:
-            pass
-        break
-
-    # Some older Torrent Studio deployments stored the OAuth token as a
-    # base64-encoded JSON object.
-    try:
-        decoded = base64.b64decode(raw, validate=True).decode("utf-8")
-        payload = json.loads(decoded)
-        if isinstance(payload, dict) and payload.get("access_token"):
-            raw = str(payload["access_token"]).strip()
-    except Exception:
-        pass
-
-    return raw.strip().strip('"').strip("'").strip()
 
 
 def seedr_access_token() -> str:
@@ -15927,133 +15768,7 @@ async def update_cleanup_settings(body: dict[str, Any]):
 @app.post("/api/cleanup/run")
 async def run_cleanup():
     return {"bytesFreed": 0, "filesRemoved": 0, "tempRemoved": 0, "orphansRemoved": 0}
-
-def _feedback_client_key(request: Request) -> str:
-    # Render sits behind a proxy; the left-most X-Forwarded-For entry is the client.
-    forwarded = str(request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
-    if forwarded:
-        return forwarded
-    return request.client.host if request.client else "unknown"
-
-
-def _enforce_feedback_rate_limit(request: Request) -> None:
-    now = time.monotonic()
-    cutoff = now - FEEDBACK_RATE_WINDOW_SECONDS
-
-    while _feedback_global_hits and _feedback_global_hits[0] < cutoff:
-        _feedback_global_hits.popleft()
-    if len(_feedback_global_hits) >= FEEDBACK_GLOBAL_RATE_LIMIT:
-        raise HTTPException(429, "Feedback is temporarily unavailable. Please try again later.")
-
-    key = _feedback_client_key(request)
-    hits = _feedback_hits.setdefault(key, deque())
-    while hits and hits[0] < cutoff:
-        hits.popleft()
-    if len(hits) >= FEEDBACK_RATE_LIMIT:
-        raise HTTPException(429, "You have sent feedback too many times. Please try again later.")
-
-    hits.append(now)
-    _feedback_global_hits.append(now)
-
-    # Keep the table bounded.
-    if len(_feedback_hits) > 5000:
-        for stale_key in [k for k, v in _feedback_hits.items() if not v or v[-1] < cutoff]:
-            _feedback_hits.pop(stale_key, None)
-
-
-@app.post("/api/feedback")
-async def submit_feedback(body: FeedbackRequest, request: Request):
-    feedback_type = str(body.type or "").strip().lower()
-    if feedback_type not in {"review", "suggestion", "bug"}:
-        raise HTTPException(400, "Invalid feedback type")
-
-    message = str(body.message or "").strip()
-    if len(message) < 5:
-        raise HTTPException(400, "Feedback is too short")
-    if len(message) > 3000:
-        raise HTTPException(400, "Feedback is too long")
-
-    name = str(body.name or "").strip()[:80]
-    rating = int(body.rating) if body.rating is not None else None
-    if feedback_type == "review" and (rating is None or rating < 1 or rating > 5):
-        raise HTTPException(400, "A review rating from 1 to 5 is required")
-    if feedback_type != "review":
-        rating = None
-
-    if not GITHUB_FEEDBACK_TOKEN:
-        raise HTTPException(503, "Feedback is not configured yet")
-
-    repo = GITHUB_FEEDBACK_REPO.strip()
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
-        raise HTTPException(500, "Feedback repository is not configured correctly")
-
-    _enforce_feedback_rate_limit(request)
-
-    label = {"review": "Review", "suggestion": "Suggestion", "bug": "Bug report"}[feedback_type]
-    title_prefix = {"review": "Review", "suggestion": "Suggestion", "bug": "Bug report"}[feedback_type]
-    title_text = message.replace("\\n", " ").strip()
-    title_text = re.sub(r"\s+", " ", title_text)[:70] or "New feedback"
-
-    if feedback_type == "review" and rating is not None:
-        stars = "⭐" * rating
-        title = f"{stars} {rating}/5 Review"
-    else:
-        title = title_prefix
-
-    if name:
-        title += f" — {name}"
-
-    submitted_at = datetime.now(timezone.utc).isoformat()
-
-    body_lines = [
-        f"# {('⭐' * rating + ' ' + str(rating) + '/5 Review') if feedback_type == 'review' and rating is not None else label}",
-        "",
-    ]
-    if name:
-        body_lines.append(f"**👤 Name:** {name}")
-    else:
-        body_lines.append("**👤 Name:** Anonymous")
-    if rating is not None:
-        body_lines.append(f"**⭐ Rating:** {rating}/5")
-    body_lines.extend([
-        f"**🕒 Submitted:** {submitted_at}",
-        "",
-        "### 💬 Feedback",
-        "",
-        f"> {message.replace(chr(10), chr(10) + '> ')}",
-    ])
-    # The visitor IP is only used for rate limiting; it is never written to the issue.
-
-    headers = {
-        "Accept": "application/vnd.github+json",
-        "Authorization": f"Bearer {GITHUB_FEEDBACK_TOKEN}",
-        "X-GitHub-Api-Version": "2026-03-10",
-        "User-Agent": "Torrent-Studio-Feedback",
-    }
-    try:
-        async with _InstrumentedAsyncClient(timeout=12.0) as client:
-            response = await client.post(
-                f"https://api.github.com/repos/{repo}/issues",
-                headers=headers,
-                json={"title": title, "body": "\n".join(body_lines)},
-            )
-    except httpx.HTTPError as exc:
-        logger.warning("Feedback submission failed: %s", exc)
-        raise HTTPException(502, "Feedback service is temporarily unavailable")
-
-    if response.status_code != 201:
-        try:
-            detail = response.json().get("message")
-        except Exception:
-            detail = None
-        logger.warning("GitHub feedback submission failed: HTTP %s %s", response.status_code, detail or "")
-        raise HTTPException(502, "Feedback could not be submitted right now")
-
-    try:
-        issue = response.json()
-    except Exception:
-        issue = {}
-    return {"submitted": True, "issueUrl": issue.get("html_url")}
+app.include_router(feedback_router)
 
 
 @app.get("/api/qbt/settings")

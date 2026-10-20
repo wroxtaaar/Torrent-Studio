@@ -1,7 +1,9 @@
 import pytest
 from fastapi.testclient import TestClient
 
+import feedback
 import main
+import seedr_session
 
 
 @pytest.fixture()
@@ -48,16 +50,16 @@ class _FakeGitHubClient:
 @pytest.fixture()
 def feedback_env(monkeypatch):
     _FakeGitHubClient.calls = []
-    monkeypatch.setattr(main, "GITHUB_FEEDBACK_TOKEN", "test-token")
-    monkeypatch.setattr(main, "GITHUB_FEEDBACK_REPO", "example/repo")
+    monkeypatch.setattr(feedback, "GITHUB_FEEDBACK_TOKEN", "test-token")
+    monkeypatch.setattr(feedback, "GITHUB_FEEDBACK_REPO", "example/repo")
     monkeypatch.setattr(main, "_InstrumentedAsyncClient", _FakeGitHubClient)
-    monkeypatch.setattr(main, "FEEDBACK_RATE_LIMIT", 2)
-    monkeypatch.setattr(main, "FEEDBACK_GLOBAL_RATE_LIMIT", 100)
-    main._feedback_hits.clear()
-    main._feedback_global_hits.clear()
+    monkeypatch.setattr(feedback, "FEEDBACK_RATE_LIMIT", 2)
+    monkeypatch.setattr(feedback, "FEEDBACK_GLOBAL_RATE_LIMIT", 100)
+    feedback._feedback_hits.clear()
+    feedback._feedback_global_hits.clear()
     yield
-    main._feedback_hits.clear()
-    main._feedback_global_hits.clear()
+    feedback._feedback_hits.clear()
+    feedback._feedback_global_hits.clear()
 
 
 def _feedback(client, ip="203.0.113.10", **overrides):
@@ -104,7 +106,7 @@ def test_feedback_requires_review_rating(client, feedback_env):
 
 
 def test_feedback_not_configured(client, feedback_env, monkeypatch):
-    monkeypatch.setattr(main, "GITHUB_FEEDBACK_TOKEN", "")
+    monkeypatch.setattr(feedback, "GITHUB_FEEDBACK_TOKEN", "")
     assert _feedback(client).status_code == 503
 
 
@@ -131,7 +133,7 @@ def test_feedback_per_client_rate_limit(client, feedback_env):
 
 
 def test_feedback_global_rate_limit(client, feedback_env, monkeypatch):
-    monkeypatch.setattr(main, "FEEDBACK_GLOBAL_RATE_LIMIT", 1)
+    monkeypatch.setattr(feedback, "FEEDBACK_GLOBAL_RATE_LIMIT", 1)
     assert _feedback(client, ip="203.0.113.1").status_code == 200
     assert _feedback(client, ip="203.0.113.2").status_code == 429
 
@@ -143,14 +145,14 @@ def test_feedback_global_rate_limit(client, feedback_env, monkeypatch):
 
 
 def test_session_cookie_round_trip_survives_restart():
-    session_id, session = main._seedr_new_session()
+    session_id, session = seedr_session._seedr_new_session()
     session["access_token"] = "accessTokenABC123"
     session["refresh_token"] = "refreshTokenXYZ789"
     session["auth_mode"] = "pat"
-    cookie = main._seedr_session_cookie_value(session_id, session)
+    cookie = seedr_session._seedr_session_cookie_value(session_id, session)
 
-    main._seedr_sessions.clear()  # simulate a process restart
-    restored = main._seedr_restore_session(cookie)
+    seedr_session._seedr_sessions.clear()  # simulate a process restart
+    restored = seedr_session._seedr_restore_session(cookie)
 
     assert restored is not None
     restored_id, restored_session = restored
@@ -162,30 +164,31 @@ def test_session_cookie_round_trip_survives_restart():
 
 
 def test_session_cookie_does_not_contain_plaintext_tokens():
-    session_id, session = main._seedr_new_session()
+    session_id, session = seedr_session._seedr_new_session()
     session["access_token"] = "accessTokenABC123"
-    cookie = main._seedr_session_cookie_value(session_id, session)
+    cookie = seedr_session._seedr_session_cookie_value(session_id, session)
     assert "accessTokenABC123" not in cookie
 
 
 def test_tampered_session_cookie_is_rejected():
-    session_id, session = main._seedr_new_session()
-    cookie = main._seedr_session_cookie_value(session_id, session)
+    session_id, session = seedr_session._seedr_new_session()
+    cookie = seedr_session._seedr_session_cookie_value(session_id, session)
     tampered = cookie[:-4] + ("AAAA" if not cookie.endswith("AAAA") else "BBBB")
-    assert main._seedr_restore_session(tampered) is None
-    assert main._seedr_restore_session("not-a-session-cookie") is None
+    assert seedr_session._seedr_restore_session(tampered) is None
+    assert seedr_session._seedr_restore_session("not-a-session-cookie") is None
 
 
 def test_expired_session_cookie_is_rejected(monkeypatch):
-    session_id, session = main._seedr_new_session()
-    cookie = main._seedr_session_cookie_value(session_id, session)
+    session_id, session = seedr_session._seedr_new_session()
+    cookie = seedr_session._seedr_session_cookie_value(session_id, session)
+    monkeypatch.setattr(seedr_session, "SEEDR_SESSION_TTL_SECONDS", -1)
     monkeypatch.setattr(main, "SEEDR_SESSION_TTL_SECONDS", -1)
-    assert main._seedr_restore_session(cookie) is None
+    assert seedr_session._seedr_restore_session(cookie) is None
 
 
 def test_csrf_token_survives_backend_restart(anonymous_client, feedback_env):
     csrf = anonymous_client.get("/api/seedr/session").json()["csrfToken"]
-    main._seedr_sessions.clear()  # simulate a process restart
+    seedr_session._seedr_sessions.clear()  # simulate a process restart
 
     response = anonymous_client.post(
         "/api/feedback",

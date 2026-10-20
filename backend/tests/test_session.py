@@ -13,6 +13,7 @@ from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
 import main
+import seedr_session
 
 PAT = "pat_" + "a1b2c3d4e5" * 4
 
@@ -23,12 +24,12 @@ def client(monkeypatch):
         return None
 
     monkeypatch.setattr(main, "_validate_seedr_pat", accept_any_pat)
-    main._seedr_sessions.clear()
+    seedr_session._seedr_sessions.clear()
     test_client = TestClient(main.app)
     csrf = test_client.get("/api/seedr/session").json()["csrfToken"]
     test_client.headers["X-Torrent-Studio-CSRF"] = csrf
     yield test_client
-    main._seedr_sessions.clear()
+    seedr_session._seedr_sessions.clear()
 
 
 def _connect(client):
@@ -39,7 +40,7 @@ def _connect(client):
 
 def _restart_backend():
     # A restart empties process memory; only the browser's cookie remains.
-    main._seedr_sessions.clear()
+    seedr_session._seedr_sessions.clear()
 
 
 def test_connected_session_survives_backend_restart(client):
@@ -76,40 +77,41 @@ def test_cookie_is_httponly_and_hides_the_token(client):
 
 
 def test_cookie_round_trip():
-    session = main._seedr_empty_session()
+    session = seedr_session._seedr_empty_session()
     session["access_token"] = PAT
     session["refresh_token"] = "refresh-token-value"
     session["auth_mode"] = "pat"
 
-    cookie = main._seedr_session_cookie_value("session-1", session)
-    restored = main._seedr_restore_session(cookie)
+    cookie = seedr_session._seedr_session_cookie_value("session-1", session)
+    restored = seedr_session._seedr_restore_session(cookie)
 
     assert restored is not None
     session_id, restored_session = restored
     assert session_id == "session-1"
     assert restored_session["csrf_token"] == session["csrf_token"]
-    assert restored_session["access_token"] == main.normalize_seedr_token(PAT)
+    assert restored_session["access_token"] == seedr_session.normalize_seedr_token(PAT)
     assert restored_session["refresh_token"] == "refresh-token-value"
     assert restored_session["auth_mode"] == "pat"
 
 
 def test_tampered_cookie_is_rejected():
-    cookie = main._seedr_session_cookie_value("session-1", main._seedr_empty_session())
+    cookie = seedr_session._seedr_session_cookie_value("session-1", seedr_session._seedr_empty_session())
     flipped = "A" if cookie[-5] != "A" else "B"
-    assert main._seedr_restore_session(cookie[:-5] + flipped + cookie[-4:]) is None
+    assert seedr_session._seedr_restore_session(cookie[:-5] + flipped + cookie[-4:]) is None
 
 
 def test_cookie_made_with_another_secret_is_rejected():
     payload = {"v": 1, "sid": "session-1", "csrf": "csrf", "last": time.time()}
     foreign = Fernet(Fernet.generate_key()).encrypt(json.dumps(payload).encode("utf-8"))
-    assert main._seedr_restore_session("v1." + foreign.decode("ascii")) is None
+    assert seedr_session._seedr_restore_session("v1." + foreign.decode("ascii")) is None
 
 
 def test_expired_session_is_rejected(monkeypatch):
+    monkeypatch.setattr(seedr_session, "SEEDR_SESSION_TTL_SECONDS", 10)
     monkeypatch.setattr(main, "SEEDR_SESSION_TTL_SECONDS", 10)
     payload = {"v": 1, "sid": "session-1", "csrf": "csrf", "last": time.time() - 100}
-    stale = main._seedr_fernet.encrypt(json.dumps(payload).encode("utf-8"))
-    assert main._seedr_restore_session("v1." + stale.decode("ascii")) is None
+    stale = seedr_session._seedr_fernet.encrypt(json.dumps(payload).encode("utf-8"))
+    assert seedr_session._seedr_restore_session("v1." + stale.decode("ascii")) is None
 
 
 def test_garbage_cookie_is_ignored(client):
