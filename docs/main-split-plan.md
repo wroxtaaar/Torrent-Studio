@@ -19,7 +19,7 @@ turned out different) in the same commit as the step.
 - [x] **Step 5 – `torrent_metadata.py`**: .torrent decoding, libtorrent, metadata jobs, inspect-magnet routes
 - [x] **Step 6 – `tmdb.py`** (single module, no `ott.py`): TMDB / Watchmode / OMDB HTTP clients, provider-key rotation, persistent TMDB + OTT caches, Watchmode / streaming-availability lookups. OMDb state got accessors (`_omdb_client`, `_omdb_rate_limit_for`) so `_fetch_imdb_rating` can move on its own in step 12.
 - [x] **Step 7 – `posters.py`**
-- [ ] **Step 8 – `search_providers.py`**: 1337x, YTS, EZTV, LimeTorrents, Knaben, torrents-csv, apibay, ranking, `/api/search*`
+- [x] **Step 8 – `search_providers.py`**: 1337x, YTS, EZTV, LimeTorrents, Knaben, torrents-csv, apibay, ranking, `/api/search*`
 - [ ] **Step 9 – `catalogues_extra.py` + `synopsis_enrichment.py`**: Marvel and extra catalogues, bundled-cache seeding, synopsis enrichment
 - [ ] **Step 10 – `catalogues_tv.py`**
 - [ ] **Step 11 – `catalogues_movies.py`**: regional movie catalogues, schedulers
