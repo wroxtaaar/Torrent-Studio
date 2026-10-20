@@ -51,6 +51,21 @@ React + Vite · FastAPI · Docker · Render
 
 The frontend and backend run in one service, and bundled catalogue snapshots help reduce repeated requests. Actual resource usage depends on traffic, cache size, integrations, and the Render instance.
 
+## Backend layout
+
+`backend/main.py` only assembles the FastAPI app (middleware, error handler, startup/shutdown hooks and router includes). The code lives in flat modules next to it:
+
+| Module | Contents |
+| --- | --- |
+| `settings.py`, `shared.py`, `http_cache.py` | Configuration, request-scoped context, response caching helpers |
+| `seedr_session.py`, `seedr_client.py`, `seedr_api.py` | Cookie session and CSRF, low-level Seedr API, all `/api/seedr/*` routes |
+| `tmdb.py`, `imdb.py`, `posters.py` | TMDB/Watchmode/OMDb clients and caches, IMDb ratings, poster lookup |
+| `search_providers.py`, `search_metadata.py`, `torrent_metadata.py` | Torrent search providers, search availability/metadata, .torrent / magnet inspection |
+| `catalogues_extra.py`, `catalogues_tv.py`, `catalogues_movies.py` | Marvel/extra, TV and regional movie catalogues |
+| `feedback.py`, `compat_routes.py`, `misc_routes.py` | Feedback, qBittorrent-style compatibility stubs, health and cache report |
+
+Route registration order matters in FastAPI, so it is pinned by `backend/tests/test_app_structure.py`. History and how the split was done: [docs/main-split-plan.md](docs/main-split-plan.md).
+
 ## Notes
 
 - Personal Seedr use requires a session secret; follow Seedr's terms and authorization flow.

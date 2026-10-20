@@ -26,7 +26,7 @@ turned out different) in the same commit as the step.
 - [x] **Step 12 – `search_metadata.py`** (`imdb.py` was already extracted in step 11 because the regional movie catalogue needs the IMDb rating record): availability, metadata, IMDb ratings Registering these routes moved `/api/catalogue/imdb-ratings` two positions later (static paths only); snapshot regenerated.
 - [x] **Steps 13-15 – `seedr_api.py`** (one module instead of three: `_prepare_seedr_space`, the task route, the metadata tree, the cancel helpers and the delete routes all rebind the same metadata cache, and the cleanup worker calls the delete route, so they cannot be separated). Contains all `/api/seedr/*` routes, Seedr state, cleanup worker, HLS/ffprobe/subtitle/media code and the media-speed stats. The `/api/seedr/*` routes now register before everything else (no other route starts with `/api/seedr`), relative order unchanged; snapshot regenerated.
 - [x] **Step 16 – `compat_routes.py`** (qBittorrent-style stubs, `/api/files` etc., search add/episode) **and `misc_routes.py`** (`/`, `/health`, `/api/health`, cache report, resolve-magnet, regional prebuilt, TMDB synopsis status). Snapshot regenerated: `/api/feedback` registers after the compat routes, and the misc routes register ahead of the catalogue routes; all moved routes are static paths and none can be matched by a parameter route they now precede.
-- [ ] **Step 17 – Final cleanup**: `main.py` becomes app assembly only; point the maintenance scripts and tests at the new modules; remove the duplicate dead route; README architecture note
+- [x] **Step 17 – Final cleanup**: `main.py` becomes app assembly only; point the maintenance scripts and tests at the new modules; remove the duplicate dead route; README architecture note
 
 Frontend (`TorrentSearchPanel.tsx` ~5.6k lines, `App.tsx` ~3.7k lines) is a
 separate plan, to be written after this one.
@@ -134,3 +134,7 @@ CI runs the same checks against the real FastAPI app, which is the final judge.
 | `backend/tests/snapshots/app_structure.json` | The snapshot (derived two independent ways: static source analysis and stub import) |
 | `.github/workflows/ci.yml` | Adds `ruff --select F821,F823` (undefined names) to the backend job |
 | `backend/tests/conftest.py` | On GitHub Actions, failing tests also print `::error` annotations (readable without the full log) |
+
+## Done
+
+All steps are complete: `main.py` is ~440 lines of app assembly. Step 17 repointed the maintenance scripts at the real modules (they no longer import `main`), removed the dead duplicate `seedr_file_subtitle` route (92 routes now), and added the README layout table.

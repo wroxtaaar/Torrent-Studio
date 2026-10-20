@@ -18,7 +18,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
-import main
+import search_providers
 
 BASE_DIR = Path(__file__).resolve().parent
 METADATA_PATH = Path(os.getenv(
@@ -175,7 +175,7 @@ async def run() -> int:
         year = movie.get("year")
         query = f"{title} {year}" if year else title
         try:
-            results = await asyncio.wait_for(main.search_1337x(query, limit=20), timeout=45.0)
+            results = await asyncio.wait_for(search_providers.search_1337x(query, limit=20), timeout=45.0)
         except Exception as exc:
             failed_searches += 1
             print(f"Search failed for {title!r}: {type(exc).__name__}")

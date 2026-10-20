@@ -18,16 +18,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import main
+import catalogues_extra, catalogues_movies, search_providers, settings, tmdb
 
 
 CATALOGUES = (
-    ("marvel", main.MARVEL_CATALOGUE_PATH),
-    ("marvel-hindi", main._EXTRA_CATALOGUE_PATHS["marvel-hindi"]),
-    ("dc-live-action", main._EXTRA_CATALOGUE_PATHS["dc-live-action"]),
-    ("dc-live-action-hindi", main._EXTRA_CATALOGUE_PATHS["dc-live-action-hindi"]),
-    ("dc-animated", main._EXTRA_CATALOGUE_PATHS["dc-animated"]),
-    ("classics", main._EXTRA_CATALOGUE_PATHS["classics"]),
+    ("marvel", catalogues_extra.MARVEL_CATALOGUE_PATH),
+    ("marvel-hindi", catalogues_extra._EXTRA_CATALOGUE_PATHS["marvel-hindi"]),
+    ("dc-live-action", catalogues_extra._EXTRA_CATALOGUE_PATHS["dc-live-action"]),
+    ("dc-live-action-hindi", catalogues_extra._EXTRA_CATALOGUE_PATHS["dc-live-action-hindi"]),
+    ("dc-animated", catalogues_extra._EXTRA_CATALOGUE_PATHS["dc-animated"]),
+    ("classics", catalogues_extra._EXTRA_CATALOGUE_PATHS["classics"]),
 )
 THREED_RE = re.compile(r"(?:^|[^a-z0-9])3[ ._-]*d(?:$|[^a-z0-9])", re.I)
 EXCLUDED_KEYS = ("avengersconfidentialblackwidowpunisher", "ironmanrisetechnovore")
@@ -242,7 +242,7 @@ async def run() -> int:
     unresolved = 0
     for ident, (title, year, _identity) in identities_without_id.items():
         try:
-            movie_id, resolution = await main._resolve_marvel_tmdb_movie_id(title, year)
+            movie_id, resolution = await catalogues_movies._resolve_marvel_tmdb_movie_id(title, year)
         except Exception as exc:
             movie_id, resolution = None, type(exc).__name__
         resolved_ids[ident] = movie_id
@@ -269,7 +269,7 @@ async def run() -> int:
     stats = {"refreshed": 0, "withProviders": 0, "withoutProviders": 0, "lookupErrors": 0}
     for index, (movie_id, (title, year, _ident)) in enumerate(work, start=1):
         try:
-            result = await main._tmdb_fetch_movie_ott_availability(movie_id, region)
+            result = await tmdb._tmdb_fetch_movie_ott_availability(movie_id, region)
             if not isinstance(result, dict):
                 raise ValueError("Unexpected OTT availability payload")
             result = dict(result)
@@ -288,8 +288,8 @@ async def run() -> int:
                 stats["withProviders"] += 1
 
             refreshed_by_id[movie_id] = result
-            main._write_tmdb_ott_persistent_cache((movie_id, region), result)
-            main._tmdb_ott_cache[(movie_id, region)] = (time.monotonic(), result)
+            tmdb._write_tmdb_ott_persistent_cache((movie_id, region), result)
+            tmdb._tmdb_ott_cache[(movie_id, region)] = (time.monotonic(), result)
             stats["refreshed"] += 1
             if has_providers(result):
                 status = "WITH_PROVIDERS"
@@ -339,7 +339,7 @@ async def run() -> int:
             payload["results"] = rows
             payload["resultCount"] = len(rows)
             payload["movieCount"] = len({
-                main._normalize_title(canonical_title(row)) for row in rows if canonical_title(row)
+                search_providers._normalize_title(canonical_title(row)) for row in rows if canonical_title(row)
             })
             atomic_save(entry["path"], payload)
 
@@ -352,7 +352,7 @@ async def run() -> int:
         "unresolvedTitleIdentities": unresolved,
         **stats,
     }
-    summary_path = main.TMDB_OTT_CACHE_FILE.parent / "franchise_ott_refresh_summary.json"
+    summary_path = settings.TMDB_OTT_CACHE_FILE.parent / "franchise_ott_refresh_summary.json"
     summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print("FINISHED " + json.dumps(summary, ensure_ascii=False), flush=True)
     return 0

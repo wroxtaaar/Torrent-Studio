@@ -206,13 +206,6 @@
    ],
    [
     [
-     "GET"
-    ],
-    "/api/seedr/files/{file_id}/subtitle",
-    "seedr_file_subtitle"
-   ],
-   [
-    [
      "DELETE"
     ],
     "/api/seedr/tasks/{tid}",
@@ -891,13 +884,6 @@
     ],
     "/api/seedr/media/audio/{file_id}",
     "seedr_audio_media_route"
-   ],
-   [
-    [
-     "GET"
-    ],
-    "/api/seedr/files/{file_id}/subtitle",
-    "seedr_file_subtitle"
    ],
    [
     [

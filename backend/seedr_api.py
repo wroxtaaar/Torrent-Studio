@@ -2869,52 +2869,6 @@ async def seedr_audio_media_route(
         },
     )
 
-@router.get("/api/seedr/files/{file_id}/subtitle")
-async def seedr_file_subtitle(
-    file_id: str,
-    filename: str = Query(""),
-):
-    """Return a Seedr sidecar subtitle as browser-compatible WebVTT."""
-    if not current_seedr_token():
-        raise HTTPException(503, "Seedr is not configured")
-
-    requested_name = Path(filename or "").name
-    extension = requested_name.rsplit(".", 1)[-1].lower() if "." in requested_name else ""
-    if extension not in {"srt", "vtt"}:
-        raise HTTPException(400, "Only SRT and VTT subtitles are supported")
-
-    result = await download_url(file_id)
-    upstream_url = str(result.get("url") or "").strip()
-    if not upstream_url:
-        raise HTTPException(502, "Seedr returned no subtitle URL")
-
-    async with _InstrumentedAsyncClient(timeout=20, follow_redirects=True) as client:
-        response = await client.get(upstream_url)
-        if response.status_code >= 400:
-            raise HTTPException(response.status_code, "Seedr subtitle download failed")
-
-    text = response.content.decode("utf-8-sig", errors="replace")
-    if extension == "srt":
-        # Convert the common SRT timestamp format to WebVTT.
-        text = text.replace("\r\n", "\n").replace("\r", "\n")
-        text = re.sub(
-            r"(\d{2}:\d{2}:\d{2}),(\d{3})",
-            r"\1.\2",
-            text,
-        )
-        text = "WEBVTT\n\n" + text.lstrip()
-    elif not text.lstrip().startswith("WEBVTT"):
-        text = "WEBVTT\n\n" + text.lstrip()
-
-    return Response(
-        content=text,
-        media_type="text/vtt; charset=utf-8",
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Cache-Control": "no-store",
-            "Content-Disposition": "inline; filename=\"" + requested_name.replace('"', '_') + "\"",
-        },
-    )
 
 async def _cancel_seedr_task_and_partial_folder(
     tid: str,

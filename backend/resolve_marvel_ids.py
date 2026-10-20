@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-import main
+import catalogues_extra, settings, tmdb
 
 
 DEFAULT_OUTPUT = Path("/app/data/marvel_tmdb_id_review.json")
@@ -33,11 +33,11 @@ async def resolve_one(title: str, year: int, retries: int = 4) -> dict[str, Any]
     last_exc: Exception | None = None
     for attempt in range(retries + 1):
         try:
-            payload = await main._tmdb_get_json("/search/movie", params)
+            payload = await tmdb._tmdb_get_json("/search/movie", params)
             break
         except Exception as exc:
             last_exc = exc
-            # main._tmdb_get_json places transiently failing credentials into a
+            # tmdb._tmdb_get_json places transiently failing credentials into a
             # 30-second cooldown. Wait for that cooldown instead of immediately
             # marking every remaining title as a lookup error.
             if attempt < retries:
@@ -109,7 +109,7 @@ async def run() -> int:
     args = parser.parse_args()
     if args.delay < 0:
         raise SystemExit("--delay cannot be negative")
-    if not (main.TMDB_READ_ACCESS_TOKENS or main.TMDB_API_KEYS):
+    if not (settings.TMDB_READ_ACCESS_TOKENS or settings.TMDB_API_KEYS):
         raise SystemExit("No TMDB credentials configured in the Home container.")
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -126,8 +126,8 @@ async def run() -> int:
             logging.warning("Could not read existing report; starting fresh: %s", type(exc).__name__)
 
     rows = []
-    total = len(main.MARVEL_MOVIE_SEARCHES)
-    for index, (title, year) in enumerate(main.MARVEL_MOVIE_SEARCHES, 1):
+    total = len(catalogues_extra.MARVEL_MOVIE_SEARCHES)
+    for index, (title, year) in enumerate(catalogues_extra.MARVEL_MOVIE_SEARCHES, 1):
         saved_row = previous.get((title, year))
         if saved_row and saved_row.get("status") != "lookup_error":
             row = saved_row
@@ -142,7 +142,7 @@ async def run() -> int:
         partial = {
             "schemaVersion": 1,
             "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "source": "main.MARVEL_MOVIE_SEARCHES",
+            "source": "catalogues_extra.MARVEL_MOVIE_SEARCHES",
             "sourceCount": total,
             "regionForLaterAvailability": "IN",
             "summary": {
@@ -153,7 +153,7 @@ async def run() -> int:
             },
             "note": "Review this manifest before running any Watchmode availability refresh. This script never modifies the OTT cache.",
             "movies": rows + [
-                previous[(t, y)] for t, y in main.MARVEL_MOVIE_SEARCHES[index:]
+                previous[(t, y)] for t, y in catalogues_extra.MARVEL_MOVIE_SEARCHES[index:]
                 if (t, y) in previous and (t, y) not in {(r.get("title"), r.get("year")) for r in rows}
             ],
         }
@@ -170,7 +170,7 @@ async def run() -> int:
     manifest = {
         "schemaVersion": 1,
         "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "source": "main.MARVEL_MOVIE_SEARCHES",
+        "source": "catalogues_extra.MARVEL_MOVIE_SEARCHES",
         "sourceCount": total,
         "regionForLaterAvailability": "IN",
         "summary": {

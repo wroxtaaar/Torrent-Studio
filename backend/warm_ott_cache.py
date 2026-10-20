@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-import main
+import settings, tmdb
 
 
 CATALOGUES = (
@@ -122,7 +122,7 @@ async def _resolve_watchmode_id(
     if movie_id in resolved_ids:
         return resolved_ids[movie_id]
     try:
-        response = await main._watchmode_get(
+        response = await tmdb._watchmode_get(
             "/search/",
             params={
                 "search_field": "tmdb_movie_id",
@@ -171,7 +171,7 @@ async def _watchmode_sources(
 ) -> list[dict[str, Any]] | None:
     """Fetch sources by TMDB ID, falling back to a resolved Watchmode ID when empty."""
     try:
-        response = await main._watchmode_get(
+        response = await tmdb._watchmode_get(
             f"/title/movie-{movie_id}/sources/",
             params={"regions": region},
             timeout=httpx.Timeout(12.0, connect=5.0),
@@ -196,7 +196,7 @@ async def _watchmode_sources(
         watchmode_id = await _resolve_watchmode_id(movie_id, resolved_ids)
         if watchmode_id is None:
             return []
-        fallback = await main._watchmode_get(
+        fallback = await tmdb._watchmode_get(
             f"/title/{watchmode_id}/sources/",
             params={"regions": region},
             timeout=httpx.Timeout(12.0, connect=5.0),
@@ -223,7 +223,7 @@ async def run() -> int:
         raise SystemExit("--pages-per-catalogue must be at least 1.")
     if args.max_titles < 0 or args.delay < 0:
         raise SystemExit("--max-titles and --delay cannot be negative.")
-    if not main.WATCHMODE_API_KEYS:
+    if not settings.WATCHMODE_API_KEYS:
         raise SystemExit("No Watchmode key found. Set WATCHMODE_API_KEYS in the container environment.")
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -232,14 +232,14 @@ async def run() -> int:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-    cache_path = main.TMDB_OTT_CACHE_FILE
-    catalogue_path = main.TMDB_CATALOGUE_CACHE_FILE
+    cache_path = settings.TMDB_OTT_CACHE_FILE
+    catalogue_path = settings.TMDB_CATALOGUE_CACHE_FILE
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
     released_only = not args.include_upcoming
     suffix = "|released-v4" if released_only else "|upcoming-v3"
     print(f"Region: {region}")
-    print(f"Availability source: Watchmode only ({len(main.WATCHMODE_API_KEYS)} keys configured; values hidden)")
+    print(f"Availability source: Watchmode only ({len(settings.WATCHMODE_API_KEYS)} keys configured; values hidden)")
     print(f"Catalogue source: existing persistent cache only ({catalogue_path})")
     print(f"Persistent OTT cache: {cache_path}")
     print(f"Catalogues: {len(CATALOGUES)}; maximum saved pages per catalogue: {args.pages_per_catalogue}")
@@ -252,7 +252,7 @@ async def run() -> int:
     for key in CATALOGUES:
         found_for_catalogue = 0
         for page in range(1, args.pages_per_catalogue + 1):
-            cached = main._read_tmdb_persistent_cache((key + suffix, page))
+            cached = tmdb._read_tmdb_persistent_cache((key + suffix, page))
             if not cached:
                 # Stop at the first missing page: catalogue pages are contiguous
                 # and the script must not make a live TMDB request to fill gaps.
@@ -302,13 +302,13 @@ async def run() -> int:
     resolved_watchmode_ids: dict[int, int | None] = {}
     for index, (movie_id, title) in enumerate(ordered, start=1):
         cache_key = (movie_id, region)
-        disk_entry = main._read_tmdb_ott_persistent_cache(cache_key)
+        disk_entry = tmdb._read_tmdb_ott_persistent_cache(cache_key)
         old_payload: dict[str, Any] = disk_entry[1] if disk_entry else {}
         old_provider_count = len(_providers(old_payload))
         old_source = str(old_payload.get("source") or "").casefold()
         old_age = max(0.0, time.time() - disk_entry[0]) if disk_entry else float("inf")
 
-        if not args.refresh and disk_entry and old_age < main.TMDB_OTT_CACHE_SECONDS:
+        if not args.refresh and disk_entry and old_age < settings.TMDB_OTT_CACHE_SECONDS:
             # Fresh Watchmode records are already authoritative for this warmer.
             # Recheck fresh TMDB/legacy records so Watchmode can enrich them;
             # if Watchmode returns nothing, the old provider data is retained.
@@ -323,11 +323,11 @@ async def run() -> int:
             if index == 1 or index % 25 == 0:
                 print(f"[{index}/{total}] ERROR {title[:65]} (TMDB {movie_id}): Watchmode unavailable; cache preserved")
         else:
-            streaming_new = main._watchmode_provider_rows(
+            streaming_new = tmdb._watchmode_provider_rows(
                 source_rows, {"sub", "free", "ads", "tve", "subscription"}
             )
-            rent_new = main._watchmode_provider_rows(source_rows, {"rent", "rental"})
-            buy_new = main._watchmode_provider_rows(source_rows, {"buy", "purchase"})
+            rent_new = tmdb._watchmode_provider_rows(source_rows, {"rent", "rental"})
+            buy_new = tmdb._watchmode_provider_rows(source_rows, {"buy", "purchase"})
             has_watchmode_data = bool(streaming_new or rent_new or buy_new)
 
             if not has_watchmode_data and old_provider_count:
@@ -365,13 +365,13 @@ async def run() -> int:
                     "providerAttribution": "Streaming availability data powered by Watchmode. Previously cached provider data is retained when not returned by Watchmode.",
                     "attribution": old_payload.get("attribution") or "This product uses the TMDB API but is not endorsed or certified by TMDB.",
                 }
-                main._write_tmdb_ott_persistent_cache(cache_key, payload)
+                tmdb._write_tmdb_ott_persistent_cache(cache_key, payload)
                 stats["updated"] += 1
                 if index == 1 or index % 10 == 0 or index == total:
                     providers = len(streaming) + len(rent) + len(buy)
                     print(f"[{index}/{total}] {title[:65]} (TMDB {movie_id}): {status}, providers={providers}, source=Watchmode")
 
-        cooldown_until = float(getattr(main, "_WATCHMODE_RATE_LIMITED_UNTIL", 0.0) or 0.0)
+        cooldown_until = float(getattr(tmdb, "_WATCHMODE_RATE_LIMITED_UNTIL", 0.0) or 0.0)
         if cooldown_until > time.time():
             wait_seconds = cooldown_until - time.time()
             print(f"[rate limit] Watchmode asked us to pause; waiting {int(wait_seconds) + 1}s.")
