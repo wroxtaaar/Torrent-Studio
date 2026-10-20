@@ -17,7 +17,7 @@ turned out different) in the same commit as the step.
 - [x] **Step 3 – `seedr_session.py` + `feedback.py`**: cookie session, CSRF, token normalisation (`normalize_seedr_token` moves here to break a cycle), feedback route and rate limit
 - [x] **Step 4 – `seedr_client.py`**: low-level Seedr API (`seedr_request`, legacy + v2 helpers, task helpers, magnet normalisation). The cleanup worker (`_cleanup_seedr_job` calls the `seedr_folder_delete` route, and `_seedr_cleanup_jobs` is rebound next to the cancel helpers) stays in main.py and moves in step 15 with the delete routes.
 - [x] **Step 5 – `torrent_metadata.py`**: .torrent decoding, libtorrent, metadata jobs, inspect-magnet routes
-- [ ] **Step 6 – `tmdb.py` (+ `ott.py`)**: TMDB / Watchmode / OMDB HTTP clients, persistent TMDB caches, OTT lookups
+- [x] **Step 6 – `tmdb.py`** (single module, no `ott.py`): TMDB / Watchmode / OMDB HTTP clients, provider-key rotation, persistent TMDB + OTT caches, Watchmode / streaming-availability lookups. OMDb state got accessors (`_omdb_client`, `_omdb_rate_limit_for`) so `_fetch_imdb_rating` can move on its own in step 12.
 - [ ] **Step 7 – `posters.py`**
 - [ ] **Step 8 – `search_providers.py`**: 1337x, YTS, EZTV, LimeTorrents, Knaben, torrents-csv, apibay, ranking, `/api/search*`
 - [ ] **Step 9 – `catalogues_extra.py` + `synopsis_enrichment.py`**: Marvel and extra catalogues, bundled-cache seeding, synopsis enrichment
