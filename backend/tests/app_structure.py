@@ -13,13 +13,29 @@ FASTAPI_DEFAULT_ENDPOINTS = {"openapi", "swagger_ui_html", "swagger_ui_redirect"
 FASTAPI_DEFAULT_EXCEPTION_HANDLERS = {"HTTPException", "RequestValidationError", "WebSocketRequestValidationError"}
 
 
+def _flatten(routes, prefix: str = ""):
+    """Yield (prefix, route) in matching order.
+
+    Newer FastAPI versions keep ``app.include_router(r)`` as one wrapper object
+    (``_IncludedRouter``) instead of copying the routes; older ones copy them.
+    Both match the included routes at the position of the include, so expand
+    wrappers in place to get the same list either way.
+    """
+    for route in routes:
+        inner = getattr(route, "original_router", None)
+        if getattr(route, "endpoint", None) is None and inner is not None:
+            yield from _flatten(inner.routes, prefix + (getattr(route, "prefix", "") or ""))
+        else:
+            yield prefix, route
+
+
 def extract(app) -> dict:
     routes = []
-    for route in app.routes:
+    for prefix, route in _flatten(app.routes):
         endpoint = getattr(route, "endpoint", None)
         if endpoint is None or getattr(endpoint, "__name__", "") in FASTAPI_DEFAULT_ENDPOINTS:
             continue
-        routes.append([sorted(getattr(route, "methods", None) or []), route.path, endpoint.__name__])
+        routes.append([sorted(getattr(route, "methods", None) or []), prefix + route.path, endpoint.__name__])
 
     middleware = []
     for item in getattr(app, "user_middleware", []):
