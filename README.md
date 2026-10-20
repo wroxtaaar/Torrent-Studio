@@ -53,18 +53,20 @@ The frontend and backend run in one service, and bundled catalogue snapshots hel
 
 ## Backend layout
 
-`backend/main.py` only assembles the FastAPI app (middleware, error handler, startup/shutdown hooks and router includes). The code lives in flat modules next to it:
+`backend/main.py` only assembles the FastAPI app (middleware, error handler, startup/shutdown hooks and router includes); `backend/fullstack_app.py` adds the frontend on top of it. The code lives in packages next to them:
 
-| Module | Contents |
+| Package | Modules |
 | --- | --- |
-| `settings.py`, `shared.py`, `http_cache.py` | Configuration, request-scoped context, response caching helpers |
-| `seedr_session.py`, `seedr_client.py`, `seedr_api.py` | Cookie session and CSRF, low-level Seedr API, all `/api/seedr/*` routes |
-| `tmdb.py`, `imdb.py`, `posters.py` | TMDB/Watchmode/OMDb clients and caches, IMDb ratings, poster lookup |
-| `search_providers.py`, `search_metadata.py`, `torrent_metadata.py` | Torrent search providers, search availability/metadata, .torrent / magnet inspection |
-| `catalogues_extra.py`, `catalogues_tv.py`, `catalogues_movies.py` | Marvel/extra, TV and regional movie catalogues |
-| `feedback.py`, `compat_routes.py`, `misc_routes.py` | Feedback, qBittorrent-style compatibility stubs, health and cache report |
+| `core/` | `settings` (all configuration), `shared` (request context, `SeedrError`), `http_cache`, `cache_diagnostics` |
+| `seedr/` | `seedr_session` (cookie session, CSRF), `seedr_client` (low-level Seedr API), `seedr_api` (all `/api/seedr/*` routes) |
+| `metadata/` | `tmdb` (TMDB/Watchmode/OMDb clients and caches), `imdb`, `posters`, `search_metadata` |
+| `search/` | `search_providers` (1337x, YTS, EZTV, ...), `torrent_metadata` (.torrent / magnet inspection) |
+| `catalogues/` | `catalogues_extra` (Marvel/extra, synopsis enrichment), `catalogues_tv`, `catalogues_movies` |
+| `routes/` | `feedback`, `compat_routes` (qBittorrent-style stubs), `misc_routes` (health, cache report, ...) |
+| `integrations/` | `nexstream` |
+| `maintenance/` | one-off scripts run with `docker exec` (cache refresh, ID resolution) |
 
-Route registration order matters in FastAPI, so it is pinned by `backend/tests/test_app_structure.py`. History and how the split was done: [docs/main-split-plan.md](docs/main-split-plan.md).
+Route registration order matters in FastAPI, so it is pinned by `backend/tests/test_app_structure.py`. History of the split: [docs/main-split-plan.md](docs/main-split-plan.md).
 
 ## Notes
 

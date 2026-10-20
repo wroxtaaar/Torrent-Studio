@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from fastapi.responses import FileResponse
 
 from main import app
-from nexstream import router as nexstream_router
+from integrations.nexstream import router as nexstream_router
 
 app.include_router(nexstream_router)
 

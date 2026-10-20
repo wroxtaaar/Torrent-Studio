@@ -1,9 +1,9 @@
 import pytest
 from fastapi.testclient import TestClient
 
-import feedback
+from routes import feedback
 import main
-import seedr_session
+from seedr import seedr_session
 
 
 @pytest.fixture()

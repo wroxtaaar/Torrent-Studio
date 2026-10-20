@@ -138,3 +138,7 @@ CI runs the same checks against the real FastAPI app, which is the final judge.
 ## Done
 
 All steps are complete: `main.py` is ~440 lines of app assembly. Step 17 repointed the maintenance scripts at the real modules (they no longer import `main`), removed the dead duplicate `seedr_file_subtitle` route (92 routes now), and added the README layout table.
+
+## Folder layout
+
+After the split the flat modules were grouped into packages (`core/`, `seedr/`, `metadata/`, `search/`, `catalogues/`, `routes/`, `integrations/`, `maintenance/`); see the README table. The step list above uses the original flat module names. The `scripts/refactor/` tools were written for the flat layout and are kept for reference.

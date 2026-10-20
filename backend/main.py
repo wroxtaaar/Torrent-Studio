@@ -29,7 +29,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, Response, Streamin
 from pydantic import BaseModel
 
 
-from cache_diagnostics import (
+from core.cache_diagnostics import (
     _CACHE_DIAGNOSTICS,
     _CACHE_DIAGNOSTICS_STARTED_AT,
     _UPSTREAM_FEATURE,
@@ -39,9 +39,9 @@ from cache_diagnostics import (
     _upstream_provider_name,
     _upstream_endpoint_group,
 )
-from nexstream import nexstream_api_key_configured, resolve_nexstream_movie
+from integrations.nexstream import nexstream_api_key_configured, resolve_nexstream_movie
 
-from settings import (
+from core.settings import (
     REGIONAL_MOVIE_PREBUILT_CACHE_PATH,
     ALLOW_LEGACY_SEEDR_TOKEN,
     APP_NAME,
@@ -125,7 +125,7 @@ from settings import (
     logger,
 )
 
-from shared import (
+from core.shared import (
     SeedrError,
     _MANUAL_TORRENT_SEARCH,
     _REGIONAL_MOVIE_CATALOGUE_FORCE_REFRESH,
@@ -135,7 +135,7 @@ from shared import (
     _seedr_request_token,
 )
 
-from tmdb import (
+from metadata.tmdb import (
     _OMDB_REQUEST_SEMAPHORE,
     _PROVIDER_KEY_CURSORS,
     _close_tmdb_http_client,
@@ -164,11 +164,11 @@ from tmdb import (
     _write_tmdb_persistent_cache,
 )
 
-from imdb import _get_imdb_rating_record, router as imdb_router
+from metadata.imdb import _get_imdb_rating_record, router as imdb_router
 
-from feedback import router as feedback_router
+from routes.feedback import router as feedback_router
 
-from seedr_session import (
+from seedr.seedr_session import (
     _clear_seedr_session_token,
     _seedr_get_session,
     _seedr_new_session,
@@ -183,7 +183,7 @@ from seedr_session import (
     normalize_seedr_token,
 )
 
-from search_providers import (
+from search.search_providers import (
     LIMETORRENTS_HOSTS,
     X1337_HOSTS,
     _normalize_title,
@@ -196,7 +196,7 @@ from search_providers import (
     search_yts_movies,
 )
 
-from seedr_api import (
+from seedr.seedr_api import (
     get_seedr_metadata_tree,
     seedr_add,
     seedr_file_delete,
@@ -206,7 +206,7 @@ from seedr_api import (
     router as seedr_api_router,
 )
 
-from torrent_metadata import MagnetRequest, router as torrent_metadata_router
+from search.torrent_metadata import MagnetRequest, router as torrent_metadata_router
 
 
 app = FastAPI(title=APP_NAME)
@@ -248,7 +248,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from http_cache import (
+from core.http_cache import (
     _DATE_SORTED_EXTRA_CATALOGUES,
     _fast_json_response,
     _file_signature,
@@ -331,7 +331,7 @@ async def add_timing_allow_origin(request: Request, call_next):
     response.headers["Timing-Allow-Origin"] = "*"
     return response
 
-from seedr_client import (
+from seedr.seedr_client import (
     add_task,
     arr,
     folder_name,
@@ -353,7 +353,7 @@ from seedr_client import (
 )
 app.include_router(seedr_api_router)
 
-from posters import (
+from metadata.posters import (
     _canonical_catalogue_poster_url,
     _catalogue_row_has_3d_quality,
     _catalogue_row_is_excluded_franchise_title,
@@ -364,7 +364,7 @@ from posters import (
 )
 app.include_router(posters_router)
 
-from misc_routes import router as misc_routes_router
+from routes.misc_routes import router as misc_routes_router
 app.include_router(misc_routes_router)
 
 
@@ -375,7 +375,7 @@ async def root():
     return {"name": APP_NAME, "status": "ok"}
 app.router.add_event_handler("startup", start_seedr_cleanup_worker)
 
-from catalogues_extra import (
+from catalogues.catalogues_extra import (
     MARVEL_CATALOGUE_PATH,
     MARVEL_MOVIE_SEARCHES,
     _CACHE_SEED_FILES,
@@ -412,14 +412,14 @@ app.router.add_event_handler("startup", _start_catalogue_synopsis_enrichment)
 app.router.add_event_handler("startup", _start_tmdb_catalogue_synopsis_enrichment)
 app.router.add_event_handler("shutdown", _close_tmdb_http_client)
 
-from catalogues_movies import (
+from catalogues.catalogues_movies import (
     _resolve_marvel_tmdb_movie_id,
     _start_regional_movie_catalogue_scheduler,
     _warm_extra_catalogues_on_startup,
     router as catalogues_movies_router,
 )
 
-from catalogues_tv import router as catalogues_tv_router
+from catalogues.catalogues_tv import router as catalogues_tv_router
 app.include_router(catalogues_tv_router)
 app.include_router(catalogues_movies_router)
 
@@ -429,7 +429,7 @@ app.router.add_event_handler("startup", _warm_extra_catalogues_on_startup)
 
 app.router.add_event_handler("startup", _start_regional_movie_catalogue_scheduler)
 
-from search_metadata import router as search_metadata_router
+from metadata.search_metadata import router as search_metadata_router
 app.include_router(search_metadata_router)
 
 
@@ -437,6 +437,6 @@ app.router.add_event_handler("startup", _warm_marvel_catalogue_on_startup)
 app.include_router(imdb_router)
 app.include_router(torrent_metadata_router)
 
-from compat_routes import router as compat_routes_router
+from routes.compat_routes import router as compat_routes_router
 app.include_router(compat_routes_router)
 app.include_router(feedback_router)

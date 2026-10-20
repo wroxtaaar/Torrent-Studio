@@ -13,8 +13,8 @@ from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
 import main
-import seedr_api
-import seedr_session
+from seedr import seedr_api
+from seedr import seedr_session
 
 PAT = "pat_" + "a1b2c3d4e5" * 4
 

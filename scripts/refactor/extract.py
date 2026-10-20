@@ -229,7 +229,7 @@ def strip_blank_edges(seg: list[str]) -> list[str]:
 
 def build(main_lines: list[str], nodes: list[lib.Node], chosen: set[int], module: str, export_extra: set[str]):
     table = import_table(main_lines, nodes)
-    local_modules = {p.stem for p in BACKEND.glob("*.py")} | {module}
+    local_modules = {p.stem for p in BACKEND.rglob("*.py")} | {module}
     ordered = sorted(chosen)
     hooks: dict[int, tuple[str, str]] = {}  # node idx -> (kind, function name)
     has_routes = any(nodes[i].routes for i in ordered)
@@ -357,7 +357,7 @@ def run_checks(paths: list[Path]) -> list[str]:
 def script_and_test_usage(module_names: set[str]) -> tuple[set[str], list[str]]:
     """main.<name> used by maintenance scripts (must keep working) and by tests (need retargeting)."""
     scripts: set[str] = set()
-    for path in BACKEND.glob("*.py"):
+    for path in BACKEND.rglob("*.py"):
         if path.name in {"main.py", "fullstack_app.py"}:
             continue
         for node in ast.walk(ast.parse(path.read_text())):
@@ -395,7 +395,7 @@ def cmd_status(_args) -> int:
     total = len(lines)
     print(f"backend/main.py: {total} lines, {len(nodes)} top-level statements, "
           f"{sum(len(n.routes) for n in nodes)} routes")
-    for path in sorted(BACKEND.glob("*.py")):
+    for path in sorted(BACKEND.rglob("*.py")):
         if path.name != "main.py":
             print(f"  {path.name:34s} {len(path.read_text().splitlines()):6d} lines")
     return 0
@@ -421,7 +421,7 @@ def cmd_outline(args) -> int:
 
 
 def cmd_check(_args) -> int:
-    paths = sorted(p for p in BACKEND.glob("*.py"))
+    paths = sorted(p for p in BACKEND.rglob("*.py"))
     problems = []
     for path in paths:
         problems += undefined_names(path)

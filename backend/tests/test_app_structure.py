@@ -81,24 +81,28 @@ def test_app_structure_matches_snapshot(module_name, expected):
     assert actual == expected[module_name], _describe(expected[module_name], actual) + f" || non-endpoint routes: {other}"
 
 
-def test_names_used_by_maintenance_scripts_still_exist_on_main():
-    """backend/*.py scripts do `import main` and read main.<name>."""
-    import main
+def test_names_used_by_maintenance_scripts_still_exist():
+    """backend/maintenance/*.py do `from <package> import <module>` and read <module>.<name>."""
+    import importlib
 
+    sys.path.insert(0, str(BACKEND))
     used: dict[str, set[str]] = {}
-    for path in BACKEND.glob("*.py"):
-        if path.name in {"main.py", "fullstack_app.py"}:
-            continue
+    for path in (BACKEND / "maintenance").glob("*.py"):
         tree = ast.parse(path.read_text())
-        imports_main = any(
-            isinstance(node, ast.Import) and any(alias.name == "main" for alias in node.names)
+        aliases = {
+            alias.asname or alias.name: f"{node.module}.{alias.name}"
             for node in ast.walk(tree)
-        )
-        if not imports_main:
-            continue
+            if isinstance(node, ast.ImportFrom)
+            and node.module in {"core", "seedr", "metadata", "search", "catalogues", "routes", "integrations"}
+            for alias in node.names
+        }
         for node in ast.walk(tree):
-            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "main":
-                used.setdefault(node.attr, set()).add(path.name)
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id in aliases:
+                used.setdefault(f"{aliases[node.value.id]}:{node.attr}", set()).add(path.name)
 
-    missing = {name: sorted(files) for name, files in used.items() if not hasattr(main, name)}
-    assert not missing, f"scripts use names that main no longer exposes: {missing}"
+    missing = {}
+    for key, files in used.items():
+        module_name, attr = key.split(":")
+        if not hasattr(importlib.import_module(module_name), attr):
+            missing[key] = sorted(files)
+    assert not missing, f"maintenance scripts use names that no longer exist: {missing}"
