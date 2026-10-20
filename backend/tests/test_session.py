@@ -13,6 +13,7 @@ from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
 import main
+import seedr_api
 import seedr_session
 
 PAT = "pat_" + "a1b2c3d4e5" * 4
@@ -23,7 +24,7 @@ def client(monkeypatch):
     async def accept_any_pat(token):
         return None
 
-    monkeypatch.setattr(main, "_validate_seedr_pat", accept_any_pat)
+    monkeypatch.setattr(seedr_api, "_validate_seedr_pat", accept_any_pat)
     seedr_session._seedr_sessions.clear()
     test_client = TestClient(main.app)
     csrf = test_client.get("/api/seedr/session").json()["csrfToken"]

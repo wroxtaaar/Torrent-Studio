@@ -24,9 +24,7 @@ turned out different) in the same commit as the step.
 - [x] **Step 10 – `catalogues_tv.py`**
 - [x] **Step 11 – `catalogues_movies.py`**: regional movie catalogues, schedulers
 - [x] **Step 12 – `search_metadata.py`** (`imdb.py` was already extracted in step 11 because the regional movie catalogue needs the IMDb rating record): availability, metadata, IMDb ratings Registering these routes moved `/api/catalogue/imdb-ratings` two positions later (static paths only); snapshot regenerated.
-- [ ] **Step 13 – Seedr routes, part 1**: connect / auth / quota / add / task progress
-- [ ] **Step 14 – Seedr routes, part 2**: library, folders, downloads
-- [ ] **Step 15 – Seedr media**: HLS, ffprobe, subtitles, audio/video streaming, cancel and delete
+- [x] **Steps 13-15 – `seedr_api.py`** (one module instead of three: `_prepare_seedr_space`, the task route, the metadata tree, the cancel helpers and the delete routes all rebind the same metadata cache, and the cleanup worker calls the delete route, so they cannot be separated). Contains all `/api/seedr/*` routes, Seedr state, cleanup worker, HLS/ffprobe/subtitle/media code and the media-speed stats. The `/api/seedr/*` routes now register before everything else (no other route starts with `/api/seedr`), relative order unchanged; snapshot regenerated.
 - [ ] **Step 16 – `compat_routes.py`** and the remaining small routes (`/health`, `/api/health`, cache report, resolve-magnet)
 - [ ] **Step 17 – Final cleanup**: `main.py` becomes app assembly only; point the maintenance scripts and tests at the new modules; remove the duplicate dead route; README architecture note
 
