@@ -967,4 +967,5 @@ export function useMediaPlayerModel(props: MediaPlayerModalProps) {
   };
 }
 
-export type PanelModel = ReturnType<typeof useMediaPlayerModel>;
+// The hook returns null while there is no file to play (same as the old early return).
+export type PanelModel = NonNullable<ReturnType<typeof useMediaPlayerModel>>;

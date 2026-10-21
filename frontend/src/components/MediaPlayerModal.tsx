@@ -8,6 +8,7 @@ import { MinimizedPlayer } from './media-player/MinimizedPlayer.tsx';
 
 export const MediaPlayerModal: React.FC<MediaPlayerModalProps> = (props) => {
   const vm = useMediaPlayerModel(props);
+  if (!vm) return null;
   const { isMinimized, isFullscreen, containerRef } = vm;
 
 
