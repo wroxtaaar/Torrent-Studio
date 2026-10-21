@@ -21,7 +21,7 @@ import { TvShowCard } from './torrent-search/TvShowCard.tsx';
 import { MovieCompactCard, MoviePrepareCard, imdbTitleLink, setHighQualityPostersReady } from './MovieCards.tsx';
 import { compareReleaseDateDescending, episodeSeriesTitle, imdbRatingKey, normalizeGroupTitle, normalizeSavedOttTitle, searchMetadataForGroup, torrentQualityDetails, torrentResultKey } from './torrent-search/grouping.ts';
 import { toCardProviders, uniqueOttProviders } from './torrent-search/ottProviders.ts';
-import { CachedFranchiseSearchMode, persistImdbRatings, persistSearchAvailability, persistSearchMetadata, readFranchisePageCache, readPersistentSearchAvailability, writeFranchisePageCache } from './torrent-search/persistentCaches.ts';
+import { CachedFranchiseSearchMode, persistImdbRatings, persistSearchAvailability, persistSearchMetadata, readFranchisePageCache, writeFranchisePageCache } from './torrent-search/persistentCaches.ts';
 import { normalizeTorrentTitleForNexStream } from './torrent-search/nexstream.ts';
 import { cataloguePosterOverride, cataloguePosterSource, imdbFallbackForCatalogueMovie, imdbRatingForCatalogueMovie, isTheCrow2024 } from './torrent-search/cataloguePosters.ts';
 import { readPosterTitleCache } from './torrent-search/posterCache.ts';
@@ -51,6 +51,9 @@ import { useSynopsisPrefetch } from './torrent-search/state/useSynopsisPrefetch.
 import { useFranchisePageEffect } from './torrent-search/state/useFranchisePageEffect.ts';
 import { useVisibleMovieCatalogue } from './torrent-search/state/useVisibleMovieCatalogue.ts';
 import { useCatalogueDetailsPrefetch } from './torrent-search/state/useCatalogueDetailsPrefetch.ts';
+import { useTorrentTitleBubble } from './torrent-search/state/useTorrentTitleBubble.ts';
+import { useCancelSearch } from './torrent-search/state/useCancelSearch.ts';
+import { usePosterReadyGate } from './torrent-search/state/usePosterReadyGate.ts';
 
 
 export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepare, onCancelPrepare, onOpenProgress, seedrFiles = [], seedrDeletedFolderIds = [], onPlaySeedrFile }) => {
@@ -188,23 +191,7 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     posterTitleCacheLoadedRef.current = true;
   }
 
-  const fullTorrentTitleFor = (result: TorrentSearchResult) => {
-    // Indexer search pages can truncate the displayed title, while the magnet's
-    // dn parameter normally carries the actual full torrent name.
-    const magnet = String(result.magnetUrl || result.downloadUrl || '').trim();
-    if (magnet) {
-      try {
-        const query = magnet.includes('?') ? magnet.slice(magnet.indexOf('?') + 1) : '';
-        const params = new URLSearchParams(query);
-        const displayName = params.get('dn')?.trim();
-        if (displayName) return displayName;
-      } catch {
-        // Fall back to the API title below.
-      }
-    }
-
-    return String(result.title || result.mediaTitle || '').trim();
-  };
+  useTorrentTitleBubble({ query, fullTorrentTitleFadeTimerRef, fullTorrentTitleHideTimerRef, setFullTorrentTitleKey, setFullTorrentTitle, setFullTorrentTitleFading });
 
   // Load lightweight w185 thumbnails first; MovieCards upgrades them to w780 only
   // after card metadata, ratings and OTT availability have settled.
@@ -222,40 +209,7 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
   const { recentSearches, setRecentSearches, saveRecentSearch } = useRecentSearches();
 
 
-  const showFullTorrentTitleBubble = (result: TorrentSearchResult) => {
-    if (fullTorrentTitleFadeTimerRef.current !== null) {
-      window.clearTimeout(fullTorrentTitleFadeTimerRef.current);
-    }
-    if (fullTorrentTitleHideTimerRef.current !== null) {
-      window.clearTimeout(fullTorrentTitleHideTimerRef.current);
-    }
 
-    const key = posterKeyFor(result);
-    setFullTorrentTitleKey(key);
-    setFullTorrentTitle(String(result.title || result.mediaTitle || '').trim());
-    setFullTorrentTitleFading(false);
-
-    fullTorrentTitleFadeTimerRef.current = window.setTimeout(() => {
-      setFullTorrentTitleFading(true);
-    }, 5550);
-
-    fullTorrentTitleHideTimerRef.current = window.setTimeout(() => {
-      setFullTorrentTitle(null);
-      setFullTorrentTitleKey(null);
-      setFullTorrentTitleFading(false);
-    }, 6000);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (fullTorrentTitleFadeTimerRef.current !== null) {
-        window.clearTimeout(fullTorrentTitleFadeTimerRef.current);
-      }
-      if (fullTorrentTitleHideTimerRef.current !== null) {
-        window.clearTimeout(fullTorrentTitleHideTimerRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (!showRecentSearches) return;
@@ -270,30 +224,7 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
   }, [showRecentSearches]);
 
 
-  const cancelSearch = () => {
-    // Invalidate the active request before aborting so late responses cannot update the UI.
-    searchGenerationRef.current += 1;
-    searchRequestRef.current?.abort();
-    searchRequestRef.current = null;
-    movieTorrentSearchGenerationRef.current += 1;
-    movieTorrentSearchControllerRef.current?.abort();
-    movieTorrentSearchControllerRef.current = null;
-    nexStreamSearchGenerationRef.current += 1;
-    nexStreamSearchControllerRef.current?.abort();
-    nexStreamSearchControllerRef.current = null;
-    setNexStreamLoading(false);
-    setNexStreamSearchMode(null);
-    setNexStreamResults([]);
-    setNexStreamError('');
-    setIsSearching(false);
-    setCatalogueBuildProgress('');
-    setError('');
-    setShowRecentSearches(false);
-    setMovieCatalogue(null);
-    setResults([]);
-    setSearchAvailabilityByGroup(readPersistentSearchAvailability());
-    setSearched(false);
-  };
+  const { cancelSearch } = useCancelSearch({ searchGenerationRef, searchRequestRef, setShowRecentSearches, setResults, movieTorrentSearchGenerationRef, movieTorrentSearchControllerRef, nexStreamSearchGenerationRef, nexStreamSearchControllerRef, setNexStreamLoading, setNexStreamSearchMode, setNexStreamResults, setNexStreamError, setIsSearching, setCatalogueBuildProgress, setError, setMovieCatalogue, setSearched, setSearchAvailabilityByGroup });
 
   const { searchNexStreamTitles, loadNexStreamEpisodes, playWithNexStream, playCatalogueTvWithNexStream } = useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearchGenerationRef, setNexStreamSearchMode, setNexStreamLoadingTitle, setNexStreamLoading, setNexStreamError, setNexStreamResults, setNexStreamPlayer, setNexStreamEpisodePrefetchStatus, setNexStreamSeasons, setNexStreamEpisodes, setNexStreamSelectedSeason, setNexStreamEpisodesError, setNexStreamEpisodesLoading, setNexStreamEpisodePicker, setNexStreamResolvingId, error });
 
@@ -540,50 +471,7 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
 
 
 
-  useEffect(() => {
-    let timer: number | undefined;
-    let cancelled = false;
-    const startedAt = Date.now();
-    let settledSince: number | null = null;
-
-    // Keep every card on the low-resolution poster until the visible page has
-    // loaded its thumbnails; only then let the idle queue consider upgrades.
-    if (!posterFirstPageReady) return;
-
-    const checkPageDetails = () => {
-      if (cancelled) return;
-      // OTT availability is useful card content, but it must not hold back idle
-      // poster upgrades while the provider service is slow.
-      const metadataSettled = activeFranchiseSearchMode || imdbInFlightRef.current === 0;
-      const now = Date.now();
-
-      if (metadataSettled) {
-        if (settledSince == null) settledSince = now;
-        // Allow state updates from the last metadata response to paint before
-        // opening the shared high-resolution poster queue.
-        if (now - settledSince >= 650) {
-          setHighQualityPostersReady(true);
-          return;
-        }
-      } else {
-        settledSince = null;
-      }
-
-      // IMDb can be unavailable upstream. Do not leave thumbnails permanently
-      // low-res: after 25 seconds, release the page as a whole.
-      if (now - startedAt >= 25000) {
-        setHighQualityPostersReady(true);
-        return;
-      }
-      timer = window.setTimeout(checkPageDetails, 200);
-    };
-
-    timer = window.setTimeout(checkPageDetails, 200);
-    return () => {
-      cancelled = true;
-      if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, [posterFirstPageReady, activeFranchiseSearchMode]);
+  usePosterReadyGate({ posterFirstPageReady, activeFranchiseSearchMode, imdbInFlightRef });
 
   useCatalogueDetailsPrefetch({ franchiseGridPage, franchiseGridPageSize, movieCatalogue, groupedResults, searchMetadata, imdbRatingsByKey, imdbRatingRequestedRef, imdbRetryCountRef, setImdbRetryTick, imdbInFlightRef, setImdbRatingsByKey, imdbRetryTick, visibleMovieCatalogueItems });
 
