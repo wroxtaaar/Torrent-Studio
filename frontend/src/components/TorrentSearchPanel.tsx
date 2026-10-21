@@ -24,12 +24,12 @@ import { TorrentQualityGroup, compareReleaseDateDescending, episodeSeriesTitle, 
 import { PLAYABLE_FILE_PATTERN, displayOttProviderName, normalizeOttProviderName, normalizeSavedOttProviders, toCardProviders, uniqueOttProviders } from './torrent-search/ottProviders.ts';
 import { CachedFranchiseSearchMode, persistImdbRatings, persistSearchAvailability, persistSearchMetadata, readFranchisePageCache, readPersistentSearchAvailability, readPersistentSearchMetadata, writeFranchisePageCache } from './torrent-search/persistentCaches.ts';
 import { isPresetSearchLabel } from './torrent-search/formatting.tsx';
-import { fetchNexStreamEpisodeMetadata, nexStreamEpisodeCache, nexStreamEpisodeCacheKey, normalizeTorrentTitleForNexStream, prefetchNexStreamEpisodeMetadata } from './torrent-search/nexstream.ts';
+import { normalizeTorrentTitleForNexStream } from './torrent-search/nexstream.ts';
 import { cataloguePosterOverride, cataloguePosterSource, imdbFallbackForCatalogueMovie, imdbRatingForCatalogueMovie, isTheCrow2024 } from './torrent-search/cataloguePosters.ts';
 import { readPosterTitleCache } from './torrent-search/posterCache.ts';
 import { lowQualityPosterUrl, posterImageUrlForResult, posterKeyFor } from './torrent-search/posterUrls.ts';
-import { apiFetchRecent, catalogueMovieIdentity, extractedQuality, normalizeMatchText, writeLocalCache } from './torrent-search/helpers.ts';
-import { CachedFranchiseKey, FranchiseTmdbKey, MarvelFilmFilter, NexStreamTitle, RegionalCatalogueGroup, RegionalCatalogueMode, RegionalTvGroup, RegionalTvMode } from './torrent-search/types.ts';
+import { apiFetchRecent, catalogueMovieIdentity, extractedQuality, normalizeMatchText } from './torrent-search/helpers.ts';
+import { CachedFranchiseKey, FranchiseTmdbKey, MarvelFilmFilter, RegionalCatalogueGroup, RegionalCatalogueMode, RegionalTvGroup, RegionalTvMode } from './torrent-search/types.ts';
 import { useNexStreamState } from './torrent-search/state/useNexStreamState.ts';
 import { useSearchMetadataState } from './torrent-search/state/useSearchMetadataState.ts';
 import { useMoviePreviewState } from './torrent-search/state/useMoviePreviewState.ts';
@@ -39,8 +39,10 @@ import { useSearchInputState } from './torrent-search/state/useSearchInputState.
 import { usePosterState } from './torrent-search/state/usePosterState.ts';
 import { SeedrSearchFile, TorrentSearchPanelProps } from './torrent-search/props.ts';
 import { usePrepareState } from './torrent-search/state/usePrepareState.ts';
-import { MOVIE_TORRENT_CACHE_STORAGE_KEY, MOVIE_TORRENT_CACHE_TTL_MS, NEXSTREAM_CACHE_TTL_MS, NEXSTREAM_RESOLVE_CACHE_KEY, NEXSTREAM_RESOLVE_CACHE_TTL_MS, NEXSTREAM_SEARCH_CACHE_KEY } from './torrent-search/constants.ts';
+import { MOVIE_TORRENT_CACHE_STORAGE_KEY, MOVIE_TORRENT_CACHE_TTL_MS } from './torrent-search/constants.ts';
 import { usePosterWorkers } from './torrent-search/state/usePosterWorkers.ts';
+import { readLocalCache } from './torrent-search/localCache.ts';
+import { useNexStreamFlow } from './torrent-search/state/useNexStreamFlow.ts';
 
 
 export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepare, onCancelPrepare, onOpenProgress, seedrFiles = [], seedrDeletedFolderIds = [], onPlaySeedrFile }) => {
@@ -58,29 +60,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     } catch { /* Storage can be unavailable or full; in-memory caching still works. */ }
   };
 
-  const readLocalCache = <T,>(
-    key: string,
-    cacheKey: string,
-    ttlMs = NEXSTREAM_CACHE_TTL_MS,
-  ): T | null => {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(key) || '{}') as
-        | Record<string, { value: T; savedAt: number }>
-        | Array<[string, T & { savedAt?: number }]>;
-      // Movie torrent details are persisted as [key, value] tuples, while
-      // NexStream caches use an object keyed by cacheKey. Read both formats.
-      if (Array.isArray(parsed)) {
-        const tuple = parsed.find(entry => Array.isArray(entry) && entry[0] === cacheKey);
-        if (tuple && tuple[1] && Date.now() - Number(tuple[1].savedAt || 0) < MOVIE_TORRENT_CACHE_TTL_MS) {
-          return tuple[1] as T;
-        }
-        return null;
-      }
-      const entry = parsed[cacheKey];
-      if (entry && Date.now() - entry.savedAt < ttlMs) return entry.value;
-    } catch {}
-    return null;
-  };
 
   useEffect(() => {
     try {
@@ -296,9 +275,6 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
   const { startPosterBackgroundWorkers, startPosterBackgroundSearch, enqueuePosterBackgroundJobs, posterUrlFor } = usePosterWorkers({ posterBackgroundGenerationRef, posterResolveCacheRef, posterBackgroundActiveRef, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterBackgroundActiveKeysRef, posterLoadedRef, setPosterOverrides, posterBackgroundAttemptsRef, posterOverrides });
 
 
-
-
-
   const findPreparedFiles = (result: TorrentSearchResult): SeedrSearchFile[] => {
     const title = normalizeMatchText(result.title);
     if (!title || title.length < 4) return [];
@@ -461,111 +437,9 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     setSearched(false);
   };
 
-  const searchNexStreamTitles = async (titleQuery: string, mediaType: 'movie' | 'tv' = 'movie') => {
-    nexStreamSearchControllerRef.current?.abort();
-    const controller = new AbortController();
-    nexStreamSearchControllerRef.current = controller;
-    const generation = ++nexStreamSearchGenerationRef.current;
-    setNexStreamSearchMode(mediaType);
-    setNexStreamLoadingTitle(String(titleQuery || '').trim());
-    setNexStreamLoading(true);
-    setNexStreamError('');
-    setNexStreamResults([]);
-    setNexStreamPlayer(null);
-    try {
-      const types: Array<'movie' | 'tv'> = [mediaType];
-      const cachedNexResults = readLocalCache<NexStreamTitle[]>(NEXSTREAM_SEARCH_CACHE_KEY, mediaType + ':' + String(titleQuery || '').trim().toLowerCase());
-      if (cachedNexResults) {
-        setNexStreamResults(cachedNexResults);
-        if (mediaType === 'tv') {
-          setNexStreamEpisodePrefetchStatus({});
-          prefetchNexStreamEpisodeMetadata(cachedNexResults, (id, status) => {
-            setNexStreamEpisodePrefetchStatus(previous => ({ ...previous, [String(id)]: status }));
-          });
-        }
-        setNexStreamLoading(false);
-        setNexStreamLoadingTitle('');
-        return;
-      }
-      const responses = await Promise.allSettled(types.map(async type => {
-        const params = new URLSearchParams({ query: titleQuery, type });
-        const response = await fetch('/api/nexstream/search?' + params.toString(), {
-          headers: { Accept: 'application/json' },
-          credentials: 'same-origin',
-          signal: controller.signal,
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.success) {
-          throw new Error(data.detail || 'NexStream title search failed.');
-        }
-        return (Array.isArray(data.results) ? data.results : []) as NexStreamTitle[];
-      }));
-      if (generation !== nexStreamSearchGenerationRef.current) return;
-      const successfulResults = responses
-        .filter((response): response is PromiseFulfilledResult<NexStreamTitle[]> => response.status === 'fulfilled')
-        .flatMap(response => response.value);
-      const failedSearches = responses.filter(response => response.status === 'rejected');
-      const unique = new Map<string, NexStreamTitle>();
-      for (const item of successfulResults) {
-        unique.set(item.type + ':' + item.id, item);
-      }
-      const resolvedTitles = Array.from(unique.values());
-      writeLocalCache(NEXSTREAM_SEARCH_CACHE_KEY, mediaType + ':' + String(titleQuery || '').trim().toLowerCase(), resolvedTitles);
-      setNexStreamResults(resolvedTitles);
-      // Fetch episode lists and thumbnails in the background, without delaying
-      // the result cards. The first few TV cards are ready by the time a user
-      // opens the episode picker; remaining cards are prefetched with 3 workers.
-      if (mediaType === 'tv') {
-        setNexStreamEpisodePrefetchStatus({});
-        prefetchNexStreamEpisodeMetadata(resolvedTitles, (id, status) => {
-          setNexStreamEpisodePrefetchStatus(previous => ({ ...previous, [String(id)]: status }));
-        });
-      }
-      if (failedSearches.length === types.length) {
-        const firstFailure = failedSearches[0] as PromiseRejectedResult;
-        throw firstFailure.reason instanceof Error ? firstFailure.reason : new Error('TMDB title search failed.');
-      }
-      if (failedSearches.length > 0) {
-        setNexStreamError('Some NexStream results could not be loaded. Try searching again to refresh them.');
-      }
-    } catch (error: any) {
-      if (generation !== nexStreamSearchGenerationRef.current || error?.name === 'AbortError') return;
-      setNexStreamError(String(error?.message || 'NexStream search is temporarily unavailable.'));
-    } finally {
-      if (generation === nexStreamSearchGenerationRef.current) {
-        setNexStreamLoading(false);
-        setNexStreamLoadingTitle('');
-        if (nexStreamSearchControllerRef.current === controller) nexStreamSearchControllerRef.current = null;
-      }
-    }
-  };
+  const { searchNexStreamTitles, loadNexStreamEpisodes, playWithNexStream, playCatalogueTvWithNexStream } = useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearchGenerationRef, setNexStreamSearchMode, setNexStreamLoadingTitle, setNexStreamLoading, setNexStreamError, setNexStreamResults, setNexStreamPlayer, setNexStreamEpisodePrefetchStatus, setNexStreamSeasons, setNexStreamEpisodes, setNexStreamSelectedSeason, setNexStreamEpisodesError, setNexStreamEpisodesLoading, setNexStreamEpisodePicker, setNexStreamResolvingId, error });
 
 
-  const loadNexStreamEpisodes = async (item: NexStreamTitle, season: number) => {
-    const cached = nexStreamEpisodeCache.get(nexStreamEpisodeCacheKey(item.id, season));
-    if (cached) {
-      setNexStreamSeasons(cached.seasons);
-      setNexStreamEpisodes(cached.episodes);
-      setNexStreamSelectedSeason(cached.selectedSeason);
-      setNexStreamEpisodesError('');
-      setNexStreamEpisodesLoading(false);
-      return;
-    }
-
-    setNexStreamEpisodesLoading(true);
-    setNexStreamEpisodesError('');
-    try {
-      const data = await fetchNexStreamEpisodeMetadata(item.id, season);
-      setNexStreamSeasons(data.seasons);
-      setNexStreamEpisodes(data.episodes);
-      setNexStreamSelectedSeason(data.selectedSeason);
-    } catch (error: any) {
-      setNexStreamEpisodesError(String(error?.message || 'Could not load episode list.'));
-      setNexStreamEpisodes([]);
-    } finally {
-      setNexStreamEpisodesLoading(false);
-    }
-  };
 
   // Warm the episode metadata cache while the franchise TV catalogue is
   // open, so selecting a series usually opens with its season/episodes ready.
@@ -590,116 +464,7 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     marvelWebSeriesCatalogue,
   ]);
 
-  const playWithNexStream = async (item: NexStreamTitle, chosenSeason?: number, chosenEpisode?: number, openInNewWindow = false) => {
-    const popup = openInNewWindow ? window.open('about:blank', '_blank') : null;
-    if (item.type === 'tv' && (chosenSeason === undefined || chosenEpisode === undefined)) {
-      setNexStreamEpisodePicker(item);
-      setNexStreamEpisodes([]);
-      setNexStreamSeasons([]);
-      setNexStreamEpisodesError('');
-      await loadNexStreamEpisodes(item, 1);
-      return;
-    }
-    const season = chosenSeason;
-    const episode = chosenEpisode;
 
-    const resolvingId = item.type + ':' + item.id;
-    setNexStreamResolvingId(resolvingId);
-    setNexStreamError('');
-    try {
-      const resolveCacheKey = item.type + ':' + item.id + ':' + String(season ?? '') + ':' + String(episode ?? '');
-      const cachedResolve = readLocalCache<{ url: string; name: string }>(
-        NEXSTREAM_RESOLVE_CACHE_KEY,
-        resolveCacheKey,
-        NEXSTREAM_RESOLVE_CACHE_TTL_MS,
-      );
-      let source: { url: string; name?: string } | undefined;
-      if (cachedResolve && /^https:\/\//i.test(cachedResolve.url)) {
-        source = cachedResolve;
-      } else {
-        const params = new URLSearchParams({ type: item.type, tmdb_id: String(item.id) });
-        if (item.type === 'tv') {
-          params.set('season', String(season));
-          params.set('episode', String(episode));
-        }
-        const response = await fetch('/api/nexstream/resolve?' + params.toString(), {
-        headers: { Accept: 'application/json' },
-        credentials: 'same-origin',
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.success || !Array.isArray(data.sources) || !data.sources.length) {
-        throw new Error(data.detail || 'NexStream could not resolve this title.');
-      }
-        const resolvedSource = data.sources.find((candidate: any) => {
-          try {
-            const url = new URL(String(candidate?.url || ''));
-            return url.protocol === 'https:' && ['embedmaster.link', 'www.embedmaster.link'].includes(url.hostname);
-          } catch {
-            return false;
-          }
-        });
-        if (!resolvedSource) throw new Error('NexStream returned no supported player source.');
-        source = { url: String(resolvedSource.url), name: String(resolvedSource.name || 'NexStream') };
-        writeLocalCache(NEXSTREAM_RESOLVE_CACHE_KEY, resolveCacheKey, source);
-      }
-      if (!source) throw new Error('NexStream returned no supported player source.');
-      if (popup) {
-        popup.location.href = String(source.url);
-      } else if (openInNewWindow) {
-        setNexStreamError('Your browser blocked the new window. Allow pop-ups and try again.');
-      } else {
-        setNexStreamPlayer({
-          title: item.title,
-          year: String(item.date || '').slice(0, 4),
-          sourceName: String(source.name || 'NexStream'),
-          url: String(source.url),
-          type: item.type,
-          season,
-          episode,
-        });
-      }
-      setNexStreamError('');
-    } catch (error: any) {
-      setNexStreamError(String(error?.message || 'Could not start NexStream playback.'));
-    } finally {
-      setNexStreamResolvingId(null);
-    }
-  };
-
-  const playCatalogueTvWithNexStream = (show: {
-    id: number | string;
-    title: string;
-    year?: number | null;
-    releaseDate?: string;
-    overview?: string;
-    posterUrl?: string;
-  }) => {
-    // Catalogue IDs come directly from the cached TMDB TV catalogue. Do not
-    // title-search these shows: pass the exact series ID into the episode flow.
-    const tmdbId = Number(show.id);
-    if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
-      setNexStreamSearchMode('tv');
-      setNexStreamError('This TV catalogue entry has no valid TMDB series ID.');
-      return;
-    }
-
-    // The episode picker is rendered inside the NexStream panel, which is
-    // hidden unless a NexStream search mode is active. Activate the TV panel
-    // before opening the picker so catalogue buttons work without title search.
-    setNexStreamSearchMode('tv');
-    setNexStreamResults([]);
-    setNexStreamLoading(false);
-    setNexStreamLoadingTitle('');
-    setNexStreamError('');
-    void playWithNexStream({
-      id: tmdbId,
-      title: show.title,
-      date: show.releaseDate || (show.year ? String(show.year) : ''),
-      overview: show.overview || '',
-      poster: show.posterUrl || null,
-      type: 'tv',
-    });
-  };
 
   const runSearch = async (event?: React.FormEvent, searchOverride?: string, searchMode?: 'marvel' | 'marvel-hindi' | 'dc-live-action' | 'dc-live-action-hindi' | 'dc-animated' | 'classics') => {
     event?.preventDefault();
