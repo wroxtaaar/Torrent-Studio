@@ -561,8 +561,6 @@ export function useAppModel() {
   }, [selectedSeedrFolderId, seedrLibraryFolders.length, seedrFolderGroups]);
   // File Explorer State
   const [currentFolder, setCurrentFolder] = useState<string>('/');  const [fileSearch, setFileSearch] = useState<string>('');
-  // File Explorer State
-  const [currentFolder, setCurrentFolder] = useState<string>('/');  const [fileSearch, setFileSearch] = useState<string>('');
   const [fileTypeFilter, setFileTypeFilter] = useState<string>('all');
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   // The Files tab is reserved for completed/stored files and folders.
