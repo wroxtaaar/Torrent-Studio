@@ -22,7 +22,7 @@ const program = ts.createProgram(files, {
   allowJs: true, esModuleInterop: true, allowSyntheticDefaultImports: true,
 });
 let bad = 0;
-const interesting = new Set([2304, 2305, 2552, 2551]);
+const interesting = new Set([2304, 2305, 2552, 2551, 2451, 2300]);
 for (const sf of program.getSourceFiles()) {
   if (sf.isDeclarationFile || sf.fileName.includes('node_modules')) continue;
   const diags = [...program.getSyntacticDiagnostics(sf), ...program.getSemanticDiagnostics(sf)];

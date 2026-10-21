@@ -1,9 +1,14 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getInitialAppTab, type AppTab } from './navigation.ts';
-import { TorrentItem, StorageFile, StorageFolder, UserProfile, StorageStats, ActivityLog, AppNotification, CleanupSettings, UserPermission } from '../types/index.ts';
+import { TorrentItem, StorageFile, ActivityLog, UserPermission } from '../types/index.ts';
 import { api, API_BASE } from '../api/client.ts';
 import { formatBytes } from '../utils/formatters.ts';
 import { dispatchBrowserNotification, playNotificationSound } from '../utils/notifications.ts';
+import { useAppDialogState } from './state/useAppDialogState.ts';
+import { useFileExplorerState } from './state/useFileExplorerState.ts';
+import { useLibraryDataState } from './state/useLibraryDataState.ts';
+import { useBackgroundMetadataJobs } from './state/useBackgroundMetadataJobs.ts';
+import { useSeedrState } from './state/useSeedrState.ts';
 
 export function useAppModel() {
   // Navigation & Theme
@@ -25,6 +30,7 @@ export function useAppModel() {
   const [seedrPat, setSeedrPat] = useState('');
   const [seedrPatSubmitting, setSeedrPatSubmitting] = useState(false);
   const [seedrConnectError, setSeedrConnectError] = useState('');
+  const [seedrConfigured, setSeedrConfigured] = useState(false);
   const markSeedrOnboardingSeen = useCallback(() => {
     try {
       window.localStorage.setItem(seedrOnboardingSeenKey, '1');
@@ -115,107 +121,7 @@ export function useAppModel() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [activeTab]);
-  type BackgroundMetadataJobRecord = {
-    jobId: string;
-    hash: string;
-    name: string;
-    status: string;
-    rounds: number;
-    startedAt: number;
-    updatedAt: number;
-    deadlineAt: number;
-    elapsedSeconds: number;
-    remainingSeconds: number;
-    fileCount: number;
-    totalSize: number;
-    source: string;
-    error?: string | null;
-  };
-  const [backgroundMetadataJob, setBackgroundMetadataJob] = useState<{
-    active: boolean;
-    title: string;
-    message: string;
-    ready?: boolean;
-    error?: string;
-    jobId?: string;
-    hash?: string;
-  } | null>(null);
-  const [backgroundMetadataJobs, setBackgroundMetadataJobs] = useState<BackgroundMetadataJobRecord[]>([]);
-  const [backgroundMetadataLoading, setBackgroundMetadataLoading] = useState(false);
-  // Keep background metadata jobs connected to the UI after the selector closes.
-  // Once a resolver finishes, the cached metadata is immediately available when
-  // the user opens the selector again.
-  useEffect(() => {
-    const jobId = backgroundMetadataJob?.jobId;
-    if (!backgroundMetadataJob?.active || !jobId) return;
-
-    let stopped = false;
-    const poll = async () => {
-      try {
-        const data = await api.getTorrentMetadataStatus(jobId);
-        if (stopped) return;
-
-        if (Array.isArray(data?.files) && data.files.length > 0) {
-          setBackgroundMetadataJob({
-            active: false,
-            ready: true,
-            title: 'Torrent metadata ready',
-            message: `${data.files.length} file${data.files.length === 1 ? '' : 's'} found. Open the selector to choose files.`,
-            jobId
-          });
-          return;
-        }
-
-        if (data?.status === 'error') {
-          setBackgroundMetadataJob({
-            active: false,
-            error: String(data?.message || 'Torrent metadata could not be resolved.'),
-            title: 'Torrent metadata failed',
-            message: String(data?.message || 'Torrent metadata could not be resolved.'),
-            jobId
-          });
-        }
-      } catch {
-        // The job may still be running or the Render instance may be waking.
-        // Keep polling rather than turning a transient status request into a
-        // false failure.
-      }
-    };
-
-    void poll();
-    const timer = window.setInterval(() => { void poll(); }, 5000);
-    return () => {
-      stopped = true;
-      window.clearInterval(timer);
-    };
-  }, [backgroundMetadataJob?.active, backgroundMetadataJob?.jobId]);
-  const refreshBackgroundMetadataJobs = useCallback(async () => {
-    try {
-      setBackgroundMetadataLoading(true);
-      const data = await api.getTorrentMetadataJobs();
-      setBackgroundMetadataJobs(Array.isArray(data?.jobs) ? data.jobs : []);
-    } catch {
-      // Metadata jobs are best-effort UI state. A transient API/Render wake-up
-      // failure must not affect the rest of the Files screen.
-    } finally {
-      setBackgroundMetadataLoading(false);
-    }
-  }, []);
-  // Restore the server-side metadata queue when the page loads. Keep polling
-  // while at least one job is still resolving, then slow down once everything
-  // is terminal so the list remains useful without unnecessary requests.
-  const hasActiveBackgroundMetadataJobs = backgroundMetadataJobs.some(
-    job => job.status === 'queued' || job.status === 'resolving'
-  );
-  useEffect(() => {
-    void refreshBackgroundMetadataJobs();
-    if (!hasActiveBackgroundMetadataJobs) return;
-    const timer = window.setInterval(
-      () => { void refreshBackgroundMetadataJobs(); },
-      5000
-    );
-    return () => window.clearInterval(timer);
-  }, [refreshBackgroundMetadataJobs, hasActiveBackgroundMetadataJobs]);
+  const { backgroundMetadataJob, setBackgroundMetadataJob } = useBackgroundMetadataJobs();
   const [initialSourceUrl, setInitialSourceUrl] = useState('');
   const [initialDescriptorUrl, setInitialDescriptorUrl] = useState('');
   const [theme, setTheme] = useState<'dark' | 'dim'>(() => {
@@ -226,160 +132,8 @@ export function useAppModel() {
       return 'dark';
     }
   });
-  // Core Data
-  const [torrents, setTorrents] = useState<TorrentItem[]>([]);
-  const [files, setFiles] = useState<StorageFile[]>([]);
-  const [folders, setFolders] = useState<StorageFolder[]>([]);
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [activeUser, setActiveUser] = useState<UserProfile | null>(null);
-  const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
-  const activityStorageKey = 'seedflow_activity_logs';
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => {
-    try {
-      const raw = window.localStorage.getItem(activityStorageKey);
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  });
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [cleanupSettings, setCleanupSettings] = useState<CleanupSettings | null>(null);
-  type SeedrNotice = {
-    taskId: number | string | null;
-    name: string;
-    folderName: string;
-    folderId: string;
-    status: 'waiting' | 'downloading' | 'completed' | 'not_found';
-    progress: number;
-    downloadUrl: string | null;
-    files: Array<{
-      id: string;
-      name: string;
-      size: number;
-      folderId: string;
-      folderPath: string;
-      url: string | null;
-      available?: boolean;
-    }>;
-    seedrReply: string;
-    selectionApplied?: boolean;
-    selectionError?: string | null;
-  };
-  const seedrNoticeStorageKey = 'seedflow_seedr_notice';
-  const seedrPrepareWaiters = useRef<Record<string, {
-    resolve: (value: { files: Array<{
-      id: string;
-      streamId?: string;
-      name: string;
-      size: number;
-      folderId: string;
-      folderPath: string;
-    }> }) => void;
-    reject: (reason?: unknown) => void;
-  }>>({});
-  const [seedrNotice, setSeedrNotice] = useState<SeedrNotice | null>(() => {
-    try {
-      const raw = window.localStorage.getItem(seedrNoticeStorageKey);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (!parsed || parsed.taskId == null) return null;      return {        taskId: parsed.taskId,
-        name: String(parsed.name || 'Seedr download'),
-        folderName: String(parsed.folderName || ''),
-        folderId: String(parsed.folderId || ''),
-        status: parsed.status === 'completed' ? 'completed' : parsed.status === 'downloading' ? 'downloading' : 'waiting',
-        progress: Math.max(0, Math.min(100, Number(parsed.progress) || 0)),
-        downloadUrl: typeof parsed.downloadUrl === 'string' ? parsed.downloadUrl : null,
-        files: Array.isArray(parsed.files) ? parsed.files : [],
-        seedrReply: String(parsed.seedrReply || ''),
-      };
-    } catch {
-      return null;
-    }
-  });
-  const [seedrFiles, setSeedrFiles] = useState<Array<{ id: string; streamId?: string; name: string; size: number; folderId: string; folderPath: string }>>([]);
-  const [seedrDeletedFolderIds, setSeedrDeletedFolderIds] = useState<string[]>([]);
-  const [seedrLibraryRoot, setSeedrLibraryRoot] = useState<{
-    id: string;
-    folderId: string;
-    name: string;
-    path: string;
-    filesCount: number;
-    totalSize: number;
-    folderCount: number;
-  } | null>(null);
-  const [seedrLibraryFolders, setSeedrLibraryFolders] = useState<Array<{
-    id: string;
-    folderId: string;
-    name: string;
-    path: string;
-    filesCount: number;
-    totalSize: number;
-    folderCount: number;
-    active?: boolean;
-    progress?: number;
-  }>>([]);
-  const [seedrFolderContentsLoading, setSeedrFolderContentsLoading] = useState(false);
-  const [seedrPrefetchLoading, setSeedrPrefetchLoading] = useState(false);
-  const [seedrFolderContentsCache, setSeedrFolderContentsCache] = useState<Record<string, Array<{
-    id: string;
-    streamId?: string;
-    name: string;
-    size: number;
-    folderId: string;
-    folderPath: string;
-  }>>>({});
-  // Track background folder-content requests so clicking a folder while its
-  // automatic prefetch is still running reuses the same promise instead of
-  // issuing a duplicate API request.
-  const seedrFolderContentsRequests = useRef<Record<string, Promise<Array<{
-    id: string;
-    streamId?: string;
-    name: string;
-    size: number;
-    folderId: string;
-    folderPath: string;
-  }>>>>({});
-  const [seedrConfigured, setSeedrConfigured] = useState(false);
-  const [seedrQuota, setSeedrQuota] = useState<{ maxSpace: number; usedSpace: number; remainingSpace: number } | null>(null);
-  const [seedrQuotaError, setSeedrQuotaError] = useState<string | null>(null);
-  const [seedrLoading, setSeedrLoading] = useState(false);
-  const [seedrError, setSeedrError] = useState<string | null>(null);
-  const [seedrDeleteNotice, setSeedrDeleteNotice] = useState<string | null>(null);
-  const [copiedSeedrFileId, setCopiedSeedrFileId] = useState<string | null>(null);
-  const [seedrAddBlockedNotice, setSeedrAddBlockedNotice] = useState<string | null>(null);
-  const [seedrInsufficientSpacePrompt, setSeedrInsufficientSpacePrompt] = useState<{
-    requiredBytes: number;
-    remainingBytes: number;
-    magnet: string;
-    category: string;
-    selectedFiles?: number[];
-    manifest?: { index?: number; name: string; size: number; priority: number }[];
-    existingHash?: string;
-  } | null>(null);
-  // Two-stage Seedr playback UX: first show progress while resolving the
-  // stream URL, then the player shows its own browser-loading state.
-  const [seedrStreamLoadingId, setSeedrStreamLoadingId] = useState<string | null>(null);
-  const [isCancellingSeedr, setIsCancellingSeedr] = useState(false);
-  const seedrPrepareGenerationRef = useRef(0);
-  const [activeSeedrFolderOpen, setActiveSeedrFolderOpen] = useState(false);
-  const [selectedSeedrFolderId, setSelectedSeedrFolderId] = useState<string | null>(() => {
-    try {
-      return window.localStorage.getItem('seedflow_seedr_folder') || null;
-    } catch {
-      return null;
-    }
-  });
-  const seedrTorrentNamesKey = 'seedflow_seedr_torrent_names';
-  const [seedrTorrentNames, setSeedrTorrentNames] = useState<Record<string, string>>(() => {
-    try {
-      const raw = window.localStorage.getItem(seedrTorrentNamesKey);
-      const parsed = raw ? JSON.parse(raw) : {};
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    } catch {
-      return {};
-    }
-  });
+  const { torrents, setTorrents, files, setFiles, folders, setFolders, users, setUsers, activeUser, setActiveUser, storageStats, setStorageStats, activityStorageKey, setActivityLogs, notifications, setNotifications, cleanupSettings, setCleanupSettings } = useLibraryDataState();
+  const { seedrNoticeStorageKey, seedrPrepareWaiters, seedrNotice, setSeedrNotice, setSeedrFiles, seedrDeletedFolderIds, setSeedrDeletedFolderIds, seedrLibraryRoot, setSeedrLibraryRoot, seedrLibraryFolders, setSeedrLibraryFolders, setSeedrFolderContentsLoading, seedrPrefetchLoading, setSeedrPrefetchLoading, seedrFolderContentsCache, setSeedrFolderContentsCache, seedrFolderContentsRequests, seedrQuota, setSeedrQuota, seedrQuotaError, setSeedrQuotaError, seedrLoading, setSeedrLoading, seedrError, setSeedrError, seedrDeleteNotice, setSeedrDeleteNotice, setCopiedSeedrFileId, seedrAddBlockedNotice, setSeedrAddBlockedNotice, seedrInsufficientSpacePrompt, setSeedrInsufficientSpacePrompt, seedrStreamLoadingId, setSeedrStreamLoadingId, isCancellingSeedr, setIsCancellingSeedr, seedrPrepareGenerationRef, setActiveSeedrFolderOpen, selectedSeedrFolderId, setSelectedSeedrFolderId, seedrTorrentNamesKey, seedrTorrentNames, setSeedrTorrentNames } = useSeedrState();
   const rememberSeedrTorrentName = useCallback((folderId: string, torrentName: string) => {
     const id = String(folderId || '').trim();
     const name = String(torrentName || '').trim();
@@ -559,10 +313,7 @@ export function useAppModel() {
       setSeedrFiles([]);
     }
   }, [selectedSeedrFolderId, seedrLibraryFolders.length, seedrFolderGroups]);
-  // File Explorer State
-  const [currentFolder, setCurrentFolder] = useState<string>('/');  const [fileSearch, setFileSearch] = useState<string>('');
-  const [fileTypeFilter, setFileTypeFilter] = useState<string>('all');
-  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
+  const { currentFolder, setCurrentFolder, fileSearch, setFileSearch, fileTypeFilter, setFileTypeFilter } = useFileExplorerState();
   // The Files tab is reserved for completed/stored files and folders.
   // Active qBittorrent downloads belong only in the Transfers tab.
   const visibleFiles = useMemo(() => {
@@ -584,33 +335,7 @@ export function useAppModel() {
       a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
     );
   }, [currentFolder, seedrAllPrefetchedFiles, files, toSeedrStorageFile, fileTypeFilter, fileSearch]);
-  // Modals & Drawers
-  const [isAddMagnetOpen, setIsAddMagnetOpen] = useState(false);
-  const [initialMagnet, setInitialMagnet] = useState('');
-  const [prioTorrent, setPrioTorrent] = useState<TorrentItem | null>(null);
-  const [isCleanupOpen, setIsCleanupOpen] = useState(false);
-  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const [feedbackType, setFeedbackType] = useState<'review' | 'suggestion' | 'bug'>('review');
-  const [feedbackRating, setFeedbackRating] = useState(5);
-  const [feedbackMessage, setFeedbackMessage] = useState('');
-  const [feedbackName, setFeedbackName] = useState('');
-  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
-  const [feedbackSuccess, setFeedbackSuccess] = useState('');
-  const [feedbackError, setFeedbackError] = useState('');
-  const [shareFolder, setShareFolder] = useState<StorageFolder | null>(null);
-  const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
-  const [moveFile, setMoveFile] = useState<StorageFile | null>(null);
-  const [renameItem, setRenameItem] = useState<{ id: string; name: string; isFolder: boolean } | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<{
-    type: 'file' | 'torrent';
-    id: string;
-    name: string;
-    details?: string;
-  } | null>(null);
-  // Media Player State
-  const [activeMediaFile, setActiveMediaFile] = useState<StorageFile | null>(null);
-  const [isPlayerMinimized, setIsPlayerMinimized] = useState(false);
+  const { isAddMagnetOpen, setIsAddMagnetOpen, initialMagnet, setInitialMagnet, prioTorrent, setPrioTorrent, isCleanupOpen, setIsCleanupOpen, isNotificationsOpen, setIsNotificationsOpen, feedbackOpen, setFeedbackOpen, feedbackType, setFeedbackType, feedbackRating, setFeedbackRating, feedbackMessage, setFeedbackMessage, feedbackName, setFeedbackName, feedbackSubmitting, setFeedbackSubmitting, feedbackSuccess, setFeedbackSuccess, feedbackError, setFeedbackError, shareFolder, setShareFolder, isCreateFolderOpen, setIsCreateFolderOpen, moveFile, setMoveFile, renameItem, setRenameItem, deleteTarget, setDeleteTarget, activeMediaFile, setActiveMediaFile, isPlayerMinimized, setIsPlayerMinimized } = useAppDialogState();
   // Previous torrent hashes for completion tracking
   const prevTorrentStates = useRef<Record<string, string>>({});
   // qBittorrent applies stop/start asynchronously. Keep an optimistic transfer
