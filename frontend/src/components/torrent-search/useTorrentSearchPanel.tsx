@@ -33,7 +33,7 @@ import { useTorrentTitleBubble } from './state/useTorrentTitleBubble.ts';
 import { useCancelSearch } from './state/useCancelSearch.ts';
 import { usePosterReadyGate } from './state/usePosterReadyGate.ts';
 
-export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPrepare, onPlaySeedrFile }: Pick<TorrentSearchPanelProps, 'onPrepare' | 'onPlaySeedrFile'> & Required<Pick<TorrentSearchPanelProps, 'seedrFiles' | 'seedrDeletedFolderIds'>>) {
+export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPrepare, onPlaySeedrFile, onOpenProgress, onCancelPrepare }: Pick<TorrentSearchPanelProps, 'onPrepare' | 'onPlaySeedrFile' | 'onOpenProgress' | 'onCancelPrepare'> & Required<Pick<TorrentSearchPanelProps, 'seedrFiles' | 'seedrDeletedFolderIds'>>) {
   const { query, setQuery, results, setResults, resolutionFilter, setResolutionFilter, sizeSort, setSizeSort, timeSort, setTimeSort, showRecentSearches, setShowRecentSearches, metadataCacheRef, recentSearchRef, searchRequestRef, searchGenerationRef } = useSearchInputState();
   const { nexStreamResults, setNexStreamResults, nexStreamSearchMode, setNexStreamSearchMode, nexStreamLoading, setNexStreamLoading, nexStreamLoadingTitle, setNexStreamLoadingTitle, nexStreamEpisodePrefetchStatus, setNexStreamEpisodePrefetchStatus, nexStreamSearchControllerRef, nexStreamSearchGenerationRef, nexStreamError, setNexStreamError, nexStreamPlayer, setNexStreamPlayer, nexStreamResolvingId, setNexStreamResolvingId, nexStreamEpisodePicker, setNexStreamEpisodePicker, nexStreamSeasons, setNexStreamSeasons, nexStreamEpisodes, setNexStreamEpisodes, nexStreamSelectedSeason, setNexStreamSelectedSeason, nexStreamEpisodesLoading, setNexStreamEpisodesLoading, nexStreamEpisodesError, setNexStreamEpisodesError } = useNexStreamState();
   const { searchMetadata, setSearchMetadata, searchMetadataStatus, setSearchMetadataStatus, imdbRatingsByKey, setImdbRatingsByKey, imdbRatingRequestedRef, imdbRetryTick, setImdbRetryTick, imdbInFlightRef, imdbRetryCountRef, tvMetadataRequestedRef, searchAvailabilityByGroup, setSearchAvailabilityByGroup, selectedQualityByGroup, setSelectedQualityByGroup } = useSearchMetadataState();
@@ -450,6 +450,9 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
   ]);
 
   return {
+    onPlaySeedrFile,
+    onOpenProgress,
+    onCancelPrepare,
     query,
     setQuery,
     results,
@@ -610,3 +613,5 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     selectCachedFranchise,
   };
 }
+
+export type PanelModel = ReturnType<typeof useTorrentSearchPanel>;
