@@ -1,21 +1,10 @@
 import { UserPermission } from '../../types/index.ts';
 import { api } from '../../api/client.ts';
-import { formatBytes } from '../../utils/formatters.ts';
 import { useAppDialogState } from './useAppDialogState.ts';
 import { useFileExplorerState } from './useFileExplorerState.ts';
 import { useLibraryDataState } from './useLibraryDataState.ts';
 
 export function useFileOperations({ files, setFiles, setStorageStats, setTorrents, setFolders, activeUser, setActiveUser, activityStorageKey, setActivityLogs, setDeleteTarget, deleteTarget, currentFolder }: Pick<ReturnType<typeof useLibraryDataState>, 'files' | 'setFiles' | 'setStorageStats' | 'setTorrents' | 'setFolders' | 'activeUser' | 'setActiveUser' | 'activityStorageKey' | 'setActivityLogs'> & Pick<ReturnType<typeof useAppDialogState>, 'setDeleteTarget' | 'deleteTarget'> & Pick<ReturnType<typeof useFileExplorerState>, 'currentFolder'>) {
-  const handleDeleteFile = (id: string) => {
-    const file = files.find(f => f.id === id);
-    if (!file) return;
-    setDeleteTarget({
-      type: 'file',
-      id: file.id,
-      name: file.name,
-      details: `${formatBytes(file.size)} • Folder: ${file.folder}`
-    });
-  };
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     try {

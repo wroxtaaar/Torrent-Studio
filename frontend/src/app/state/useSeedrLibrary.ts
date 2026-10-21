@@ -250,54 +250,6 @@ export function useSeedrLibrary({ seedrConnected, setSeedrConfigured, setSeedrLo
     setSeedrFiles(cached);
     setSeedrFolderContentsLoading(false);
   }, [selectedSeedrFolderId, seedrFolderContentsCache]);
-  const handleOpenSeedrFolder = useCallback(async (folderId: string) => {
-    if (!folderId || folderId === '__root__' || folderId === '__active_seedr__') return;
-    const folder = seedrFolderGroups.find(item => item.folderId === folderId);
-    const cached = seedrFolderContentsCache[folderId];
-
-    setSelectedSeedrFolderId(folderId);
-    setSeedrError(null);
-
-    // Prefetch normally makes this path instant. Fall back to a request only
-    // when the user clicks before that background request has completed.
-    if (cached) {
-      setSeedrFiles(cached);
-      setSeedrFolderContentsLoading(false);
-      return;
-    }
-
-    setSeedrFiles([]);
-    setSeedrFolderContentsLoading(true);
-
-    try {
-      // If the automatic background prefetch is already running, await that
-      // exact request instead of making a second network call.
-      const pendingRequest = seedrFolderContentsRequests.current[folderId];
-      if (pendingRequest) {
-        const mapped = await pendingRequest;
-        setSeedrFolderContentsCache(prev => ({ ...prev, [folderId]: mapped }));
-        setSeedrFiles(mapped);
-        return;
-      }
-
-      const result = await api.getSeedrFolderContents(folderId);
-      const folderPath = folder?.path || '/Torrent Studio';
-      const mapped = result.files.map(file => ({
-        id: file.id,
-        streamId: file.streamId,
-        name: file.name,
-        size: Number(file.size) || 0,
-        folderId: file.folderId || folderId,
-        folderPath,
-      }));
-      setSeedrFolderContentsCache(prev => ({ ...prev, [folderId]: mapped }));
-      setSeedrFiles(mapped);
-    } catch (error: any) {
-      setSeedrError(error?.message || 'Failed to load Seedr folder contents');
-    } finally {
-      setSeedrFolderContentsLoading(false);
-    }
-  }, [seedrFolderGroups, seedrFolderContentsCache, seedrConnected]);
   useEffect(() => {
     if (activeTab === 'files') loadSeedrLibrary();
   }, [activeTab, loadSeedrLibrary]);
