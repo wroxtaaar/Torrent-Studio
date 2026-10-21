@@ -21,14 +21,14 @@ import { TvShowCard } from './torrent-search/TvShowCard.tsx';
 import { MovieCompactCard, MoviePrepareCard, imdbTitleLink, setHighQualityPostersReady } from './MovieCards.tsx';
 import searchLimits from '../../search_limits.json';
 import { TorrentQualityGroup, compareReleaseDateDescending, episodeSeriesTitle, groupTorrentResults, imdbRatingKey, imdbRatingQueryTitle, mergeSearchMetadataItems, normalizeGroupTitle, normalizeSavedOttTitle, releaseDateSortValue, searchMetadataForGroup, torrentGroupReleaseYear, torrentMediaIdentity, torrentQualityDetails, torrentResultKey } from './torrent-search/grouping.ts';
-import { PLAYABLE_FILE_PATTERN, displayOttProviderName, normalizeOttProviderName, normalizeSavedOttProviders, toCardProviders, uniqueOttProviders } from './torrent-search/ottProviders.ts';
+import { normalizeSavedOttProviders, toCardProviders, uniqueOttProviders } from './torrent-search/ottProviders.ts';
 import { CachedFranchiseSearchMode, persistImdbRatings, persistSearchAvailability, persistSearchMetadata, readFranchisePageCache, readPersistentSearchAvailability, readPersistentSearchMetadata, writeFranchisePageCache } from './torrent-search/persistentCaches.ts';
 import { isPresetSearchLabel } from './torrent-search/formatting.tsx';
 import { normalizeTorrentTitleForNexStream } from './torrent-search/nexstream.ts';
 import { cataloguePosterOverride, cataloguePosterSource, imdbFallbackForCatalogueMovie, imdbRatingForCatalogueMovie, isTheCrow2024 } from './torrent-search/cataloguePosters.ts';
 import { readPosterTitleCache } from './torrent-search/posterCache.ts';
 import { lowQualityPosterUrl, posterImageUrlForResult, posterKeyFor } from './torrent-search/posterUrls.ts';
-import { apiFetchRecent, catalogueMovieIdentity, extractedQuality, normalizeMatchText } from './torrent-search/helpers.ts';
+import { apiFetchRecent, catalogueMovieIdentity, extractedQuality } from './torrent-search/helpers.ts';
 import { CachedFranchiseKey, FranchiseTmdbKey, MarvelFilmFilter, RegionalCatalogueGroup, RegionalCatalogueMode, RegionalTvGroup, RegionalTvMode } from './torrent-search/types.ts';
 import { useNexStreamState } from './torrent-search/state/useNexStreamState.ts';
 import { useSearchMetadataState } from './torrent-search/state/useSearchMetadataState.ts';
@@ -37,12 +37,14 @@ import { useCatalogueNavigationState } from './torrent-search/state/useCatalogue
 import { useWebSeriesState } from './torrent-search/state/useWebSeriesState.ts';
 import { useSearchInputState } from './torrent-search/state/useSearchInputState.ts';
 import { usePosterState } from './torrent-search/state/usePosterState.ts';
-import { SeedrSearchFile, TorrentSearchPanelProps } from './torrent-search/props.ts';
+import { TorrentSearchPanelProps } from './torrent-search/props.ts';
 import { usePrepareState } from './torrent-search/state/usePrepareState.ts';
 import { MOVIE_TORRENT_CACHE_STORAGE_KEY, MOVIE_TORRENT_CACHE_TTL_MS } from './torrent-search/constants.ts';
 import { usePosterWorkers } from './torrent-search/state/usePosterWorkers.ts';
 import { readLocalCache } from './torrent-search/localCache.ts';
 import { useNexStreamFlow } from './torrent-search/state/useNexStreamFlow.ts';
+import { useWebSeriesLoaders } from './torrent-search/state/useWebSeriesLoaders.ts';
+import { usePrepareActions } from './torrent-search/state/usePrepareActions.ts';
 
 
 export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepare, onCancelPrepare, onOpenProgress, seedrFiles = [], seedrDeletedFolderIds = [], onPlaySeedrFile }) => {
@@ -275,31 +277,8 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
   const { startPosterBackgroundWorkers, startPosterBackgroundSearch, enqueuePosterBackgroundJobs, posterUrlFor } = usePosterWorkers({ posterBackgroundGenerationRef, posterResolveCacheRef, posterBackgroundActiveRef, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterBackgroundActiveKeysRef, posterLoadedRef, setPosterOverrides, posterBackgroundAttemptsRef, posterOverrides });
 
 
-  const findPreparedFiles = (result: TorrentSearchResult): SeedrSearchFile[] => {
-    const title = normalizeMatchText(result.title);
-    if (!title || title.length < 4) return [];
+  const { preparedForResult, prepareMovieTorrent, prepareStateFor, preparedActionsFor } = usePrepareActions({ preparedByKeyRef, preparingTorrentKey, setPrepareError, setPreparingTorrentKey, setPrepareWaitTitle, setPrepareWaitOpen, playingTorrentKey, copiedTorrentKey, setPlayingTorrentKey, setCopiedTorrentKey, setMovieTorrentSearchError, metadataCacheRef, error, seedrFiles, seedrDeletedFolderIds, onPrepare, onPlaySeedrFile });
 
-    // Only auto-associate an existing Seedr file when the torrent title matches
-    // the actual Seedr folder/file name exactly. The previous fuzzy fallback
-    // could make one downloaded torrent appear as "Play" on several different
-    // search results for the same movie (e.g. different qualities/releases).
-    return seedrFiles.filter(file => {
-      const folderPath = String(file.folderPath || '');
-      const folderName = folderPath.split('/').filter(Boolean).pop() || '';
-      const fileName = normalizeMatchText(file.name);
-      const folder = normalizeMatchText(folderName);
-
-      return folder === title || fileName === title;
-    });
-  };
-
-  const preparedForResult = (result: TorrentSearchResult): SeedrSearchFile[] => {
-    const key = result.infoHash || result.magnetUrl || result.downloadUrl || result.sourceUrl || result.title;
-    const deletedIds = new Set(seedrDeletedFolderIds.map(id => String(id)));
-    const local = preparedByKeyRef.current.get(key);
-    const localFiles = local?.files?.filter(file => !deletedIds.has(String(file.folderId))) || [];
-    return localFiles.length ? localFiles : findPreparedFiles(result);
-  };
 
   // Recent searches belong to this Home deployment. Use the same-origin API
   // base as every other Home request; a hard-coded Render URL causes browser CORS
@@ -1295,82 +1274,8 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     }
   };
 
-  const prepareMovieTorrent = async (result: TorrentSearchResult) => {
-    const source = result.magnetUrl || result.downloadUrl || result.sourceUrl;
-    const torrentKey = result.infoHash || source || result.title;
-    if (!source || preparingTorrentKey === torrentKey) return;
 
-    setPrepareError('');
-    setMovieTorrentSearchError('');
-    setPreparingTorrentKey(torrentKey);
-    setPrepareWaitTitle(result.title);
-    setPrepareWaitOpen(false);
-    const longWaitTimer = window.setTimeout(() => setPrepareWaitOpen(true), 30000);
 
-    try {
-      const metadata = metadataCacheRef.current.get(torrentKey);
-      const prepared = await onPrepare(result, metadata);
-      const deletedFolderIds = new Set(
-        (prepared?.deletedFolderIds || []).map(id => String(id).trim()).filter(Boolean)
-      );
-      if (deletedFolderIds.size > 0) {
-        for (const [key, entry] of preparedByKeyRef.current.entries()) {
-          if (entry.files.some(file => deletedFolderIds.has(String(file.folderId)))) {
-            preparedByKeyRef.current.delete(key);
-          }
-        }
-      }
-      if (prepared?.files?.length) {
-        preparedByKeyRef.current.set(torrentKey, { files: prepared.files });
-      }
-      setPrepareWaitOpen(false);
-    } catch (error: any) {
-      const message = String(error?.message || 'Could not prepare this torrent.');
-      if (!message.toLowerCase().includes('cancelled by another selection')) {
-        setPrepareError(message);
-      }
-    } finally {
-      window.clearTimeout(longWaitTimer);
-      setPreparingTorrentKey(current => current === torrentKey ? null : current);
-    }
-  };
-
-  // Everything the shared movie cards need to know about one torrent result.
-  // Used by every movie section so Prepare / Play / Download / Copy behave the same.
-  const prepareStateFor = (result: TorrentSearchResult) => {
-    const source = result.magnetUrl || result.downloadUrl || result.sourceUrl;
-    const torrentKey = result.infoHash || source || result.title;
-    const preparedFiles = preparedForResult(result);
-    const primaryFile = preparedFiles.find(file => PLAYABLE_FILE_PATTERN.test(file.name)) || preparedFiles[0];
-    return { source, torrentKey, isPreparing: preparingTorrentKey === torrentKey, primaryFile };
-  };
-
-  const preparedActionsFor = (torrentKey: string, primaryFile: SeedrSearchFile) => ({
-    isPlaying: playingTorrentKey === torrentKey,
-    isCopied: copiedTorrentKey === torrentKey,
-    onPlay: async () => {
-      if (playingTorrentKey === torrentKey) return;
-      setPlayingTorrentKey(torrentKey);
-      try {
-        await onPlaySeedrFile?.(primaryFile);
-      } finally {
-        setPlayingTorrentKey(current => current === torrentKey ? null : current);
-      }
-    },
-    onDownload: () => api.openSeedrFileDownload(primaryFile.id, primaryFile.name),
-    onCopy: async () => {
-      try {
-        const data = await api.getSeedrFileDownload(primaryFile.id);
-        await navigator.clipboard.writeText(data.url);
-        setCopiedTorrentKey(torrentKey);
-        window.setTimeout(() => {
-          setCopiedTorrentKey(current => current === torrentKey ? null : current);
-        }, 2000);
-      } catch {
-        setPrepareError('Could not copy the download link.');
-      }
-    },
-  });
 
   // Returns a selected catalogue card from its prepare card back to the compact card.
   const closeMoviePrepareCard = () => {
@@ -1383,61 +1288,9 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = ({ onPrepar
     setMovieTorrentSearchError('');
   };
 
-  const loadDcWebSeries = async () => {
-    setShowDcWebSeries(true);
-    setShowMarvelWebSeries(false);
-    if (dcWebSeriesCatalogue || dcWebSeriesLoading) return;
-    setDcWebSeriesLoading(true);
-    setDcWebSeriesError('');
-    try {
-      setDcWebSeriesCatalogue(await api.getTvCatalogue('dc-live-action'));
-    } catch (error: any) {
-      setDcWebSeriesError(String(error?.message || 'Could not load DC web series.'));
-    } finally {
-      setDcWebSeriesLoading(false);
-    }
-  };
+  const { loadDcWebSeries, loadClassicsTvCatalogue, loadMarvelWebSeries } = useWebSeriesLoaders({ setShowDcWebSeries, dcWebSeriesCatalogue, dcWebSeriesLoading, setDcWebSeriesLoading, setDcWebSeriesError, setDcWebSeriesCatalogue, marvelWebSeriesCatalogue, setMarvelWebSeriesCatalogue, setMarvelWebSeriesLoading, setMarvelWebSeriesError, marvelWebSeriesLoading, setShowMarvelWebSeries, error, setClassicsContentTab });
 
-  const loadClassicsTvCatalogue = async (catalogueKey: 'classics-web-series' | 'classics-anime', tab: 'web-series' | 'anime') => {
-    setClassicsContentTab(tab);
-    setShowDcWebSeries(false);
-    setShowMarvelWebSeries(true);
-    if (marvelWebSeriesCatalogue?.catalogue === catalogueKey) return;
-    setMarvelWebSeriesCatalogue(null);
-    setMarvelWebSeriesLoading(true);
-    setMarvelWebSeriesError('');
-    try {
-      setMarvelWebSeriesCatalogue(await api.getTvCatalogue(catalogueKey));
-    } catch (error: any) {
-      setMarvelWebSeriesError(String(error?.message || 'Could not load Classics catalogue.'));
-    } finally {
-      setMarvelWebSeriesLoading(false);
-    }
-  };
 
-  const loadMarvelWebSeries = async () => {
-    setShowMarvelWebSeries(true);
-    if (marvelWebSeriesCatalogue?.catalogue === 'marvel-web-series' || marvelWebSeriesLoading) return;
-    setMarvelWebSeriesLoading(true);
-    setMarvelWebSeriesError('');
-    try {
-      // Fetch every page up front so the Marvel section is complete rather than
-      // silently showing only the first page until the user finds Load more.
-      const firstPage = await api.getTvCatalogue('marvel', 1);
-      const allResults = [...firstPage.results];
-      for (let page = 2; page <= Math.min(firstPage.totalPages, 500); page += 1) {
-        const nextPage = await api.getTvCatalogue('marvel', page);
-        for (const show of nextPage.results) {
-          if (!allResults.some(existing => String(existing.id) === String(show.id))) allResults.push(show);
-        }
-      }
-      setMarvelWebSeriesCatalogue({ ...firstPage, page: firstPage.totalPages, results: allResults });
-    } catch (error: any) {
-      setMarvelWebSeriesError(String(error?.message || 'Could not load Marvel web series.'));
-    } finally {
-      setMarvelWebSeriesLoading(false);
-    }
-  };
 
   const openMovieCatalogue = async (
     key: MovieCatalogueKey,
