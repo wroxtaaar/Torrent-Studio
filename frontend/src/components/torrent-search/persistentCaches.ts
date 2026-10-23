@@ -16,19 +16,21 @@ export const FRANCHISE_PAGE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const FRANCHISE_PAGE_CACHE_MAX_ENTRIES = 48;
 
+// Per-title data (metadata, OTT, IMDb) hardly changes and the backend serves it from its own
+// cache, so the browser keeps it for 30 days instead of asking again every week.
 export const SEARCH_METADATA_CACHE_STORAGE_KEY = 'home_search_media_metadata_v1';
 
-export const SEARCH_METADATA_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const SEARCH_METADATA_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const SEARCH_METADATA_CACHE_MAX_ENTRIES = 500;
 
 export const SEARCH_AVAILABILITY_CACHE_STORAGE_KEY = 'home_search_ott_availability_v1';
 
-export const SEARCH_AVAILABILITY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const SEARCH_AVAILABILITY_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const IMDB_RATINGS_CACHE_STORAGE_KEY = 'home_imdb_ratings_v1';
 
-export const IMDB_RATINGS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const IMDB_RATINGS_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function readFranchisePageCache(mode: CachedFranchiseSearchMode, page: number): FranchisePageCacheEntry | null {
   try {

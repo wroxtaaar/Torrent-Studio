@@ -11,6 +11,10 @@ services:
     healthCheckPath: /api/health
     autoDeployTrigger: commit
     envVars:
+      # Serve every stored (bundled or runtime) entry as-is; call providers only for missing ones.
+      - key: CACHE_FIRST
+        value: "true"
+      # "true" = never call providers at all (see backend/cache-seed/README.md).
       - key: CACHE_ONLY_MODE
         value: "true"
       - key: SEEDR_API_TOKEN
