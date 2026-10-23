@@ -5,6 +5,7 @@ import json
 import os
 import re
 import time
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlencode, urlsplit
 
@@ -14,6 +15,7 @@ from fastapi.responses import RedirectResponse
 
 from core.cache_diagnostics import _InstrumentedAsyncClient, _record_cache_event
 from core.settings import (
+    CACHE_FIRST,
     CACHE_ONLY_MODE,
     TMDB_API_KEYS,
     TMDB_IMAGE_BASE,
@@ -21,15 +23,18 @@ from core.settings import (
     WATCHMODE_API_KEYS,
     _CACHE_SEED_DIR,
     _split_env_keys,
+    data_file,
     logger,
+    stored_ttl,
 )
 from metadata.tmdb import _tmdb_get_json, _watchmode_get
 
 router = APIRouter()
 
 
-_POSTER_CACHE_SECONDS = 6 * 60 * 60
-_POSTER_NEGATIVE_CACHE_SECONDS = 2 * 60
+_POSTER_CACHE_SECONDS = stored_ttl(6 * 60 * 60)
+# Titles with no poster are not asked about again for hours when cache-first is on.
+_POSTER_NEGATIVE_CACHE_SECONDS = 6 * 60 * 60 if CACHE_FIRST else 2 * 60
 _CINEMETA_BASE_URL = "https://v3-cinemeta.strem.io"
 _poster_cache: dict[str, tuple[float, str | None]] = {}
 _poster_inflight: dict[str, asyncio.Task[str | None]] = {}
@@ -480,6 +485,39 @@ async def _tmdb_poster_lookup(title: str, year: str = "") -> str | None:
 _BUNDLED_POSTERS: dict[str, str] | None = None
 
 
+_POSTER_RUNTIME_FILE = Path(os.getenv("POSTER_LOOKUP_CACHE_FILE", data_file("poster_lookup_cache.json")))
+_RUNTIME_POSTERS: dict[str, str] | None = None
+
+
+def _runtime_posters() -> dict[str, str]:
+    """Posters found by earlier live lookups; persisted so a restart does not repeat them."""
+    global _RUNTIME_POSTERS
+    if _RUNTIME_POSTERS is None:
+        loaded: dict[str, str] = {}
+        try:
+            raw = json.loads(_POSTER_RUNTIME_FILE.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                loaded = {str(k): str(v) for k, v in raw.items() if v}
+        except (OSError, ValueError, TypeError):
+            pass
+        _RUNTIME_POSTERS = loaded
+    return _RUNTIME_POSTERS
+
+
+def _remember_poster(cache_key: str, url: str) -> None:
+    posters = _runtime_posters()
+    if posters.get(cache_key) == url:
+        return
+    posters[cache_key] = url
+    try:
+        _POSTER_RUNTIME_FILE.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = _POSTER_RUNTIME_FILE.with_name(_POSTER_RUNTIME_FILE.name + ".tmp")
+        temp_path.write_text(json.dumps(posters, ensure_ascii=False), encoding="utf-8")
+        os.replace(temp_path, _POSTER_RUNTIME_FILE)
+    except OSError as exc:
+        logger.info("Could not persist poster lookup cache: %s", exc)
+
+
 def _bundled_poster(clean_title: str, clean_year: str) -> str | None:
     """Poster URLs harvested from the bundled caches (no network)."""
     global _BUNDLED_POSTERS
@@ -598,7 +636,16 @@ async def _poster_lookup_uncached(clean_title: str, clean_year: str, cache_key: 
     if bundled:
         _poster_cache[cache_key] = (time.time(), bundled)
         return bundled
+    learned = _runtime_posters().get(cache_key)
+    if learned:
+        _poster_cache[cache_key] = (time.time(), learned)
+        return learned
     now = time.time()
+    if CACHE_ONLY_MODE:
+        # Cache-only deployments never contact any poster provider (TMDB, Watchmode,
+        # OMDb, IMDb suggestions, iTunes or Cinemeta).
+        _poster_cache[cache_key] = (now, None)
+        return None
     # Prefer TMDB's year-filtered movie results to prevent a similarly named
     # title from supplying the wrong artwork. Other sources remain fallbacks.
     poster = None if CACHE_ONLY_MODE else await _tmdb_poster_lookup(clean_title, clean_year)
@@ -694,6 +741,8 @@ async def _poster_lookup_uncached(clean_title: str, clean_year: str, cache_key: 
         poster = await _cinemeta_poster_lookup(clean_title, clean_year)
 
     _poster_cache[cache_key] = (now, poster)
+    if poster:
+        _remember_poster(cache_key, poster)
     return poster
 
 

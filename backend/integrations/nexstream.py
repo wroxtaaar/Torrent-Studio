@@ -14,26 +14,27 @@ from urllib.parse import urlsplit
 import httpx
 from core.cache_diagnostics import _InstrumentedAsyncClient, _record_cache_event
 from fastapi import APIRouter, HTTPException, Query
+from core.settings import _CACHE_SEED_DIR, stored_ttl, data_file
 
 router = APIRouter()
 NEXSTREAM_API_BASE = "https://api.codespecters.com"
 TMDB_API_BASE = "https://api.themoviedb.org/3"
 ALLOWED_EMBED_HOSTS = {"embedmaster.link", "www.embedmaster.link"}
-_NEXSTREAM_CACHE_PATH = Path(os.getenv("NEXSTREAM_CACHE_PATH", "/app/data/nexstream_cache.json"))
+_NEXSTREAM_CACHE_PATH = Path(os.getenv("NEXSTREAM_CACHE_PATH", data_file("nexstream_cache.json")))
 _NEXSTREAM_CACHE_SEED_PATH = Path(
-    os.getenv("NEXSTREAM_CACHE_SEED_PATH", "/app/cache-seed/runtime/nexstream_cache.json")
+    os.getenv("NEXSTREAM_CACHE_SEED_PATH", str(_CACHE_SEED_DIR / "runtime" / "nexstream_cache.json"))
 )
 _NEXSTREAM_EPISODE_CACHE_PATH = Path(
-    os.getenv("NEXSTREAM_EPISODE_CACHE_PATH", "/app/data/nexstream_episode_metadata_cache.json")
+    os.getenv("NEXSTREAM_EPISODE_CACHE_PATH", data_file("nexstream_episode_metadata_cache.json"))
 )
 _NEXSTREAM_EPISODE_CACHE_SEED_PATH = Path(
     os.getenv(
         "NEXSTREAM_EPISODE_CACHE_SEED_PATH",
-        "/app/cache-seed/runtime/nexstream_episode_metadata_cache.json",
+        str(_CACHE_SEED_DIR / "runtime" / "nexstream_episode_metadata_cache.json"),
     )
 )
 _NEXSTREAM_CACHE_LOCK = threading.Lock()
-_NEXSTREAM_SEARCH_CACHE_TTL = 24 * 60 * 60
+_NEXSTREAM_SEARCH_CACHE_TTL = stored_ttl(24 * 60 * 60)
 _NEXSTREAM_RESOLVE_CACHE_TTL = 5 * 60
 
 
@@ -274,6 +275,14 @@ async def search_titles(
     media_type: str = Query("movie", alias="type", pattern="^(movie|tv)$"),
 ):
     """Search TMDB by title so testers don't need to know TMDB IDs."""
+    # Cache first: a stored answer must work even on a deployment without TMDB credentials.
+    endpoint = "movie" if media_type == "movie" else "tv"
+    normalized_query = " ".join(query.split()).casefold()
+    cache_key = f"search:{media_type}:{normalized_query}"
+    cached = _get_nexstream_cache(cache_key, _NEXSTREAM_SEARCH_CACHE_TTL)
+    if cached is not None:
+        return cached
+
     api_keys = _env_values("TMDB_API_KEYS", "TMDB_API_KEY")
     bearer_tokens = _env_values("TMDB_READ_ACCESS_TOKENS", "TMDB_READ_ACCESS_TOKEN", "TMDB_BEARER_TOKEN")
     if not api_keys and not bearer_tokens:
@@ -281,13 +290,6 @@ async def search_titles(
             status_code=503,
             detail="TMDB credentials are not configured on the test server.",
         )
-
-    endpoint = "movie" if media_type == "movie" else "tv"
-    normalized_query = " ".join(query.split()).casefold()
-    cache_key = f"search:{media_type}:{normalized_query}"
-    cached = _get_nexstream_cache(cache_key, _NEXSTREAM_SEARCH_CACHE_TTL)
-    if cached is not None:
-        return cached
 
     params = {"query": query.strip(), "include_adult": "false", "page": "1"}
     payload = None
@@ -360,7 +362,7 @@ async def search_titles(
 
 
 
-_NEXSTREAM_EPISODE_CACHE_PATH = Path(os.getenv("NEXSTREAM_EPISODE_CACHE_PATH", "/app/data/nexstream_episode_metadata_cache.json"))
+_NEXSTREAM_EPISODE_CACHE_PATH = Path(os.getenv("NEXSTREAM_EPISODE_CACHE_PATH", data_file("nexstream_episode_metadata_cache.json")))
 _NEXSTREAM_EPISODE_CACHE_LOCK = threading.Lock()
 
 

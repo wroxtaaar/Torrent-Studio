@@ -13,6 +13,7 @@ from fastapi import APIRouter, Query
 from core.cache_diagnostics import _record_cache_event
 from catalogues.catalogues_extra import _normalize_synopsis_match_title, _write_synopsis_cache
 from core.settings import (
+    CACHE_FIRST,
     CACHE_ONLY_MODE,
     IMDB_RATING_CACHE_FILE,
     IMDB_RATING_CACHE_TTL_SECONDS,
@@ -352,6 +353,10 @@ async def _get_imdb_rating_record(
             "mediaType": normalized_type, "cacheKey": cache_key,
             "reason": "Not in bundled cache",
         }
+    if cached and CACHE_FIRST:
+        # Cache-first: any stored record is final. Only titles with no record are looked up.
+        _record_cache_event("imdb_rating", "hit")
+        return cached
     # A miss recorded before a TMDB id was available deserves one retry with the id.
     if (
         cached

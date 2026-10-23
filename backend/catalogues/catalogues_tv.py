@@ -15,6 +15,7 @@ from core.cache_diagnostics import _record_cache_event
 from search.search_providers import _normalize_title
 from core.settings import (
     CACHE_ONLY_MODE,
+    DATA_DIR,
     DC_TV_CATALOGUE_CACHE_FILE,
     MARVEL_TV_CATALOGUE_CACHE_FILE,
     REGIONAL_TV_PREBUILT_CACHE_FILE,
@@ -23,6 +24,7 @@ from core.settings import (
     TMDB_READ_ACCESS_TOKENS,
     _CACHE_SEED_DIR,
     logger,
+    stored_ttl,
 )
 from metadata.tmdb import _tmdb_get_json
 
@@ -330,7 +332,7 @@ def _load_bundled_classics_tv_cache(catalogue_key: str) -> dict[str, Any] | None
         return None
     candidates = (
         _CACHE_SEED_DIR / filename,
-        Path(os.getenv("APP_DATA_DIR", "/app/data")) / filename,
+        Path(str(DATA_DIR)) / filename,
     )
     for path in candidates:
         try:
@@ -416,7 +418,7 @@ async def _get_classics_tv_catalogue(catalogue_key: str) -> dict[str, Any]:
     # Persist the resolved catalogue so the manual GitHub snapshot workflow can
     # copy it from APP_DATA_DIR and seed ephemeral deployments with a warm cache.
     filename = _CLASSICS_TV_CACHE_FILES[catalogue_key]
-    cache_path = Path(os.getenv("APP_DATA_DIR", "/app/data")) / filename
+    cache_path = Path(str(DATA_DIR)) / filename
     try:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         temporary_path = cache_path.with_suffix(cache_path.suffix + ".tmp")
@@ -518,7 +520,7 @@ def _save_regional_tv_prebuilt_pages(catalogue_key: str, rows: list[dict[str, An
 
 
 _REGIONAL_TV_PAGE_CACHE: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
-_REGIONAL_TV_PAGE_CACHE_TTL = 6 * 60 * 60
+_REGIONAL_TV_PAGE_CACHE_TTL = stored_ttl(6 * 60 * 60)
 _REGIONAL_TV_DISCOVERY_CACHE = _REGIONAL_TV_PAGE_CACHE
 _INDIAN_LINEAR_TV_NETWORKS = {
     "starplus", "colors", "zee tv", "zeetv", "sony entertainment television",
@@ -662,7 +664,7 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
     country, language, sort_by = configs[catalogue_key]
     cache_key = (catalogue_key, page)
     cached = _REGIONAL_TV_DISCOVERY_CACHE.get(cache_key)
-    cache_ttl = 900 if catalogue_key.endswith("-trending") else 21600
+    cache_ttl = stored_ttl(900 if catalogue_key.endswith("-trending") else 21600)
     if cached and time.monotonic() - cached[0] < cache_ttl and not exclude_indian_broadcast_networks:
         _record_cache_event("regional_tv_catalogue", "memory_hit")
         return await filter_cached_networks(cached[1])

@@ -44,7 +44,9 @@ from search.search_providers import (
 )
 from seedr.seedr_client import info_hash
 from core.settings import (
+    CACHE_FIRST,
     CACHE_ONLY_MODE,
+    DATA_DIR,
     DC_TV_CATALOGUE_CACHE_FILE,
     IMDB_RATING_CACHE_FILE,
     MARVEL_TV_CATALOGUE_CACHE_FILE,
@@ -62,7 +64,9 @@ from core.settings import (
     TMDB_SYNOPSIS_LOOKUP_VERSION,
     WATCHMODE_API_KEYS,
     _CACHE_SEED_DIR,
+    data_file,
     logger,
+    stored_ttl,
 )
 from metadata.tmdb import (
     _read_tmdb_persistent_cache,
@@ -80,7 +84,7 @@ router = APIRouter()
 # instance and never expire; the deployment mounts /app/data on persistent VPS
 # storage so a container replacement does not force another provider crawl.
 MARVEL_CATALOGUE_VERSION = 11
-MARVEL_CATALOGUE_PATH = Path(os.getenv("MARVEL_CATALOGUE_PATH", "/app/data/marvel_catalogue.json"))
+MARVEL_CATALOGUE_PATH = Path(os.getenv("MARVEL_CATALOGUE_PATH", data_file("marvel_catalogue.json")))
 # Curated live-action theatrical Marvel films across studios (Marvel Studios, Fox,
 # Sony, Universal, etc.). Excludes TV films, specials, documentaries, and animated
 # feature films so the persistent torrent catalogue stays focused on live-action movies.
@@ -1022,7 +1026,7 @@ _EXTRA_CATALOGUES["marvel-hindi"] = {
 }
 
 _EXTRA_CATALOGUE_PATHS = {
-    key: Path(os.getenv("CATALOGUE_" + key.upper().replace("-", "_") + "_PATH", "/app/data/" + config["file"]))
+    key: Path(os.getenv("CATALOGUE_" + key.upper().replace("-", "_") + "_PATH", data_file(config["file"])))
     for key, config in _EXTRA_CATALOGUES.items()
 }
 _CACHE_SEED_FILES = (
@@ -1052,14 +1056,14 @@ _RUNTIME_CACHE_SEED_FILES = {
     "dc_tv_catalogue_cache.json": DC_TV_CATALOGUE_CACHE_FILE,
     "regional_movie_prebuilt_cache.json": Path(os.getenv(
         "REGIONAL_MOVIE_PREBUILT_CACHE_PATH",
-        str(Path(os.getenv("APP_DATA_DIR", "/app/data")) / "regional_movie_prebuilt_cache.json"),
+        str(Path(str(DATA_DIR)) / "regional_movie_prebuilt_cache.json"),
     )),
     "regional_movie_trending_archive.json": REGIONAL_MOVIE_TRENDING_ARCHIVE_FILE,
     "nexstream_cache.json": Path(os.getenv(
-        "NEXSTREAM_CACHE_PATH", "/app/data/nexstream_cache.json",
+        "NEXSTREAM_CACHE_PATH", data_file("nexstream_cache.json"),
     )),
     "nexstream_episode_metadata_cache.json": Path(os.getenv(
-        "NEXSTREAM_EPISODE_CACHE_PATH", "/app/data/nexstream_episode_metadata_cache.json",
+        "NEXSTREAM_EPISODE_CACHE_PATH", data_file("nexstream_episode_metadata_cache.json"),
     )),
 }
 
@@ -1138,11 +1142,11 @@ def _seed_bundled_runtime_caches() -> None:
 def _seed_bundled_catalogue_caches() -> None:
     destinations = {
         "marvel_catalogue.json": MARVEL_CATALOGUE_PATH,
-        "marvel_web_series_catalogue.json": Path(os.getenv("MARVEL_WEB_SERIES_CATALOGUE_PATH", "/app/data/marvel_web_series_catalogue.json")),
+        "marvel_web_series_catalogue.json": Path(os.getenv("MARVEL_WEB_SERIES_CATALOGUE_PATH", data_file("marvel_web_series_catalogue.json"))),
         **{config["file"]: _EXTRA_CATALOGUE_PATHS[key] for key, config in _EXTRA_CATALOGUES.items()},
         "bollywood_torrent_matched_catalogue.json": Path(os.getenv(
             "BOLLYWOOD_TORRENT_CATALOGUE_PATH",
-            str(Path(os.getenv("APP_DATA_DIR", "/app/data")) / "bollywood_torrent_matched_catalogue.json"),
+            str(Path(str(DATA_DIR)) / "bollywood_torrent_matched_catalogue.json"),
         )),
         "regional_tv_prebuilt_cache.json": REGIONAL_TV_PREBUILT_CACHE_FILE,
     }
@@ -1166,7 +1170,7 @@ _CATALOGUE_SYNOPSIS_ENRICHMENT_STATE: dict[str, Any] = {
     "titlesCompleted": 0, "titlesTotal": 0, "updatedRows": 0, "error": "",
 }
 _catalogue_synopsis_enrichment_task: asyncio.Task | None = None
-_CATALOGUE_SYNOPSIS_RECHECK_SECONDS = 30 * 24 * 60 * 60
+_CATALOGUE_SYNOPSIS_RECHECK_SECONDS = stored_ttl(30 * 24 * 60 * 60)
 
 
 def _synopsis_cache_paths() -> list[tuple[str, Path]]:
@@ -1733,7 +1737,7 @@ async def _enrich_catalogue_synopses() -> None:
             except (TypeError, ValueError):
                 lookup_version = 0
             if (
-                lookup_version >= TMDB_SYNOPSIS_LOOKUP_VERSION
+                (lookup_version >= TMDB_SYNOPSIS_LOOKUP_VERSION or CACHE_FIRST)
                 and checked_at
                 and now - checked_at < _CATALOGUE_SYNOPSIS_RECHECK_SECONDS
             ):
@@ -1858,11 +1862,18 @@ def _warm_tmdb_ott_memory_cache() -> None:
     now_monotonic = time.monotonic()
     warmed = 0
     invalid = 0
-    for disk_key, row in items.items():
+    preexisting = set(_tmdb_ott_cache)
+    # Disk keys are "v2:<id>:<REGION>" (current) or legacy "<id>:<REGION>". Visit the
+    # legacy ones first so a current entry for the same movie wins.
+    ordered = sorted(items.items(), key=lambda item: str(item[0]).startswith("v2:"))
+    for disk_key, row in ordered:
         if not isinstance(row, dict) or not isinstance(row.get("payload"), dict):
             invalid += 1
             continue
-        parts = str(disk_key).split(":", 1)
+        raw_key = str(disk_key)
+        if raw_key.startswith("v2:"):
+            raw_key = raw_key[3:]
+        parts = raw_key.split(":", 1)
         if len(parts) != 2:
             invalid += 1
             continue
@@ -1878,7 +1889,7 @@ def _warm_tmdb_ott_memory_cache() -> None:
             continue
 
         cache_key = (movie_id, region)
-        if cache_key in _tmdb_ott_cache:
+        if cache_key in preexisting:
             continue
         # Translate the saved wall-clock age to monotonic time. Expired entries
         # remain available as stale fallbacks instead of being marked fresh again.
@@ -2018,6 +2029,10 @@ def _write_extra_catalogue(key: str, payload: dict[str, Any]) -> None:
 def _extra_catalogue_is_stale(key: str, payload: dict[str, Any] | None) -> bool:
     if not payload:
         return True
+    if CACHE_FIRST and payload.get("results"):
+        # Cache-first: a stored catalogue is used as-is, even if its version or age is
+        # behind the code. Rebuilding means hundreds of provider calls.
+        return False
     config = _EXTRA_CATALOGUES[key]
     try:
         if int(payload.get("version") or 0) != int(config["version"]):
@@ -2395,7 +2410,7 @@ async def _extra_catalogue_monthly_scheduler() -> None:
 # The seven franchise snapshots above are separate from the dynamic Popular/Trending/
 # Latest catalogues. Those catalogues are persisted in TMDB_CATALOGUE_CACHE_FILE, so
 # backfill their missing overviews there too; otherwise the movie cards never see them.
-_TMDB_CATALOGUE_SYNOPSIS_RECHECK_SECONDS = 30 * 24 * 60 * 60
+_TMDB_CATALOGUE_SYNOPSIS_RECHECK_SECONDS = stored_ttl(30 * 24 * 60 * 60)
 _TMDB_CATALOGUE_SYNOPSIS_ENRICHMENT_STATE: dict[str, Any] = {
     "status": "idle", "entriesCompleted": 0, "entriesTotal": 0,
     "titlesCompleted": 0, "titlesTotal": 0, "updatedRows": 0, "error": "",
@@ -2418,7 +2433,7 @@ def _tmdb_payload_needs_synopsis(payload: dict[str, Any] | None) -> bool:
             checked_at = 0
             lookup_version = 0
         if (
-            lookup_version < TMDB_SYNOPSIS_LOOKUP_VERSION
+            (lookup_version < TMDB_SYNOPSIS_LOOKUP_VERSION and not CACHE_FIRST)
             or not checked_at
             or now - checked_at >= _TMDB_CATALOGUE_SYNOPSIS_RECHECK_SECONDS
         ):
@@ -2519,7 +2534,7 @@ async def _enrich_tmdb_persistent_catalogue_synopses() -> None:
                 except (TypeError, ValueError):
                     lookup_version = 0
                 if (
-                    lookup_version >= TMDB_SYNOPSIS_LOOKUP_VERSION
+                    (lookup_version >= TMDB_SYNOPSIS_LOOKUP_VERSION or CACHE_FIRST)
                     and checked_at
                     and now - checked_at < _TMDB_CATALOGUE_SYNOPSIS_RECHECK_SECONDS
                 ):
@@ -2668,7 +2683,7 @@ async def api_marvel_catalogue(request: Request, page: int = Query(0, ge=0), pag
     if cached:
         # Keep the current cache available immediately while rebuilding it once
         # when its version predates the updated MCU film list.
-        if int(cached.get("version") or 0) < MARVEL_CATALOGUE_VERSION:
+        if not CACHE_FIRST and int(cached.get("version") or 0) < MARVEL_CATALOGUE_VERSION:
             if _marvel_catalogue_task is None or _marvel_catalogue_task.done():
                 if not (_marvel_catalogue_state.get("status") == "failed" and time.time() < _marvel_catalogue_retry_after):
                     _marvel_catalogue_state.update({
@@ -2688,7 +2703,7 @@ async def api_marvel_catalogue(request: Request, page: int = Query(0, ge=0), pag
             "resultCount": int(cached.get("resultCount") or len(cached["results"])),
             "movieCount": int(cached.get("movieCount") or 0),
             "results": cached["results"],
-            "refreshing": int(cached.get("version") or 0) < MARVEL_CATALOGUE_VERSION,
+            "refreshing": not CACHE_FIRST and int(cached.get("version") or 0) < MARVEL_CATALOGUE_VERSION,
         }
         if page > 0 and page_size > 0:
             return _fast_json_response(

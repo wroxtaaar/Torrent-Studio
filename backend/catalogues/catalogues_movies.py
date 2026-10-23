@@ -37,6 +37,7 @@ from core.http_cache import (
 from metadata.imdb import _get_imdb_rating_record
 from integrations.nexstream import nexstream_api_key_configured, resolve_nexstream_movie
 from core.settings import (
+    CACHE_FIRST,
     CACHE_ONLY_MODE,
     REGIONAL_MOVIE_CACHE_PAGE_SIZE,
     REGIONAL_MOVIE_CACHE_TTL_SECONDS,
@@ -50,7 +51,9 @@ from core.settings import (
     TMDB_IMAGE_BASE,
     TMDB_OTT_CACHE_SECONDS,
     _CACHE_SEED_DIR,
+    data_file,
     logger,
+    stored_ttl,
 )
 from core.shared import (
     _REGIONAL_MOVIE_CATALOGUE_FORCE_REFRESH,
@@ -1055,7 +1058,8 @@ async def api_tmdb_movie_catalogue(
                     "Ignoring empty regional movie cache page %s for %s with a positive total",
                     page, catalogue_key,
                 )
-        if CACHE_ONLY_MODE:
+        # Cache-first: the bundled snapshot is tried before TMDB, not only in cache-only mode.
+        if CACHE_ONLY_MODE or (CACHE_FIRST and not force_refresh):
             bundled_payload = _cache_only_regional_movie_catalogue(catalogue_key, page)
             if bundled_payload is not None:
                 bundled_payload = await _enrich_regional_movie_catalogue_metadata(
@@ -1068,6 +1072,7 @@ async def api_tmdb_movie_catalogue(
                     catalogue_key, page, bundled_payload["totalResults"],
                 )
                 return bundled_payload
+        if CACHE_ONLY_MODE:
             if stale_payload is not None:
                 stale_response = dict(stale_payload)
                 stale_response["stale"] = True
@@ -1112,7 +1117,7 @@ async def api_tmdb_movie_catalogue(
     # Regional movie pages 1-3 are durable VPS catalogue snapshots. Keep using
     # them across restarts/TTL expiry; refresh only when a page has never been saved.
     durable_regional_page = is_regional_movie_catalogue and not is_trending_catalogue and page <= 3
-    cache_ttl = min(TMDB_CATALOGUE_CACHE_SECONDS, 900) if catalogue_key.startswith("trending-") else TMDB_CATALOGUE_CACHE_SECONDS
+    cache_ttl = stored_ttl(min(TMDB_CATALOGUE_CACHE_SECONDS, 900)) if catalogue_key.startswith("trending-") else TMDB_CATALOGUE_CACHE_SECONDS
     cached = _tmdb_movie_catalogue_cache.get(cache_key)
     if cached and (durable_regional_page or now - cached[0] < cache_ttl):
         _record_cache_event("movie_catalogue", "memory_hit")
@@ -1278,7 +1283,7 @@ async def _resolve_marvel_tmdb_movie_id(title: str, year: int) -> tuple[int | No
     # This avoids wasting TMDB search calls for IDs that have already been resolved.
     manifest_path = Path(os.getenv(
         "MARVEL_TMDB_ID_REVIEW_PATH",
-        "/app/data/marvel_tmdb_id_review.json",
+        data_file("marvel_tmdb_id_review.json"),
     ))
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -1637,6 +1642,11 @@ async def _warm_regional_movie_catalogue_pages() -> bool:
         catalogue_refresh_succeeded = True
         trending_rows: list[dict[str, Any]] = []
         for page in range(1, REGIONAL_MOVIE_PREWARM_PAGES + 1):
+            if CACHE_FIRST:
+                stored = _read_tmdb_persistent_cache((catalogue_key + "|eligible-v6", page))
+                if stored and _regional_movie_cache_page_is_usable(stored[1], page):
+                    # Cache-first: never re-query TMDB for a page that is already stored.
+                    continue
             refresh_token = _REGIONAL_MOVIE_CATALOGUE_FORCE_REFRESH.set(True)
             source_token = _REGIONAL_MOVIE_SOURCE_FORCE_REFRESH.set(True)
             refreshed_token = _REGIONAL_MOVIE_SOURCE_REFRESHED_KEYS.set(refreshed_source_keys)

@@ -33,6 +33,7 @@ from seedr.seedr_session import current_seedr_token
 from core.settings import (
     APP_NAME,
     CACHE_ONLY_MODE,
+    DATA_DIR,
     DEBUG_ENDPOINTS_ENABLED,
     MAX_SEARCH_RESULT_SIZE_BYTES,
     MIN_SEARCH_RESULT_SIZE_BYTES,
@@ -41,6 +42,7 @@ from core.settings import (
     TORRENT_METADATA_CACHE_FILE,
     TORRENT_SEARCH_API_URL,
     _CACHE_SEED_DIR,
+    data_file,
     logger,
 )
 
@@ -302,18 +304,18 @@ async def api_cache_report():
     }
     runtime_paths["marvel_catalogue.json"] = MARVEL_CATALOGUE_PATH
     runtime_paths["marvel_web_series_catalogue.json"] = Path(
-        os.getenv("MARVEL_WEB_SERIES_CATALOGUE_PATH", "/app/data/marvel_web_series_catalogue.json")
+        os.getenv("MARVEL_WEB_SERIES_CATALOGUE_PATH", data_file("marvel_web_series_catalogue.json"))
     )
     runtime_paths["bollywood_torrent_matched_catalogue.json"] = Path(
-        os.getenv("BOLLYWOOD_TORRENT_CATALOGUE_PATH", str(Path(os.getenv("APP_DATA_DIR", "/app/data")) / "bollywood_torrent_matched_catalogue.json"))
+        os.getenv("BOLLYWOOD_TORRENT_CATALOGUE_PATH", str(Path(str(DATA_DIR)) / "bollywood_torrent_matched_catalogue.json"))
     )
     runtime_paths["torrent_metadata_cache"] = TORRENT_METADATA_CACHE_FILE
     runtime_paths["regional_tv_prebuilt_cache.json"] = REGIONAL_TV_PREBUILT_CACHE_FILE
     runtime_paths["regional_movie_prebuilt_cache.json"] = REGIONAL_MOVIE_PREBUILT_CACHE_PATH
-    runtime_paths["classics_web_series_tv_catalogue.json"] = Path(os.getenv("APP_DATA_DIR", "/app/data")) / "classics_web_series_tv_catalogue.json"
-    runtime_paths["classics_anime_tv_catalogue.json"] = Path(os.getenv("APP_DATA_DIR", "/app/data")) / "classics_anime_tv_catalogue.json"
-    runtime_paths["nexstream_cache.json"] = Path(os.getenv("NEXSTREAM_CACHE_PATH", "/app/data/nexstream_cache.json"))
-    runtime_paths["nexstream_episode_metadata_cache.json"] = Path(os.getenv("NEXSTREAM_EPISODE_CACHE_PATH", "/app/data/nexstream_episode_metadata_cache.json"))
+    runtime_paths["classics_web_series_tv_catalogue.json"] = Path(str(DATA_DIR)) / "classics_web_series_tv_catalogue.json"
+    runtime_paths["classics_anime_tv_catalogue.json"] = Path(str(DATA_DIR)) / "classics_anime_tv_catalogue.json"
+    runtime_paths["nexstream_cache.json"] = Path(os.getenv("NEXSTREAM_CACHE_PATH", data_file("nexstream_cache.json")))
+    runtime_paths["nexstream_episode_metadata_cache.json"] = Path(os.getenv("NEXSTREAM_EPISODE_CACHE_PATH", data_file("nexstream_episode_metadata_cache.json")))
     for key, path in _EXTRA_CATALOGUE_PATHS.items():
         runtime_paths["catalogue:" + key] = path
     runtime_files = [

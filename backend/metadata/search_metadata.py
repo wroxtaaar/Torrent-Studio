@@ -34,6 +34,7 @@ from core.settings import (
     WATCHMODE_API_KEYS,
     _split_env_keys,
     logger,
+    stored_ttl,
 )
 from core.shared import _MANUAL_TORRENT_SEARCH
 from metadata.tmdb import (
@@ -170,7 +171,7 @@ async def api_search_saved_ott(titles: list[str] = Query(..., min_length=1, max_
 
 
 _watchmode_search_cache: dict[str, tuple[float, dict[str, Any]]] = {}
-_WATCHMODE_SEARCH_CACHE_TTL = 6 * 60 * 60
+_WATCHMODE_SEARCH_CACHE_TTL = stored_ttl(6 * 60 * 60)
 _TVMAZE_SEARCH_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 
 
@@ -639,7 +640,7 @@ async def _api_search_availability_impl(q: str) -> dict[str, Any]:
 # Small, independent TMDB lookup for the quick search cards. This intentionally
 # does not wait for torrent metadata or Watchmode source resolution.
 _TMDB_SEARCH_METADATA_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-_TMDB_SEARCH_METADATA_CACHE_TTL = 1800.0
+_TMDB_SEARCH_METADATA_CACHE_TTL = stored_ttl(1800.0)
 
 
 @router.get("/api/search/metadata")

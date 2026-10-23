@@ -23,6 +23,29 @@ else:
     CACHE_ONLY_MODE = not any(os.getenv(name, "").strip() for name in _PROVIDER_KEY_ENV_NAMES)
 
 
+# Cache-first (default on): an entry that is already stored -- in the bundled seed or in the
+# runtime cache -- is served as-is, however old, and providers are only asked for entries that
+# do not exist yet. No TTL expiry, no background refresh of existing entries. Set
+# CACHE_FIRST=false to get the older "expire and refresh" behaviour back. A user-triggered
+# refresh (force=true, "clear TMDB cache") still bypasses the cache on purpose.
+CACHE_FIRST = os.getenv("CACHE_FIRST", "true").strip().casefold() not in {"0", "false", "no", "off"}
+_CACHE_FOREVER_SECONDS = 20 * 365 * 24 * 60 * 60
+
+
+def stored_ttl(seconds: float) -> float:
+    """TTL to use for stored provider data: effectively unlimited when CACHE_FIRST is on."""
+    return float(_CACHE_FOREVER_SECONDS) if CACHE_FIRST else seconds
+
+
+# One place for the runtime data directory (Render: mount a disk and set APP_DATA_DIR).
+# Individual files can still be overridden with their own environment variable.
+DATA_DIR = Path(os.getenv("APP_DATA_DIR", "/app/data"))
+
+
+def data_file(name: str) -> str:
+    return str(DATA_DIR / name)
+
+
 APP_NAME = "Torrent Studio API"
 logger = logging.getLogger("torrent-studio")
 
@@ -55,13 +78,13 @@ TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
 TMDB_API_CONNECT_FAILURE_COOLDOWN_SECONDS = max(15, int(os.getenv("TMDB_API_CONNECT_FAILURE_COOLDOWN_SECONDS", "60")))
 
 
-TMDB_CATALOGUE_CACHE_SECONDS = max(300, int(os.getenv("TMDB_CATALOGUE_CACHE_SECONDS", str(6 * 60 * 60))))
-REGIONAL_MOVIE_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60
+TMDB_CATALOGUE_CACHE_SECONDS = stored_ttl(max(300, int(os.getenv("TMDB_CATALOGUE_CACHE_SECONDS", str(6 * 60 * 60)))))
+REGIONAL_MOVIE_CACHE_TTL_SECONDS = stored_ttl(7 * 24 * 60 * 60)
 REGIONAL_MOVIE_CACHE_PAGE_SIZE = 18
 REGIONAL_MOVIE_PREWARM_PAGES = 3
 REGIONAL_MOVIE_TRENDING_ARCHIVE_FILE = Path(os.getenv(
     "REGIONAL_MOVIE_TRENDING_ARCHIVE_FILE",
-    "/app/data/regional_movie_trending_archive.json",
+    data_file("regional_movie_trending_archive.json"),
 ))
 REGIONAL_MOVIE_TRENDING_ARCHIVE_WEEKS = 52
 REGIONAL_MOVIE_CATALOGUE_KEYS = (
@@ -72,27 +95,27 @@ REGIONAL_MOVIE_CATALOGUE_KEYS = (
     "trending-bollywood",
     "latest-bollywood",
 )
-TMDB_COMPANY_CACHE_SECONDS = max(3600, int(os.getenv("TMDB_COMPANY_CACHE_SECONDS", str(24 * 60 * 60))))
-TMDB_CATALOGUE_CACHE_FILE = Path(os.getenv("TMDB_CATALOGUE_CACHE_FILE", "/app/data/tmdb_movie_catalogue_cache.json"))
-TMDB_SEARCH_METADATA_CACHE_FILE = Path(os.getenv("TMDB_SEARCH_METADATA_CACHE_FILE", "/app/data/tmdb_search_metadata_cache.json"))
-TMDB_SEARCH_METADATA_QUERY_TTL_SECONDS = max(3600, int(os.getenv("TMDB_SEARCH_METADATA_QUERY_TTL_SECONDS", str(30 * 24 * 60 * 60))))
-IMDB_RATING_CACHE_FILE = Path(os.getenv("IMDB_RATING_CACHE_FILE", "/app/data/imdb_rating_cache.json"))
-IMDB_RATING_CACHE_TTL_SECONDS = max(86400, int(os.getenv("IMDB_RATING_CACHE_TTL_SECONDS", str(30 * 24 * 60 * 60))))
+TMDB_COMPANY_CACHE_SECONDS = stored_ttl(max(3600, int(os.getenv("TMDB_COMPANY_CACHE_SECONDS", str(24 * 60 * 60)))))
+TMDB_CATALOGUE_CACHE_FILE = Path(os.getenv("TMDB_CATALOGUE_CACHE_FILE", data_file("tmdb_movie_catalogue_cache.json")))
+TMDB_SEARCH_METADATA_CACHE_FILE = Path(os.getenv("TMDB_SEARCH_METADATA_CACHE_FILE", data_file("tmdb_search_metadata_cache.json")))
+TMDB_SEARCH_METADATA_QUERY_TTL_SECONDS = stored_ttl(max(3600, int(os.getenv("TMDB_SEARCH_METADATA_QUERY_TTL_SECONDS", str(30 * 24 * 60 * 60)))))
+IMDB_RATING_CACHE_FILE = Path(os.getenv("IMDB_RATING_CACHE_FILE", data_file("imdb_rating_cache.json")))
+IMDB_RATING_CACHE_TTL_SECONDS = stored_ttl(max(86400, int(os.getenv("IMDB_RATING_CACHE_TTL_SECONDS", str(30 * 24 * 60 * 60)))))
 IMDB_RATING_LOOKUP_VERSION = 5
 # Misses are re-checked sooner than hits: OMDb data and title matching improve over time.
-IMDB_RATING_NOT_FOUND_TTL_SECONDS = max(3600, int(os.getenv("IMDB_RATING_NOT_FOUND_TTL_SECONDS", str(24 * 60 * 60))))
+IMDB_RATING_NOT_FOUND_TTL_SECONDS = stored_ttl(max(3600, int(os.getenv("IMDB_RATING_NOT_FOUND_TTL_SECONDS", str(24 * 60 * 60)))))
 
 
 TMDB_SYNOPSIS_LOOKUP_VERSION = 5
 SYNOPSIS_CACHE_RETRY_INTERVAL_SECONDS = max(300, int(os.getenv("SYNOPSIS_CACHE_RETRY_INTERVAL_SECONDS", "900")))
-TMDB_OTT_CACHE_SECONDS = max(3600, int(os.getenv("TMDB_OTT_CACHE_SECONDS", str(24 * 60 * 60))))
+TMDB_OTT_CACHE_SECONDS = stored_ttl(max(3600, int(os.getenv("TMDB_OTT_CACHE_SECONDS", str(24 * 60 * 60)))))
 # Results with no provider names (not_confirmed, release dates only) may just mean the
 # upstream lookup missed or failed, so they are re-checked much sooner than hits.
-TMDB_OTT_INCOMPLETE_CACHE_SECONDS = max(300, int(os.getenv("TMDB_OTT_INCOMPLETE_CACHE_SECONDS", "1800")))
-TMDB_OTT_MISSING_CACHE_SECONDS = max(900, int(os.getenv("TMDB_OTT_MISSING_CACHE_SECONDS", str(6 * 60 * 60))))
-TMDB_OTT_CACHE_FILE = Path(os.getenv("TMDB_OTT_CACHE_FILE", "/app/data/tmdb_ott_availability_cache.json"))
-MARVEL_TV_CATALOGUE_CACHE_FILE = Path(os.getenv("MARVEL_TV_CATALOGUE_CACHE_FILE", "/app/data/marvel_tv_catalogue_cache.json"))
-DC_TV_CATALOGUE_CACHE_FILE = Path(os.getenv("DC_TV_CATALOGUE_CACHE_FILE", "/app/data/dc_tv_catalogue_cache.json"))
+TMDB_OTT_INCOMPLETE_CACHE_SECONDS = max(300, int(os.getenv("TMDB_OTT_INCOMPLETE_CACHE_SECONDS", "1800")))  # failed lookups are not data: always retried
+TMDB_OTT_MISSING_CACHE_SECONDS = stored_ttl(max(900, int(os.getenv("TMDB_OTT_MISSING_CACHE_SECONDS", str(6 * 60 * 60)))))
+TMDB_OTT_CACHE_FILE = Path(os.getenv("TMDB_OTT_CACHE_FILE", data_file("tmdb_ott_availability_cache.json")))
+MARVEL_TV_CATALOGUE_CACHE_FILE = Path(os.getenv("MARVEL_TV_CATALOGUE_CACHE_FILE", data_file("marvel_tv_catalogue_cache.json")))
+DC_TV_CATALOGUE_CACHE_FILE = Path(os.getenv("DC_TV_CATALOGUE_CACHE_FILE", data_file("dc_tv_catalogue_cache.json")))
 
 
 GITHUB_FEEDBACK_TOKEN = os.getenv("GITHUB_FEEDBACK_TOKEN", "").strip()
@@ -217,7 +240,7 @@ CORS_ORIGIN_REGEX = os.getenv(
 _CACHE_SEED_DIR = Path(os.getenv("CACHE_SEED_DIR", "/app/cache-seed"))
 
 
-REGIONAL_TV_PREBUILT_CACHE_FILE = Path(os.getenv("REGIONAL_TV_PREBUILT_CACHE_FILE", "/app/data/regional_tv_prebuilt_cache.json"))
+REGIONAL_TV_PREBUILT_CACHE_FILE = Path(os.getenv("REGIONAL_TV_PREBUILT_CACHE_FILE", data_file("regional_tv_prebuilt_cache.json")))
 
 
-REGIONAL_MOVIE_PREBUILT_CACHE_PATH = Path(os.getenv("REGIONAL_MOVIE_PREBUILT_CACHE_PATH", "/app/data/regional_movie_prebuilt_cache.json"))
+REGIONAL_MOVIE_PREBUILT_CACHE_PATH = Path(os.getenv("REGIONAL_MOVIE_PREBUILT_CACHE_PATH", data_file("regional_movie_prebuilt_cache.json")))

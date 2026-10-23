@@ -14,6 +14,7 @@ import httpx
 from fastapi import HTTPException
 
 from core.cache_diagnostics import _InstrumentedAsyncClient, _record_cache_event
+from core.json_cache import private_copy, read_json_cached
 from core.settings import (
     CACHE_ONLY_MODE,
     STREAMING_AVAILABILITY_API_BASE,
@@ -228,14 +229,14 @@ def _tmdb_cache_disk_key(cache_key: tuple[str, int]) -> str:
 
 def _read_tmdb_persistent_cache(cache_key: tuple[str, int]) -> tuple[float, dict[str, Any]] | None:
     try:
-        payload = json.loads(TMDB_CATALOGUE_CACHE_FILE.read_text(encoding="utf-8"))
+        payload = read_json_cached(TMDB_CATALOGUE_CACHE_FILE)
         row = (payload.get("catalogues") or {}).get(_tmdb_cache_disk_key(cache_key))
         if not isinstance(row, dict) or not isinstance(row.get("payload"), dict):
             return None
         saved_at = float(row.get("savedAt") or 0)
         if saved_at <= 0:
             return None
-        return saved_at, row["payload"]
+        return saved_at, private_copy(row["payload"])
     except (OSError, ValueError, TypeError, AttributeError):
         return None
 
@@ -295,14 +296,14 @@ def _tmdb_ott_ttl(payload: Any) -> float:
 
 def _read_tmdb_ott_persistent_cache(cache_key: tuple[int, str]) -> tuple[float, dict[str, Any]] | None:
     try:
-        payload = json.loads(TMDB_OTT_CACHE_FILE.read_text(encoding="utf-8"))
+        payload = read_json_cached(TMDB_OTT_CACHE_FILE)
         row = (payload.get("items") or {}).get(_tmdb_ott_disk_key(cache_key))
         if not isinstance(row, dict) or not isinstance(row.get("payload"), dict):
             return None
         saved_at = float(row.get("savedAt") or 0)
         if saved_at <= 0:
             return None
-        return saved_at, row["payload"]
+        return saved_at, private_copy(row["payload"])
     except (OSError, ValueError, TypeError, AttributeError):
         return None
 
