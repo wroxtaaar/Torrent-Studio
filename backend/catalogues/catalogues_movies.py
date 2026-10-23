@@ -1609,7 +1609,22 @@ async def _warm_extra_catalogues_on_startup() -> None:
     asyncio.create_task(_extra_catalogue_monthly_scheduler())
 
 
+def _regional_page_is_stored(catalogue_key: str, page: int) -> bool:
+    """True when this page can be served without TMDB: stored at runtime or in the bundled snapshot."""
+    cached = _read_tmdb_persistent_cache((catalogue_key + "|eligible-v6", page), any_version=True)
+    if cached and _regional_movie_cache_page_is_usable(cached[1], page):
+        return True
+    return CACHE_FIRST and _cache_only_regional_movie_catalogue(catalogue_key, page) is not None
+
+
 def _regional_movie_cache_refresh_delay() -> float:
+    if CACHE_FIRST:
+        # Cache-first never refreshes pages that exist; it only has to fill pages that do not.
+        for catalogue_key in REGIONAL_MOVIE_CATALOGUE_KEYS:
+            for page in range(1, REGIONAL_MOVIE_PREWARM_PAGES + 1):
+                if not _regional_page_is_stored(catalogue_key, page):
+                    return 0
+        return float(REGIONAL_MOVIE_CACHE_TTL_SECONDS)
     oldest_saved_at = time.time()
     for catalogue_key in REGIONAL_MOVIE_CATALOGUE_KEYS:
         for page in range(1, REGIONAL_MOVIE_PREWARM_PAGES + 1):
@@ -1643,11 +1658,9 @@ async def _warm_regional_movie_catalogue_pages() -> bool:
         catalogue_refresh_succeeded = True
         trending_rows: list[dict[str, Any]] = []
         for page in range(1, REGIONAL_MOVIE_PREWARM_PAGES + 1):
-            if CACHE_FIRST:
-                stored = _read_tmdb_persistent_cache((catalogue_key + "|eligible-v6", page))
-                if stored and _regional_movie_cache_page_is_usable(stored[1], page):
-                    # Cache-first: never re-query TMDB for a page that is already stored.
-                    continue
+            if CACHE_FIRST and _regional_page_is_stored(catalogue_key, page):
+                # Cache-first: never re-query TMDB for a page that is already stored.
+                continue
             refresh_token = _REGIONAL_MOVIE_CATALOGUE_FORCE_REFRESH.set(True)
             source_token = _REGIONAL_MOVIE_SOURCE_FORCE_REFRESH.set(True)
             refreshed_token = _REGIONAL_MOVIE_SOURCE_REFRESHED_KEYS.set(refreshed_source_keys)
