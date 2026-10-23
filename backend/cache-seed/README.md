@@ -46,3 +46,20 @@ page 1 of an older variant. Both need a one-off refresh with real API keys
 
 `backend/tests/test_cache_first.py` hits ~100 cached endpoints with all outbound HTTP blocked
 and fails if any provider request is attempted.
+
+## Keeping the seed fresh
+
+Two GitHub Actions workflows refresh the seed with live API data and commit it to `main`
+(Render then redeploys with the new data). Both run `scripts/refresh_seed.py`, which works on a
+temporary copy, runs the backend with `CACHE_FIRST=false`, and only writes back files that
+changed and still parse. They finish by running the cache-first test.
+
+| Workflow | When | Refreshes |
+|---|---|---|
+| *Refresh Hollywood and Bollywood cache* | Every Monday 03:00 IST, or manually | Regional movie pages (popular/trending/latest, Hollywood and Bollywood), regional TV pages, trending archive, shared metadata/OTT/IMDb entries for those titles. Torrent re-scan is optional (manual input). |
+| *Refresh Marvel, DC and classics cache* | Manual only (Actions tab → Run workflow) | Missing OTT data and synopses for the Marvel, DC and classics catalogues. |
+
+Add these repository secrets once (Settings → Secrets and variables → Actions):
+`TMDB_API_KEY`, `TMDB_READ_ACCESS_TOKEN`, `WATCHMODE_API_KEY`, `OMDB_API_KEY`
+(use only the ones you have; at least one TMDB credential is required).
+Run locally with the same keys: `python scripts/refresh_seed.py hollywood-bollywood|franchise`.

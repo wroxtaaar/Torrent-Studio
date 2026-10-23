@@ -21,6 +21,9 @@ CATALOGUES = (
 TARGET_PER_CATALOGUE = int(os.getenv("REGIONAL_CACHE_MOVIES_PER_CATALOGUE", "50"))
 PAGE_LIMIT = int(os.getenv("REGIONAL_CACHE_PAGES", "15"))
 TORRENT_LIMIT = 50
+# Set REGIONAL_CACHE_TORRENT_SCAN=false to refresh only catalogue pages and keep the
+# torrent matches from the previous build (torrent sites are slow/blocked on CI runners).
+TORRENT_SCAN = os.getenv("REGIONAL_CACHE_TORRENT_SCAN", "true").strip().lower() not in ("0", "false", "no", "off")
 MAX_SIZE = 5 * 1024**3
 BAD_QUALITY = re.compile(r"(?:camrip|hdcam|telesync|telecine|dvdscr|screener|workprint)", re.I)
 
@@ -262,6 +265,11 @@ def main():
         if not title:
             continue
         query = title + (" " + str(year) if year else "")
+        if not TORRENT_SCAN:
+            kept = old.get("movies", {}).get(key, {}).get("torrentDetails")
+            if kept:
+                entry["torrentDetails"] = kept
+            continue
         try:
             path = "/api/search?q=" + urllib.parse.quote(query) + "&limit=" + str(TORRENT_LIMIT)
             response = request(path, timeout=150)
