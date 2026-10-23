@@ -47,6 +47,14 @@ page 1 of an older variant. Both need a one-off refresh with real API keys
 `backend/tests/test_cache_first.py` hits ~100 cached endpoints with all outbound HTTP blocked
 and fails if any provider request is attempted.
 
+## Hollywood and Bollywood paging
+
+Each of the six regional catalogues (popular / trending / latest × Hollywood / Bollywood) has
+**3 cached pages of 18 titles** (`REGIONAL_MOVIE_PREWARM_PAGES`). Pages 1–3 are served from the cache
+and the UI is told a page 4 exists. From page 4 on the backend uses the API keys, continues
+right after the cached titles (no repeats) and stores each fetched page so it is only fetched once.
+This needs `CACHE_ONLY_MODE=false` and TMDB keys on Render (set in `render.yaml`).
+
 ## Keeping the data fresh (VPS → rolling GitHub release → Render)
 
 GitHub never stores refreshed data in `main`'s history. Instead:

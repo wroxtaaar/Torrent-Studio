@@ -18,7 +18,8 @@ CATALOGUES = (
     "popular-bollywood", "trending-bollywood", "latest-bollywood",
     "popular-hollywood", "trending-hollywood", "latest-hollywood",
 )
-TARGET_PER_CATALOGUE = int(os.getenv("REGIONAL_CACHE_MOVIES_PER_CATALOGUE", "50"))
+# 3 cached pages x 18 = 54 are served; a few extra cover titles dropped by eligibility filters.
+TARGET_PER_CATALOGUE = int(os.getenv("REGIONAL_CACHE_MOVIES_PER_CATALOGUE", "60"))
 PAGE_LIMIT = int(os.getenv("REGIONAL_CACHE_PAGES", "15"))
 TORRENT_LIMIT = 50
 # Set REGIONAL_CACHE_TORRENT_SCAN=false to refresh only catalogue pages and keep the

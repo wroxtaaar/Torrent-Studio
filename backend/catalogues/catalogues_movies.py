@@ -722,10 +722,18 @@ def _regional_movie_cache_page_is_usable(payload: dict[str, Any], page: int) -> 
     return bool(results) or total_results == 0 or page > total_pages
 
 
-async def _fetch_paginated_regional_movie_catalogue(catalogue_key: str, page: int) -> dict[str, Any]:
-    """Build stable 18-item display pages from eligible regional movie candidates."""
+async def _fetch_paginated_regional_movie_catalogue(
+    catalogue_key: str, page: int,
+    skip_ids: set[str] | None = None, skip_pages: int = 0,
+) -> dict[str, Any]:
+    """Build stable 18-item display pages from eligible regional movie candidates.
+
+    With skip_ids/skip_pages the first `skip_pages` pages are served from the cache, so this
+    page continues right after them: those titles are left out and counting starts after them.
+    """
     page_size = REGIONAL_MOVIE_CACHE_PAGE_SIZE
-    wanted = page * page_size + 1
+    live_page = page - skip_pages
+    wanted = live_page * page_size + 1
     is_trending = catalogue_key.startswith("trending-")
     is_bollywood_latest = catalogue_key == "latest-bollywood"
     force_refresh = _REGIONAL_MOVIE_SOURCE_FORCE_REFRESH.get()
@@ -740,7 +748,7 @@ async def _fetch_paginated_regional_movie_catalogue(catalogue_key: str, page: in
         else "|released-v6"
     )
     source_cache_prefix = catalogue_key + source_cache_variant
-    seen_ids: set[str] = set()
+    seen_ids: set[str] = set(skip_ids or ())
     eligible_rows: list[dict[str, Any]] = []
     source_total_pages = max_source_pages
     exhausted = True
@@ -808,21 +816,24 @@ async def _fetch_paginated_regional_movie_catalogue(catalogue_key: str, page: in
             break
         exhausted = False
 
-    start = (page - 1) * page_size
+    start = (live_page - 1) * page_size
     page_rows = eligible_rows[start:start + page_size]
     if exhausted:
         total_pages = max(1, (len(eligible_rows) + page_size - 1) // page_size)
     else:
         # Progressive pagination: the next display page is available, and its
         # request will scan further source pages if the user continues.
-        total_pages = max(page + 1, (len(eligible_rows) + page_size - 1) // page_size)
+        total_pages = max(live_page + 1, (len(eligible_rows) + page_size - 1) // page_size)
+    total_pages += skip_pages
     return {
         "catalogue": catalogue_key,
         "releasedOnly": True,
         "provider": "TMDB + verified India OTT availability",
         "page": page,
         "totalPages": total_pages,
-        "totalResults": len(eligible_rows) if exhausted else max(len(eligible_rows), (page + 1) * page_size),
+        "totalResults": skip_pages * page_size + (
+            len(eligible_rows) if exhausted else max(len(eligible_rows), (live_page + 1) * page_size)
+        ),
         "pageSize": page_size,
         "results": page_rows,
         "releaseEligibility": "streaming-in-india-or-30-days",
@@ -958,6 +969,44 @@ async def _filter_nexstream_playable_movies(
     return playable_rows
 
 
+def _cached_regional_identities(catalogue_key: str) -> set[str] | None:
+    """Titles held by the cached first pages, or None unless those pages are completely full.
+
+    Pages beyond the cached ones come from the live API; they must continue after these
+    titles instead of repeating them.
+    """
+    page_size = REGIONAL_MOVIE_CACHE_PAGE_SIZE
+    identities: set[str] = set()
+    total = 0
+    for cached_page in range(1, REGIONAL_MOVIE_PREWARM_PAGES + 1):
+        payload = _cache_only_regional_movie_catalogue(catalogue_key, cached_page)
+        rows = [row for row in ((payload or {}).get("results") or []) if isinstance(row, dict)]
+        total += len(rows)
+        for row in rows:
+            for field in ("id", "tmdbId", "title"):
+                value = str(row.get(field) or "").strip()
+                if value:
+                    identities.add(value)
+    return identities if total >= REGIONAL_MOVIE_PREWARM_PAGES * page_size else None
+
+
+def _with_more_pages(payload: dict[str, Any], page: int) -> dict[str, Any]:
+    """When the cached pages are full, tell the UI that further pages exist (served live)."""
+    page_size = REGIONAL_MOVIE_CACHE_PAGE_SIZE
+    cached_pages = REGIONAL_MOVIE_PREWARM_PAGES
+    if CACHE_ONLY_MODE or page > cached_pages or not isinstance(payload, dict):
+        return payload
+    try:
+        total_results = int(payload.get("totalResults") or 0)
+        total_pages = int(payload.get("totalPages") or 0)
+    except (TypeError, ValueError):
+        return payload
+    if total_results < cached_pages * page_size or total_pages > cached_pages:
+        return payload
+    return {**payload, "totalPages": cached_pages + 1,
+            "totalResults": max(total_results, (cached_pages + 1) * page_size)}
+
+
 @router.get("/api/movies/catalogue/{catalogue_key}")
 async def api_tmdb_movie_catalogue(
     catalogue_key: str,
@@ -965,6 +1014,19 @@ async def api_tmdb_movie_catalogue(
     released_only: bool = Query(True),
     max_size_gb: int = Query(5, ge=1, le=5),
     basic: bool = Query(False),
+):
+    payload = await _api_tmdb_movie_catalogue(catalogue_key, page, released_only, max_size_gb, basic)
+    if not basic and released_only and catalogue_key in REGIONAL_MOVIE_CATALOGUE_KEYS:
+        return _with_more_pages(payload, page)
+    return payload
+
+
+async def _api_tmdb_movie_catalogue(
+    catalogue_key: str,
+    page: int,
+    released_only: bool,
+    max_size_gb: int,
+    basic: bool,
 ):
     allowed = {
         "marvel", "dc-live-action", "dc-animated",
@@ -1060,7 +1122,7 @@ async def api_tmdb_movie_catalogue(
                     page, catalogue_key,
                 )
         # Cache-first: the bundled snapshot is tried before TMDB, not only in cache-only mode.
-        if CACHE_ONLY_MODE or (CACHE_FIRST and not force_refresh):
+        if CACHE_ONLY_MODE or (CACHE_FIRST and not force_refresh and page <= REGIONAL_MOVIE_PREWARM_PAGES):
             bundled_payload = _cache_only_regional_movie_catalogue(catalogue_key, page)
             if bundled_payload is not None:
                 bundled_payload = await _enrich_regional_movie_catalogue_metadata(
@@ -1085,7 +1147,10 @@ async def api_tmdb_movie_catalogue(
             )
         _record_cache_event("movie_catalogue", "eligible_miss")
         try:
-            payload = await _fetch_paginated_regional_movie_catalogue(catalogue_key, page)
+            skip_ids = _cached_regional_identities(catalogue_key) if page > REGIONAL_MOVIE_PREWARM_PAGES else None
+            payload = await _fetch_paginated_regional_movie_catalogue(
+                catalogue_key, page, skip_ids, REGIONAL_MOVIE_PREWARM_PAGES if skip_ids else 0,
+            )
             payload = await _enrich_regional_movie_catalogue_metadata(payload)
         except Exception as exc:
             if stale_payload is None:
@@ -1117,7 +1182,7 @@ async def api_tmdb_movie_catalogue(
     }
     # Regional movie pages 1-3 are durable VPS catalogue snapshots. Keep using
     # them across restarts/TTL expiry; refresh only when a page has never been saved.
-    durable_regional_page = is_regional_movie_catalogue and not is_trending_catalogue and page <= 3
+    durable_regional_page = is_regional_movie_catalogue and not is_trending_catalogue and page <= REGIONAL_MOVIE_PREWARM_PAGES
     cache_ttl = stored_ttl(min(TMDB_CATALOGUE_CACHE_SECONDS, 900)) if catalogue_key.startswith("trending-") else TMDB_CATALOGUE_CACHE_SECONDS
     cached = _tmdb_movie_catalogue_cache.get(cache_key)
     if cached and (durable_regional_page or now - cached[0] < cache_ttl):
