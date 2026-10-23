@@ -17,12 +17,20 @@ calls: list[list[str]] = []
 current = ["startup"]
 
 
+_real_async_send = httpx.AsyncClient.send
+_real_sync_send = httpx.Client.send
+
+
 async def _blocked_async(self, request, *args, **kwargs):
+    if request.url.host == "testserver":  # the in-process test client itself
+        return await _real_async_send(self, request, *args, **kwargs)
     calls.append([current[0], request.method, str(request.url)[:160]])
     raise httpx.ConnectError("blocked: outbound HTTP is not allowed in this test", request=request)
 
 
 def _blocked_sync(self, request, *args, **kwargs):
+    if request.url.host == "testserver":
+        return _real_sync_send(self, request, *args, **kwargs)
     calls.append([current[0], request.method, str(request.url)[:160]])
     raise httpx.ConnectError("blocked: outbound HTTP is not allowed in this test", request=request)
 
