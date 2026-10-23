@@ -23,7 +23,7 @@ live_calls = []
 
 
 async def fake_source(catalogue_key, source_page, released_only=True):
-    live_calls.append(source_page)
+    live_calls.append([catalogue_key, source_page])
     # Source page 1 overlaps the cached titles; later pages are brand new.
     base = 1000 if source_page == 1 else 5000 + source_page * 100
     return {"page": source_page, "totalPages": 40, "results": [
@@ -45,7 +45,8 @@ with TestClient(main.app, raise_server_exceptions=False) as client:
         body = r.json()
         out[f"p{page}"] = {"status": r.status_code, "n": len(body.get("results", [])),
                            "totalPages": body.get("totalPages"), "ids": [x["id"] for x in body.get("results", [])]}
-    out["live_calls_after_cached_pages"] = list(live_calls)
+    # The start-up warm-up may fill other (empty) catalogues; only this one must stay offline.
+    out["live_calls_after_cached_pages"] = [c for c in live_calls if c[0] == "popular-hollywood"]
     r = client.get("/api/movies/catalogue/popular-hollywood?page=4")
     body = r.json()
     out["p4"] = {"status": r.status_code, "n": len(body.get("results", [])), "totalPages": body.get("totalPages"),
