@@ -37,6 +37,12 @@ def stored_ttl(seconds: float) -> float:
     return float(_CACHE_FOREVER_SECONDS) if CACHE_FIRST else seconds
 
 
+# Filling GAPS (titles that have no synopsis / OTT / rating stored yet) is separate from
+# refreshing what is stored. Leave it on to let the app complete its cache over time; turn it
+# off (BACKFILL_MISSING_METADATA=false) for a deployment that must not contact providers at all.
+BACKFILL_MISSING_METADATA = os.getenv("BACKFILL_MISSING_METADATA", "true").strip().casefold() not in {"0", "false", "no", "off"}
+
+
 # One place for the runtime data directory (Render: mount a disk and set APP_DATA_DIR).
 # Individual files can still be overridden with their own environment variable.
 DATA_DIR = Path(os.getenv("APP_DATA_DIR", "/app/data"))
@@ -111,7 +117,9 @@ SYNOPSIS_CACHE_RETRY_INTERVAL_SECONDS = max(300, int(os.getenv("SYNOPSIS_CACHE_R
 TMDB_OTT_CACHE_SECONDS = stored_ttl(max(3600, int(os.getenv("TMDB_OTT_CACHE_SECONDS", str(24 * 60 * 60)))))
 # Results with no provider names (not_confirmed, release dates only) may just mean the
 # upstream lookup missed or failed, so they are re-checked much sooner than hits.
-TMDB_OTT_INCOMPLETE_CACHE_SECONDS = max(300, int(os.getenv("TMDB_OTT_INCOMPLETE_CACHE_SECONDS", "1800")))  # failed lookups are not data: always retried
+# Partial lookups (a provider errored) are kept too under cache-first: set CACHE_FIRST=false or
+# call /api/movies/ott/<id>?force=true to re-check one.
+TMDB_OTT_INCOMPLETE_CACHE_SECONDS = stored_ttl(max(300, int(os.getenv("TMDB_OTT_INCOMPLETE_CACHE_SECONDS", "1800"))))
 TMDB_OTT_MISSING_CACHE_SECONDS = stored_ttl(max(900, int(os.getenv("TMDB_OTT_MISSING_CACHE_SECONDS", str(6 * 60 * 60)))))
 TMDB_OTT_CACHE_FILE = Path(os.getenv("TMDB_OTT_CACHE_FILE", data_file("tmdb_ott_availability_cache.json")))
 MARVEL_TV_CATALOGUE_CACHE_FILE = Path(os.getenv("MARVEL_TV_CATALOGUE_CACHE_FILE", data_file("marvel_tv_catalogue_cache.json")))

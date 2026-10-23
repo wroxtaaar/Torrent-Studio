@@ -37,6 +37,7 @@ from core.http_cache import (
 from metadata.imdb import _get_imdb_rating_record
 from integrations.nexstream import nexstream_api_key_configured, resolve_nexstream_movie
 from core.settings import (
+    BACKFILL_MISSING_METADATA,
     CACHE_FIRST,
     CACHE_ONLY_MODE,
     REGIONAL_MOVIE_CACHE_PAGE_SIZE,
@@ -1036,7 +1037,7 @@ async def api_tmdb_movie_catalogue(
                     page, catalogue_key,
                 )
                 _tmdb_movie_catalogue_cache.pop(eligible_cache_key, None)
-        eligible_persistent = _read_tmdb_persistent_cache(eligible_cache_key)
+        eligible_persistent = _read_tmdb_persistent_cache(eligible_cache_key, any_version=True)
         if eligible_persistent:
             payload = eligible_persistent[1]
             if _regional_movie_cache_page_is_usable(payload, page):
@@ -1125,7 +1126,7 @@ async def api_tmdb_movie_catalogue(
         return await _apply_movie_release_eligibility(cached[1], enabled=released_only)
 
     # A disk cache survives container restarts, unlike the in-memory TTL cache.
-    persistent = None if is_trending_catalogue else _read_tmdb_persistent_cache(cache_key)
+    persistent = None if is_trending_catalogue else _read_tmdb_persistent_cache(cache_key, any_version=True)
     if persistent:
         saved_at, persistent_payload = persistent
         age_seconds = max(0.0, time.time() - saved_at)
@@ -1596,7 +1597,7 @@ async def _enrich_classics_movie_ott_cache() -> None:
 
 def _schedule_classics_movie_ott_enrichment() -> None:
     global _classics_ott_enrichment_task
-    if CACHE_ONLY_MODE:
+    if CACHE_ONLY_MODE or not BACKFILL_MISSING_METADATA:
         return
     if _classics_ott_enrichment_task is None or _classics_ott_enrichment_task.done():
         _classics_ott_enrichment_task = asyncio.create_task(_enrich_classics_movie_ott_cache())

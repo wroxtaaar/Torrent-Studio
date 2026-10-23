@@ -44,6 +44,7 @@ from search.search_providers import (
 )
 from seedr.seedr_client import info_hash
 from core.settings import (
+    BACKFILL_MISSING_METADATA,
     CACHE_FIRST,
     CACHE_ONLY_MODE,
     DATA_DIR,
@@ -1699,6 +1700,8 @@ async def _lookup_catalogue_synopsis(
 
 async def _enrich_catalogue_synopses() -> None:
     """Fill synopsis metadata into every persistent movie-catalogue JSON without rebuilding torrent rows."""
+    if not BACKFILL_MISSING_METADATA:
+        return
     state = _CATALOGUE_SYNOPSIS_ENRICHMENT_STATE
     paths = _synopsis_cache_paths()
     state.update({
@@ -2485,6 +2488,8 @@ async def _lookup_tmdb_catalogue_synopsis_by_id(item: dict[str, Any]) -> dict[st
 
 
 async def _enrich_tmdb_persistent_catalogue_synopses() -> None:
+    if not BACKFILL_MISSING_METADATA:
+        return
     global _tmdb_catalogue_synopsis_enrichment_task, _TMDB_CATALOGUE_SYNOPSIS_RESCAN_REQUESTED
     state = _TMDB_CATALOGUE_SYNOPSIS_ENRICHMENT_STATE
     if not (TMDB_READ_ACCESS_TOKENS or TMDB_API_KEYS):

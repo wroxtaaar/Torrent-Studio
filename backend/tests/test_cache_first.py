@@ -24,6 +24,9 @@ def run():
             **os.environ,
             "CACHE_ONLY_MODE": "false",
             "CACHE_FIRST": "true",
+            # Gap-filling (titles with nothing stored yet) is allowed to call providers; this test
+            # only checks that data which IS stored is never fetched again.
+            "BACKFILL_MISSING_METADATA": "false",
             "TMDB_API_KEY": "test-key",
             "TMDB_READ_ACCESS_TOKEN": "test-token",
             "WATCHMODE_API_KEY": "test-key",

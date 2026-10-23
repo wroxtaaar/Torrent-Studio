@@ -16,6 +16,7 @@ from fastapi import HTTPException
 from core.cache_diagnostics import _InstrumentedAsyncClient, _record_cache_event
 from core.json_cache import private_copy, read_json_cached
 from core.settings import (
+    CACHE_FIRST,
     CACHE_ONLY_MODE,
     STREAMING_AVAILABILITY_API_BASE,
     STREAMING_AVAILABILITY_API_KEY,
@@ -227,10 +228,33 @@ def _tmdb_cache_disk_key(cache_key: tuple[str, int]) -> str:
     return cache_key[0] + ":" + str(cache_key[1])
 
 
-def _read_tmdb_persistent_cache(cache_key: tuple[str, int]) -> tuple[float, dict[str, Any]] | None:
+def _newest_cached_variant(catalogues: dict[str, Any], cache_key: tuple[str, int]) -> dict[str, Any] | None:
+    """Same catalogue + page cached under an older layout version ("...-v4" when "...-v7" is wanted)."""
+    family = re.sub(r"-v\d+$", "", cache_key[0])
+    best_version, best_row = -1, None
+    for disk_key, row in catalogues.items():
+        name, _, page = str(disk_key).rpartition(":")
+        match = re.fullmatch(re.escape(family) + r"-v(\d+)", name)
+        if not match or page != str(cache_key[1]):
+            continue
+        if not isinstance(row, dict) or not isinstance(row.get("payload"), dict):
+            continue
+        if int(match.group(1)) > best_version:
+            best_version, best_row = int(match.group(1)), row
+    return best_row
+
+
+def _read_tmdb_persistent_cache(
+    cache_key: tuple[str, int], any_version: bool = False
+) -> tuple[float, dict[str, Any]] | None:
+    """Read one stored catalogue page. With any_version (and cache-first on), a page stored by an
+    older build of the same catalogue is used when the current layout has not been stored yet."""
     try:
         payload = read_json_cached(TMDB_CATALOGUE_CACHE_FILE)
-        row = (payload.get("catalogues") or {}).get(_tmdb_cache_disk_key(cache_key))
+        catalogues = payload.get("catalogues") or {}
+        row = catalogues.get(_tmdb_cache_disk_key(cache_key))
+        if (not isinstance(row, dict) or not isinstance(row.get("payload"), dict)) and any_version and CACHE_FIRST:
+            row = _newest_cached_variant(catalogues, cache_key)
         if not isinstance(row, dict) or not isinstance(row.get("payload"), dict):
             return None
         saved_at = float(row.get("savedAt") or 0)
