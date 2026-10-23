@@ -47,7 +47,7 @@ def test_cached_data_never_reaches_a_provider(run):
     summary = {}
     for endpoint, method, url in calls:
         summary.setdefault(endpoint, []).append(url)
-    detail = " | ".join(f"{endpoint} -> {urls[0]} (+{len(urls) - 1} more)" for endpoint, urls in list(summary.items())[:8])
+    detail = " | ".join(f"{endpoint} -> {urls[0]} (+{len(urls) - 1} more)" for endpoint, urls in list(summary.items())[:12])
     assert not calls, f"{len(calls)} provider request(s) despite cached data: {detail}"
 
 

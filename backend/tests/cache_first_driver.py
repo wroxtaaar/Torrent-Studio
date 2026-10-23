@@ -63,12 +63,16 @@ paths.append("/api/catalogue/imdb-ratings?" + "&".join("titles=" + quote(t) for 
 paths += [f"/api/poster/resolve?title={quote(t)}&year={y}" for t, y, _url in posters]
 
 statuses: dict[str, int] = {}
-with TestClient(main.app) as client:
+errors: dict[str, str] = {}
+with TestClient(main.app, raise_server_exceptions=False) as client:
     time.sleep(1)
     for path in paths:
         current[0] = path.split("?")[0] + ("?" + path.split("?")[1][:40] if "?" in path else "")
-        response = client.get(path)
-        statuses[path] = response.status_code
+        try:
+            statuses[path] = client.get(path).status_code
+        except Exception as exc:  # a crashing endpoint is reported, not fatal
+            statuses[path] = 599
+            errors[path] = f"{type(exc).__name__}: {str(exc)[:200]}"
     # Give background tasks started by the requests a moment to run.
     time.sleep(3)
-print("RESULT=" + json.dumps({"calls": calls, "statuses": statuses}))
+print("RESULT=" + json.dumps({"calls": calls, "statuses": statuses, "errors": errors}))
