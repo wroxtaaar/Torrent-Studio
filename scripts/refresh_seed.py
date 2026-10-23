@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BACKEND = ROOT / "backend"
-SEED = BACKEND / "cache-seed"
+SEED = Path(os.getenv("REFRESH_SEED_DIR") or BACKEND / "cache-seed")  # VPS keeps its own working copy
 
 # Files that live in runtime/ inside the seed (flat inside APP_DATA_DIR).
 SHARED_RUNTIME = [

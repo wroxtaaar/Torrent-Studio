@@ -31,4 +31,5 @@ COPY --from=frontend-build /frontend/dist ./frontend-dist
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["sh", "-c", "uvicorn fullstack_app:app --host 0.0.0.0 --port ${PORT:-10000}"]
+# Fetch the newest published cache bundle first (best effort, never blocks startup).
+CMD ["sh", "-c", "python maintenance/fetch_cache_bundle.py; uvicorn fullstack_app:app --host 0.0.0.0 --port ${PORT:-10000}"]

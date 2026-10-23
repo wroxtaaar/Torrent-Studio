@@ -47,19 +47,48 @@ page 1 of an older variant. Both need a one-off refresh with real API keys
 `backend/tests/test_cache_first.py` hits ~100 cached endpoints with all outbound HTTP blocked
 and fails if any provider request is attempted.
 
-## Keeping the seed fresh
+## Keeping the data fresh (VPS → rolling GitHub release → Render)
 
-Two GitHub Actions workflows refresh the seed with live API data and commit it to `main`
-(Render then redeploys with the new data). Both run `scripts/refresh_seed.py`, which works on a
-temporary copy, runs the backend with `CACHE_FIRST=false`, and only writes back files that
-changed and still parse. They finish by running the cache-first test.
+GitHub never stores refreshed data in `main`'s history. Instead:
 
-| Workflow | When | Refreshes |
+1. A cron job on the VPS runs `scripts/vps/refresh_and_publish.sh <group>`. It refreshes data with
+   live API keys (`scripts/refresh_seed.py`), packs one `cache-bundle.tar.gz` + `cache-bundle.json`
+   (checksum, version) with `scripts/make_cache_bundle.py`, uploads them to the rolling release
+   `cache-data` (old assets are replaced, so size stays flat) and calls the Render deploy hook.
+2. When the Render container starts, `maintenance/fetch_cache_bundle.py` downloads the bundle,
+   verifies the checksum, refuses anything unsafe or not valid JSON, and overlays it on the seed
+   baked into the image. If anything fails it prints why and the baked seed is used.
+3. The app then seeds `APP_DATA_DIR` from it as before and serves everything from local files.
+
+| Group | Suggested schedule | Refreshes |
 |---|---|---|
-| *Refresh Hollywood and Bollywood cache* | Every Monday 03:00 IST, or manually | Regional movie pages (popular/trending/latest, Hollywood and Bollywood), regional TV pages, trending archive, shared metadata/OTT/IMDb entries for those titles. Torrent re-scan is optional (manual input). |
-| *Refresh Marvel, DC and classics cache* | Manual only (Actions tab → Run workflow) | Missing OTT data and synopses for the Marvel, DC and classics catalogues. |
+| `hollywood-bollywood` | weekly cron | Regional movie/TV pages, trending archive, shared metadata/OTT/IMDb entries (set `REGIONAL_CACHE_TORRENT_SCAN=false` to skip the slow torrent re-scan) |
+| `franchise` | run by hand when wanted | Missing OTT data and synopses for Marvel, DC and classics |
+| `publish-only` | by hand | Re-publish the VPS working copy |
 
-Add these repository secrets once (Settings → Secrets and variables → Actions):
-`TMDB_API_KEY`, `TMDB_READ_ACCESS_TOKEN`, `WATCHMODE_API_KEY`, `OMDB_API_KEY`
-(use only the ones you have; at least one TMDB credential is required).
-Run locally with the same keys: `python scripts/refresh_seed.py hollywood-bollywood|franchise`.
+The VPS keeps its own working copy of the seed (`~/torrent-studio-refresh/seed`), so each group's
+results survive the other group's runs. Set `CACHE_BUNDLE_BASE_URL=off` on Render to disable the
+download.
+
+### VPS setup (Oracle, Ubuntu)
+
+```sh
+sudo apt-get update && sudo apt-get install -y git python3-venv curl gh
+mkdir -p ~/.config/torrent-studio && chmod 700 ~/.config/torrent-studio
+cat > ~/.config/torrent-studio/env <<'EOF'
+TMDB_API_KEY=...
+TMDB_READ_ACCESS_TOKEN=...
+WATCHMODE_API_KEY=...
+OMDB_API_KEY=...
+GH_TOKEN=...            # fine-grained token, this repo only, Contents: read and write
+RENDER_DEPLOY_HOOK=...  # Render service -> Settings -> Deploy Hook
+REGIONAL_CACHE_TORRENT_SCAN=true
+EOF
+chmod 600 ~/.config/torrent-studio/env
+git clone https://github.com/wroxtaaar/Torrent-Studio.git ~/ts && cd ~/ts
+crontab -l 2>/dev/null; (crontab -l 2>/dev/null; echo '0 3 * * 1 /home/ubuntu/ts/scripts/vps/refresh_and_publish.sh hollywood-bollywood >> /home/ubuntu/refresh.log 2>&1') | crontab -
+```
+
+Run `scripts/vps/refresh_and_publish.sh publish-only` once to publish the first bundle, and
+`scripts/vps/refresh_and_publish.sh franchise` whenever Marvel/DC/classics need an update.
+The VPS makes only outbound connections, so no domain, certificate or open port is needed.

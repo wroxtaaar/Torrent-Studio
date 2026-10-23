@@ -14,6 +14,8 @@ services:
       # Serve every stored (bundled or runtime) entry as-is; call providers only for missing ones.
       - key: CACHE_FIRST
         value: "true"
+      # The container fetches the newest data bundle from the rolling "cache-data" release at start
+      # (see backend/cache-seed/README.md). Set CACHE_BUNDLE_BASE_URL=off to disable.
       # "true" = never call providers at all (see backend/cache-seed/README.md).
       - key: CACHE_ONLY_MODE
         value: "true"
