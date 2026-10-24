@@ -114,9 +114,12 @@ def test_torrent_check_is_not_too_strict(monkeypatch=None):
 
 def test_only_clear_failures_remove_a_title():
     b = _builder()
-    movie_ok = {"nexStreamPlayable": True}
-    assert b.has_source({"movie": movie_ok, "torrentDetails": {"status": "empty", "results": []}})  # probe unsure
-    assert not b.has_source({"movie": movie_ok, "nexStreamProbe": False, "torrentDetails": {"status": "empty", "results": []}})
-    assert b.has_source({"movie": movie_ok, "nexStreamProbe": False, "torrentDetails": {"status": "ready", "results": [{}]}})
+    empty = {"status": "empty", "results": []}
+    old = {"nexStreamPlayable": True, "releaseDate": "2020-01-01"}
+    new = {"nexStreamPlayable": True, "releaseDate": datetime.now(timezone.utc).date().isoformat()}
+    assert b.has_source({"movie": old, "torrentDetails": empty})  # out for a while: NexStream likely has it
+    assert not b.has_source({"movie": new, "torrentDetails": empty})  # brand new, no torrent, no OTT
+    assert b.has_source({"movie": {**new, "ottAvailability": {"streamingProviders": [{"name": "X"}]}}, "torrentDetails": empty})
+    assert b.has_source({"movie": new, "torrentDetails": {"status": "ready", "results": [{}]}})
     assert b.has_source({"movie": {}, "torrentDetails": {"status": "unavailable", "results": []}})  # search failed: keep
-    assert not b.has_source({"movie": {}, "torrentDetails": {"status": "empty", "results": []}})
+    assert not b.has_source({"movie": {}, "torrentDetails": empty})

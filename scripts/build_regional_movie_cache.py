@@ -28,9 +28,8 @@ TORRENT_SCAN = os.getenv("REGIONAL_CACHE_TORRENT_SCAN", "true").strip().lower() 
 MAX_SIZE = 5 * 1024**3
 # Same lower bound the app applies when it reads saved torrents; a row below it would be hidden anyway.
 MIN_SIZE = int(os.getenv("REGIONAL_CACHE_MIN_SIZE_MB", "100")) * 1024**2
-PROBE_NEXSTREAM = os.getenv("REGIONAL_CACHE_PROBE_NEXSTREAM", "true").strip().lower() not in ("0", "false", "no", "off")
+NEXSTREAM_MIN_AGE_DAYS = int(os.getenv("REGIONAL_CACHE_NEXSTREAM_MIN_AGE_DAYS", "45"))
 SCAN_VERSION = 2  # bump to force one re-scan of older (possibly too strict) "empty" results
-EMBED_NOT_FOUND = re.compile(r"not\s+found|unavailable|no\s+(?:sources?|streams?|video)|coming\s+soon|does\s*n[o']t\s+exist|removed", re.I)
 BAD_QUALITY = re.compile(r"(?:camrip|hdcam|telesync|telecine|dvdscr|screener|workprint)", re.I)
 
 
@@ -77,13 +76,13 @@ def read_json(path, default):
 
 
 def has_source(entry):
-    """Show a title when a torrent exists, or NexStream plays it (its player page confirms it).
-    Unknown (never scanned / searches failed / probe unsure) counts as showable, so a blocked
+    """Show a title when a torrent exists or NexStream is likely to play it.
+    Unknown (never scanned / searches failed / ) counts as showable, so a blocked
     tracker or a flaky check can never remove a title that is actually watchable."""
     details = entry.get("torrentDetails")
     if isinstance(details, dict) and details.get("results"):
         return True
-    if entry["movie"].get("nexStreamPlayable") is True and entry.get("nexStreamProbe") is not False:
+    if nexstream_likely(entry["movie"]):
         return True
     if not isinstance(details, dict) or details.get("status") == "unavailable":
         return True
@@ -174,23 +173,23 @@ def scan_torrents(movie, old_details):
             "status": "empty", "scanVersion": SCAN_VERSION}
 
 
-def probe_embed(tmdb_id):
-    """Ask the NexStream player page itself whether the title exists. True/False, None when unsure.
+def nexstream_likely(movie):
+    """Whether NexStream can realistically play this title.
 
-    The NexStream API hands out an embed link for any TMDB id, so an API "success" proves nothing.
+    NexStream's API and its player page (behind a Cloudflare check) cannot be verified from a server,
+    so use what predicts it: a film that is already on a streaming/rent/buy service in India, or that
+    has been out long enough for players to have it. A brand-new cinema release without either is not.
     """
-    if not PROBE_NEXSTREAM or not tmdb_id:
-        return None
-    url = "https://embedmaster.link/movie/" + str(tmdb_id)
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)", "Accept": "text/html"})
+    if movie.get("nexStreamPlayable") is not True:
+        return False
+    ott = movie.get("ottAvailability") or {}
+    if ott.get("streamingProviders") or ott.get("rentProviders") or ott.get("buyProviders"):
+        return True
     try:
-        with urllib.request.urlopen(req, timeout=20) as r:
-            body = r.read(200_000).decode("utf-8", "replace")
-    except urllib.error.HTTPError as exc:
-        return False if exc.code in (404, 410) else None
-    except Exception:
-        return None
-    return False if EMBED_NOT_FOUND.search(re.sub(r"<(script|style)[\s\S]*?</\1>", " ", body, flags=re.I)) else True
+        released = datetime.fromisoformat(str(movie.get("releaseDate"))[:10]).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return True  # unknown release date: do not drop it
+    return (datetime.now(timezone.utc) - released).days >= NEXSTREAM_MIN_AGE_DAYS
 
 
 def api_candidates(cat, failures):
@@ -265,14 +264,13 @@ def build_movies(old):
             if entry is None:
                 entry = movies[key] = {"movie": movie, "catalogues": []}
                 entry["torrentDetails"] = scan_torrents(movie, (old_movies.get(key) or {}).get("torrentDetails"))
-                details = entry["torrentDetails"] or {}
-                if movie.get("nexStreamPlayable") is True and not details.get("results"):
-                    entry["nexStreamProbe"] = probe_embed(movie.get("tmdbId") or movie.get("id"))
             if cat not in entry["catalogues"]:
                 entry["catalogues"].append(cat)
             if has_source(entry):
-                if entry["movie"].get("nexStreamPlayable") is True and entry.get("nexStreamProbe") is not False:
+                if nexstream_likely(entry["movie"]):
                     movie = {**movie, "nexStreamPlayable": True}  # keep the reason it is shown
+                else:
+                    movie = {k: v for k, v in movie.items() if k != "nexStreamPlayable"}
                 final.append(movie)
                 if len(final) % 10 == 0:
                     print(json.dumps({"event": "progress", "catalogue": cat, "shown": len(final), "checked": checked}), flush=True)
