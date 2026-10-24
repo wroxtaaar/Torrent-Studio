@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useMemo } from 'react';
 import { api, MovieCatalogueKey, TorrentSearchResult } from '../../api/client.ts';
 import { setHighQualityPostersReady } from '../MovieCards.tsx';
 import { torrentResultKey } from './grouping.ts';
@@ -382,7 +382,16 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
   useSynopsisPrefetch({ franchiseGridPage, franchiseGridPageSize, groupedResults, searchMetadata, setSearchMetadata, tvMetadataRequestedRef });
   usePosterEffects({ groupedResults, franchiseGridPage, franchiseGridPageSize, posterFirstPageReadyRef, setPosterFirstPageReady, previousPosterPageRef, movieCatalogue, posterFirstPageReady, queueOttLookups, posterBackgroundGenerationRef, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterBackgroundAttemptsRef, posterBackgroundActiveKeysRef, enqueuePosterBackgroundJobs, pendingPosterAction, setPendingPosterAction, prepareClickIntentRef, prepareTraceIdRef, setExpandedSearchGroupKey, searchMovieTorrents });
   usePosterReadyGate({ posterFirstPageReady, activeFranchiseSearchMode, imdbInFlightRef });
-  useCatalogueDetailsPrefetch({ franchiseGridPage, franchiseGridPageSize, movieCatalogue, groupedResults, searchMetadata, imdbRatingsByKey, imdbRatingRequestedRef, imdbRetryCountRef, setImdbRetryTick, imdbInFlightRef, setImdbRatingsByKey, imdbRetryTick, visibleMovieCatalogueItems });
+  // Every web series / anime row currently loaded, so their cards can show an IMDb rating too.
+  const tvItemsForImdb = useMemo(() => {
+    const fromCatalogue = [regionalWebSeriesCatalogue, dcWebSeriesCatalogue, marvelWebSeriesCatalogue]
+      .flatMap(catalogue => catalogue?.results || [])
+      .map(show => ({ title: show.title, year: show.year, tmdbId: Number(show.id) || undefined }));
+    const fromNexStream = (nexStreamResults || [])
+      .map((item: any) => ({ title: item.title, year: item.date ? String(item.date).slice(0, 4) : null }));
+    return [...fromCatalogue, ...fromNexStream].filter(item => item.title);
+  }, [regionalWebSeriesCatalogue, dcWebSeriesCatalogue, marvelWebSeriesCatalogue, nexStreamResults]);
+  useCatalogueDetailsPrefetch({ tvItems: tvItemsForImdb, franchiseGridPage, franchiseGridPageSize, movieCatalogue, groupedResults, searchMetadata, imdbRatingsByKey, imdbRatingRequestedRef, imdbRetryCountRef, setImdbRetryTick, imdbInFlightRef, setImdbRatingsByKey, imdbRetryTick, visibleMovieCatalogueItems });
   const clearTmdbCacheAndReload = async () => {
     const currentCatalogue = movieCatalogue;
     const key = currentCatalogue?.catalogue || tmdbFranchiseKey;

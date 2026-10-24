@@ -30,6 +30,7 @@ def test_three_cached_pages_then_live_pages_continue_without_repeats():
         assert out[page]["totalPages"] == 4  # the UI is told that more pages exist
         cached_ids |= set(out[page]["ids"])
     assert len(cached_ids) == 54
+    assert not cached_ids & {1000 + i for i in range(100) if i % 5 == 0}  # no torrent -> not shown
     assert out["live_calls_after_cached_pages"] == []  # pages 1-3 never touched the live API
 
     assert out["p4"]["status"] == 200 and out["p4"]["n"] == 18

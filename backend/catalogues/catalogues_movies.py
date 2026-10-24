@@ -45,6 +45,7 @@ from core.settings import (
     REGIONAL_MOVIE_CATALOGUE_KEYS,
     REGIONAL_MOVIE_PREBUILT_CACHE_PATH,
     REGIONAL_MOVIE_PREWARM_PAGES,
+    REGIONAL_CACHE_REQUIRE_SOURCE,
     REGIONAL_MOVIE_TRENDING_ARCHIVE_FILE,
     REGIONAL_MOVIE_TRENDING_ARCHIVE_WEEKS,
     TMDB_CATALOGUE_CACHE_SECONDS,
@@ -600,6 +601,22 @@ def _save_regional_movie_trending_week(
     return True
 
 
+def _regional_entry_has_source(entry: dict[str, Any], row: dict[str, Any]) -> bool:
+    """Cached titles must be watchable: at least one torrent, or playable on NexStream.
+
+    Entries whose torrent scan never ran (no torrentDetails at all) are kept, so an unscanned
+    seed does not become an empty catalogue.
+    """
+    if not REGIONAL_CACHE_REQUIRE_SOURCE:
+        return True
+    if row.get("nexStreamPlayable") is True:
+        return True
+    details = entry.get("torrentDetails")
+    if not isinstance(details, dict):
+        return True
+    return bool(details.get("results"))
+
+
 def _cache_only_regional_movie_catalogue(catalogue_key: str, page: int) -> dict[str, Any] | None:
     """Build a regional movie page from shipped snapshots when live TMDB is disabled."""
     if catalogue_key.startswith("trending-"):
@@ -637,6 +654,8 @@ def _cache_only_regional_movie_catalogue(catalogue_key: str, page: int) -> dict[
             if not isinstance(movie, dict):
                 continue
             row = dict(movie)
+            if not _regional_entry_has_source(entry, row):
+                continue
             if catalogue_key == "latest-bollywood" and row.get("nexStreamPlayable") is not True:
                 continue
             if catalogue_key == "latest-bollywood" and _is_bollywood_comedy_special(row):

@@ -88,6 +88,8 @@ TMDB_CATALOGUE_CACHE_SECONDS = stored_ttl(max(300, int(os.getenv("TMDB_CATALOGUE
 REGIONAL_MOVIE_CACHE_TTL_SECONDS = stored_ttl(7 * 24 * 60 * 60)
 REGIONAL_MOVIE_CACHE_PAGE_SIZE = 18
 REGIONAL_MOVIE_PREWARM_PAGES = 3
+# Cached Hollywood/Bollywood titles must have at least one torrent or be playable on NexStream.
+REGIONAL_CACHE_REQUIRE_SOURCE = os.getenv("REGIONAL_CACHE_REQUIRE_SOURCE", "true").strip().casefold() not in {"0", "false", "no", "off"}
 REGIONAL_MOVIE_TRENDING_ARCHIVE_FILE = Path(os.getenv(
     "REGIONAL_MOVIE_TRENDING_ARCHIVE_FILE",
     data_file("regional_movie_trending_archive.json"),

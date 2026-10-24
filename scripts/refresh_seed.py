@@ -73,6 +73,7 @@ def refresh_hollywood_bollywood(env, data_dir):
         wait_ready(base, server)
         env = {**env, "HOME_DATA_DIR": str(data_dir), "HOME_API_BASE": base}
         run([sys.executable, str(ROOT / "scripts" / "build_regional_movie_cache.py")], env)
+        warm_tv_imdb(env)
     finally:
         server.terminate()
         try:
@@ -81,11 +82,16 @@ def refresh_hollywood_bollywood(env, data_dir):
             server.kill()
 
 
+def warm_tv_imdb(env):
+    run([sys.executable, "maintenance/warm_tv_imdb.py"], env, cwd=BACKEND)
+
+
 def refresh_franchise(env, data_dir):
     run([sys.executable, "maintenance/refresh_franchise_ott.py", "--region", "IN"], env, cwd=BACKEND)
     run([sys.executable, "-c",
          "import asyncio; from catalogues import catalogues_extra as c; asyncio.run(c._enrich_catalogue_synopses())"],
         env, cwd=BACKEND)
+    warm_tv_imdb(env)
 
 
 def valid_json(path: Path) -> bool:

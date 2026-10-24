@@ -9,10 +9,12 @@ sys.path.insert(0, str(BACKEND))
 seed = Path(os.environ["CACHE_SEED_DIR"])
 (seed / "runtime").mkdir(parents=True)
 movies = {}
-for i in range(60):
-    movies[f"m{i}|2025"] = {"catalogues": ["popular-hollywood"], "movie": {
-        "id": 1000 + i, "tmdbId": 1000 + i, "title": f"Cached {i}", "year": 2025,
-        "releaseDate": f"2025-{1 + i // 5:02d}-{1 + i % 5:02d}"}}
+for i in range(100):
+    # Every 5th title has no torrent at all: it must never be shown from the cache.
+    movies[f"m{i}|2025"] = {"catalogues": ["popular-hollywood"],
+        "torrentDetails": {"results": [] if i % 5 == 0 else [{"title": "x"}]},
+        "movie": {"id": 1000 + i, "tmdbId": 1000 + i, "title": f"Cached {i}", "year": 2025,
+        "releaseDate": f"2025-{1 + i // 9 % 12:02d}-{1 + i % 9:02d}"}}
 (seed / "runtime" / "regional_movie_prebuilt_cache.json").write_text(json.dumps({"movies": movies}))
 
 from fastapi.testclient import TestClient  # noqa: E402
