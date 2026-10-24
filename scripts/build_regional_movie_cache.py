@@ -204,6 +204,8 @@ def build_movies(old):
             if cat not in entry["catalogues"]:
                 entry["catalogues"].append(cat)
             if has_source(entry):
+                if entry["movie"].get("nexStreamPlayable") is True:
+                    movie = {**movie, "nexStreamPlayable": True}  # keep the reason it is shown
                 final.append(movie)
                 if len(final) % 10 == 0:
                     print(json.dumps({"event": "progress", "catalogue": cat, "shown": len(final), "checked": checked}), flush=True)

@@ -18,6 +18,8 @@ import json
 import os
 import sys
 import time
+import re
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -144,6 +146,42 @@ async def imdb_id_for(media: str, tmdb_id: int, memo: dict[str, str]) -> str:
     return memo[key]
 
 
+CINEMETA = "https://v3-cinemeta.strem.io"
+
+
+def _norm(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
+
+
+async def cinemeta_lookup(media: str, title: str, year: int, imdb_id: str) -> tuple[float, str] | None:
+    """Fallback for titles the dataset has no rating for: Stremio's Cinemeta metadata (IMDb ratings)."""
+    import httpx
+    kind = "series" if media == "tv" else "movie"
+    headers = {"User-Agent": "torrent-studio-imdb-fallback/1"}
+    try:
+        async with httpx.AsyncClient(timeout=10.0, headers=headers, follow_redirects=True) as client:
+            if not imdb_id:
+                response = await client.get(f"{CINEMETA}/catalog/{kind}/top/search={urllib.parse.quote(title)}.json")
+                if response.status_code != 200:
+                    return None
+                for meta in response.json().get("metas", []):
+                    meta_year = as_int(str(meta.get("year") or meta.get("releaseInfo") or "")[:4])
+                    if _norm(meta.get("name")) == _norm(title) and (not year or not meta_year or meta_year == year):
+                        imdb_id = str(meta.get("imdb_id") or meta.get("id") or "")
+                        if meta.get("imdbRating"):
+                            return float(meta["imdbRating"]), imdb_id
+                        break
+                if not imdb_id.startswith("tt"):
+                    return None
+            response = await client.get(f"{CINEMETA}/meta/{kind}/{imdb_id}.json")
+            if response.status_code != 200:
+                return None
+            rating = (response.json().get("meta") or {}).get("imdbRating")
+            return (float(rating), imdb_id) if rating else None
+    except (httpx.HTTPError, ValueError, TypeError):
+        return None
+
+
 async def main() -> None:
     cache = imdb._load_imdb_rating_cache()
     wanted = targets()
@@ -173,14 +211,12 @@ async def main() -> None:
     ratings = load_ratings({imdb_id for _, _, imdb_id in resolved if imdb_id})
 
     now = int(time.time())
-    added = no_id = no_rating = 0
+    added = no_id = no_rating = from_cinemeta = 0
+    leftovers: list[tuple[str, str, int, int, str]] = []
     for (media, title, year), tmdb_id, imdb_id in resolved:
-        if not imdb_id:
-            no_id += 1
-            continue
-        rating = ratings.get(imdb_id)
+        rating = ratings.get(imdb_id) if imdb_id else None
         if rating is None:
-            no_rating += 1
+            leftovers.append((media, title, year, tmdb_id, imdb_id))
             continue
         key = imdb._imdb_rating_cache_key(title, year, media)
         cache[key] = {
@@ -191,9 +227,34 @@ async def main() -> None:
             "ratingLookupSource": "imdb_dataset",
         }
         added += 1
+
+    # Anything still without a rating (very new, or no IMDb id on TMDB): ask Cinemeta.
+    gate = asyncio.Semaphore(5)
+
+    async def fallback(item: tuple[str, str, int, int, str]):
+        async with gate:
+            return item, await cinemeta_lookup(item[0], item[1], item[2], item[4])
+
+    for (media, title, year, tmdb_id, imdb_id), found in await asyncio.gather(*(fallback(i) for i in leftovers)):
+        if found is None:
+            no_id += 0 if imdb_id else 1
+            no_rating += 1 if imdb_id else 0
+            continue
+        rating_value, found_id = found
+        key = imdb._imdb_rating_cache_key(title, year, media)
+        cache[key] = {
+            "cacheKey": key, "title": title, "year": year or None, "mediaType": media, "checkedAt": now,
+            "lookupVersion": settings.IMDB_RATING_LOOKUP_VERSION, "tmdbIdTried": tmdb_id,
+            "status": "found", "imdbRating": rating_value, "imdbVotes": None,
+            "imdbId": found_id if found_id.startswith("tt") else None,
+            "imdbUrl": f"https://www.imdb.com/title/{found_id}/" if found_id.startswith("tt") else None,
+            "ratingLookupSource": "cinemeta",
+        }
+        from_cinemeta += 1
     imdb._write_synopsis_cache(imdb.IMDB_RATING_CACHE_FILE, {
         "version": 1, "updatedAt": now, "results": list(cache.values())[-20000:]})
-    print(f"IMDb dataset: ratings added {added}, no IMDb id on TMDB {no_id}, not rated yet {no_rating}", flush=True)
+    print(f"IMDb dataset: ratings added {added}, from Cinemeta {from_cinemeta}, "
+          f"still without a rating {no_id + no_rating}", flush=True)
 
 
 if __name__ == "__main__":
