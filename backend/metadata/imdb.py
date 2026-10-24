@@ -135,6 +135,14 @@ async def _fetch_imdb_rating(
     timeout = httpx.Timeout(5.0, connect=2.5)
     target = _normalize_synopsis_match_title(title)
 
+    def limited(key: str, seconds: float, reason: str) -> str:
+        """Pause this key; move on to the next key if one is left, else pause OMDb as a whole."""
+        _provider_key_failure(provider, key, seconds, reason)
+        if any(other != key and _provider_key_available(provider, other) for other in ordered):
+            return "invalid_key"  # the callers' "try the next key" state
+        _omdb_rate_limit_for(seconds)
+        return "rate_limited"
+
     async def call_omdb(key: str, params: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
         try:
             client = _omdb_client(timeout)
@@ -149,9 +157,7 @@ async def _fetch_imdb_rating(
             return None, "transient"
 
         if response.status_code == 429:
-            _provider_key_failure(provider, key, _retry_after_seconds(response), "HTTP 429")
-            _omdb_rate_limit_for(1800)
-            return None, "rate_limited"
+            return None, limited(key, _retry_after_seconds(response, 1800.0), "HTTP 429")
         if response.status_code in {401, 403}:
             _provider_key_failure(provider, key, 3600, f"HTTP {response.status_code}")
             return None, "invalid_key"
@@ -168,9 +174,8 @@ async def _fetch_imdb_rating(
             error = str(payload.get("Error") or "")
             lowered_error = error.casefold()
             if "request limit reached" in lowered_error:
-                # Do not try another key to bypass the account's daily quota.
-                _omdb_rate_limit_for(3600)
-                return None, "rate_limited"
+                # This key's daily quota is used up: another key (another account) may still have some.
+                return None, limited(key, 3600.0, "daily request limit reached")
             if "invalid api key" in lowered_error:
                 _provider_key_failure(provider, key, 3600, "invalid API key")
                 return None, "invalid_key"
@@ -202,6 +207,8 @@ async def _fetch_imdb_rating(
         details, state = await call_omdb(key, {"i": imdb_id})
         if state == "rate_limited":
             return {**base, "status": "rate_limited", "reason": "OMDb rate limit reached", "cacheable": False}
+        if state in {"transient", "invalid_key"}:  # not an answer about the title: never store a miss
+            return {**base, "status": "unavailable", "reason": "OMDb key unavailable", "cacheable": False}
         if state != "ok" or not details or str(details.get("Response") or "").casefold() == "false":
             return None
 
