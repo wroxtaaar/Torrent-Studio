@@ -18,7 +18,9 @@ REPO="wroxtaaar/Torrent-Studio"
 HOME_DIR="${TS_HOME:-$HOME/torrent-studio-refresh}"
 mkdir -p "$HOME_DIR"; cd "$HOME_DIR"
 if [ ! -d repo/.git ]; then git clone --depth 1 "https://github.com/$REPO.git" repo; fi
-git -C repo pull --ff-only -q
+# fetch + reset (not pull): a plain pull fails on a shallow clone with "Cannot fast-forward to multiple branches"
+git -C repo fetch -q --depth 1 origin main
+git -C repo reset -q --hard FETCH_HEAD
 # Load keys (repeated TMDB_READ_ACCESS_TOKEN lines are all kept, not just the last one).
 eval "$(python3 repo/scripts/vps/load_env.py "$HOME/.config/torrent-studio/env")"
 [ -d venv ] || python3 -m venv venv

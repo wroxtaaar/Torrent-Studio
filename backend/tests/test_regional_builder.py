@@ -50,7 +50,7 @@ class Stub(BaseHTTPRequestHandler):
             title = qs["q"][0]
             n = int(re.search(r"Film (\d+)", title).group(1))
             # only every third title has a torrent
-            rows = [{"title": title, "size": 1000, "magnetUrl": "magnet:?x"}] if n % 3 == 0 else []
+            rows = [{"title": title, "size": 500 * 1024**2, "magnetUrl": "magnet:?x"}] if n % 3 == 0 else []
             return self.reply(rows)
         if url.path.startswith("/api/tv/catalogue/"):
             return self.reply({"results": [{"id": 1, "title": "Show", "year": 2024}], "totalPages": 1, "totalResults": 1})
@@ -91,3 +91,32 @@ def test_three_full_pages_of_watchable_titles_with_trending_history():
     assert any(row.get("trendingFill") for row in trending)  # filled up from popular titles
     # this week is remembered in the archive so it counts again next week
     assert any(w["weekOf"] == this_week.isoformat() for w in archive["weeks"])
+
+
+def _builder():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("regional_builder", ROOT / "scripts" / "build_regional_movie_cache.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_torrent_check_is_not_too_strict(monkeypatch=None):
+    b = _builder()
+    assert b.base_title("Dhood (Sandstorm)") == "Dhood"
+    assert b.base_title("Afreet - A Never Ending Night") == "Afreet"
+    assert b.query_variants("Dhood (Sandstorm)", 2026)[:2] == ["Dhood (Sandstorm) 2026", "Dhood (Sandstorm)"]
+    rows = [{"title": "Dhood.2026.1080p.WEB-DL", "size": 700 * 1024**2, "magnetUrl": "magnet:?x"},
+            {"title": "Dhood.2026.CAMRip", "size": 700 * 1024**2, "magnetUrl": "magnet:?x"},
+            {"title": "Dhood.2026.tiny", "size": 10 * 1024**2, "magnetUrl": "magnet:?x"}]
+    assert [r["title"] for r in b.usable_rows(rows, "Dhood (Sandstorm)")] == ["Dhood.2026.1080p.WEB-DL"]
+
+
+def test_only_clear_failures_remove_a_title():
+    b = _builder()
+    movie_ok = {"nexStreamPlayable": True}
+    assert b.has_source({"movie": movie_ok, "torrentDetails": {"status": "empty", "results": []}})  # probe unsure
+    assert not b.has_source({"movie": movie_ok, "nexStreamProbe": False, "torrentDetails": {"status": "empty", "results": []}})
+    assert b.has_source({"movie": movie_ok, "nexStreamProbe": False, "torrentDetails": {"status": "ready", "results": [{}]}})
+    assert b.has_source({"movie": {}, "torrentDetails": {"status": "unavailable", "results": []}})  # search failed: keep
+    assert not b.has_source({"movie": {}, "torrentDetails": {"status": "empty", "results": []}})

@@ -79,6 +79,10 @@ export function useMovieTorrentSearch({ prepareClickIntentRef, prepareTraceIdRef
       }));
       if (groups.length > 0) {
         const expectedTitle = normalizeGroupTitle(movie.title);
+      // 'Dhood (Sandstorm)' is released as plain 'Dhood': also accept the title without a
+      // bracketed alias or subtitle.
+      const baseTitle = normalizeGroupTitle(String(movie.title || '').split(/\s+[-\u2013\u2014:]\s+|\s*\(/)[0]);
+      const expectedTitles = [expectedTitle, baseTitle.length >= 3 ? baseTitle : ''].filter(Boolean);
         const expectedYear = String(movie.year || '');
         const selectedGroup = [...groups].sort((a, b) => {
           const score = (group: TorrentQualityGroup) => {
@@ -195,8 +199,8 @@ export function useMovieTorrentSearch({ prepareClickIntentRef, prepareTraceIdRef
         const usable = items.filter(result => {
           const releaseTitle = normalizeGroupTitle(String(result.title || ''));
           const mediaTitle = normalizeGroupTitle(String(result.mediaTitle || ''));
-          const titleMatches = Boolean(expectedTitle) &&
-            (releaseTitle.includes(expectedTitle) || mediaTitle === expectedTitle || mediaTitle.includes(expectedTitle));
+          const titleMatches = expectedTitles.some(expected =>
+            releaseTitle.includes(expected) || mediaTitle === expected || mediaTitle.includes(expected));
           if (!titleMatches) return false;
           const rawSize = Number(result.size);
           const size = Number.isFinite(rawSize) && rawSize > 0 ? rawSize : 0;

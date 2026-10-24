@@ -5,7 +5,7 @@ Each movie/series catalogue is filled independently to 50 unique eligible entrie
 when the API can supply them. Titles may intentionally occur in multiple catalogues.
 A failed page does not abort other catalogues, and prior good snapshots are retained.
 """
-import json, os, re, sys, time, urllib.parse, urllib.request
+import json, os, re, sys, time, urllib.error, urllib.parse, urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -26,6 +26,11 @@ TORRENT_LIMIT = 50
 # torrent matches from the previous build (torrent sites are slow/blocked on CI runners).
 TORRENT_SCAN = os.getenv("REGIONAL_CACHE_TORRENT_SCAN", "true").strip().lower() not in ("0", "false", "no", "off")
 MAX_SIZE = 5 * 1024**3
+# Same lower bound the app applies when it reads saved torrents; a row below it would be hidden anyway.
+MIN_SIZE = int(os.getenv("REGIONAL_CACHE_MIN_SIZE_MB", "100")) * 1024**2
+PROBE_NEXSTREAM = os.getenv("REGIONAL_CACHE_PROBE_NEXSTREAM", "true").strip().lower() not in ("0", "false", "no", "off")
+SCAN_VERSION = 2  # bump to force one re-scan of older (possibly too strict) "empty" results
+EMBED_NOT_FOUND = re.compile(r"not\s+found|unavailable|no\s+(?:sources?|streams?|video)|coming\s+soon|does\s*n[o']t\s+exist|removed", re.I)
 BAD_QUALITY = re.compile(r"(?:camrip|hdcam|telesync|telecine|dvdscr|screener|workprint)", re.I)
 
 
@@ -56,7 +61,7 @@ ARCHIVE = BASE / "regional_movie_trending_archive.json"
 ORDER = ("popular-bollywood", "popular-hollywood", "latest-bollywood", "latest-hollywood",
          "trending-bollywood", "trending-hollywood")
 # A scanned title is reused for a while so a weekly run only scans what is new.
-REUSE_DAYS = {"ready": 14, "empty": 3}
+REUSE_DAYS = {"ready": 14, "empty": 1}
 
 
 def week_start(today=None):
@@ -72,20 +77,25 @@ def read_json(path, default):
 
 
 def has_source(entry):
-    """A title is worth showing when a torrent exists or NexStream can play it.
-    Unknown (never scanned / scan failed) counts as showable so a blocked tracker cannot empty a catalogue."""
-    if entry["movie"].get("nexStreamPlayable") is True:
-        return True
+    """Show a title when a torrent exists, or NexStream plays it (its player page confirms it).
+    Unknown (never scanned / searches failed / probe unsure) counts as showable, so a blocked
+    tracker or a flaky check can never remove a title that is actually watchable."""
     details = entry.get("torrentDetails")
+    if isinstance(details, dict) and details.get("results"):
+        return True
+    if entry["movie"].get("nexStreamPlayable") is True and entry.get("nexStreamProbe") is not False:
+        return True
     if not isinstance(details, dict) or details.get("status") == "unavailable":
         return True
-    return bool(details.get("results"))
+    return False
 
 
 def fresh_enough(details):
     if not isinstance(details, dict):
         return False
     days = REUSE_DAYS.get(details.get("status"))
+    if details.get("status") == "empty" and details.get("scanVersion") != SCAN_VERSION:
+        return False
     try:
         scanned = datetime.fromisoformat(str(details.get("scannedAt")).replace("Z", "+00:00"))
     except ValueError:
@@ -93,22 +103,24 @@ def fresh_enough(details):
     return days is not None and (datetime.now(timezone.utc) - scanned) < timedelta(days=days)
 
 
-def scan_torrents(movie, old_details):
-    """Search torrents for one movie; keeps the previous result when the search itself fails."""
-    title = str(movie.get("title") or "").strip()
-    year = movie.get("year")
-    query = title + (" " + str(year) if year else "")
-    if not TORRENT_SCAN:
-        return old_details
-    if fresh_enough(old_details):
-        return old_details
-    try:
-        response = request("/api/search?q=" + urllib.parse.quote(query) + "&limit=" + str(TORRENT_LIMIT), timeout=150)
-    except Exception as exc:
-        print(json.dumps({"event": "torrent_error", "title": title, "error": str(exc)}), flush=True)
-        return old_details or {"query": query, "results": [], "status": "unavailable"}
-    rows = response if isinstance(response, list) else response.get("results", response.get("torrents", []))
-    target = norm(title)
+def base_title(title):
+    """Title without a bracketed alias or a subtitle: 'Dhood (Sandstorm)' -> 'Dhood'."""
+    base = re.split(r"\s+[-\u2013\u2014:]\s+|\s*\(", str(title or ""), maxsplit=1)[0].strip()
+    return base if len(norm(base)) >= 3 else str(title or "").strip()
+
+
+def query_variants(title, year):
+    base = base_title(title)
+    out = []
+    for q in (title + (" " + str(year) if year else ""), title, base + (" " + str(year) if year else ""), base):
+        q = q.strip()
+        if q and q not in out:
+            out.append(q)
+    return out[:4]
+
+
+def usable_rows(rows, title):
+    targets = {t for t in (norm(title), norm(base_title(title))) if t}
     good = []
     for row in rows or []:
         if not isinstance(row, dict):
@@ -120,13 +132,65 @@ def scan_torrents(movie, old_details):
         except (TypeError, ValueError):
             size = 0
         has_link = bool(row.get("magnetUrl") or row.get("downloadUrl") or row.get("sourceUrl"))
-        if not has_link or size > MAX_SIZE or BAD_QUALITY.search(name):
+        if not has_link or size < MIN_SIZE or size > MAX_SIZE or BAD_QUALITY.search(name):
             continue
-        if target and (target in norm(name) or target in norm(media)):
+        if any(t in norm(name) or t in norm(media) for t in targets):
             good.append(row)
-    time.sleep(float(os.getenv("REGIONAL_CACHE_DELAY_SECONDS", "0.4")))
-    return {"query": query, "results": good, "scannedAt": datetime.now(timezone.utc).isoformat(),
-            "status": "ready" if good else "empty"}
+    return good
+
+
+def scan_torrents(movie, old_details):
+    """Search torrents for one movie with several query shapes; keeps the old result when searches fail.
+
+    "empty" is only recorded after every variant answered and none had a usable release, because
+    the app trusts the saved result and never searches live for catalogue cards.
+    """
+    title = str(movie.get("title") or "").strip()
+    year = movie.get("year")
+    variants = query_variants(title, year)
+    query = variants[0] if variants else title
+    if not TORRENT_SCAN:
+        return old_details
+    if fresh_enough(old_details):
+        return old_details
+    answered = 0
+    for variant in variants:
+        try:
+            response = request("/api/search?q=" + urllib.parse.quote(variant) + "&limit=" + str(TORRENT_LIMIT), timeout=150)
+        except Exception as exc:
+            print(json.dumps({"event": "torrent_error", "title": title, "query": variant, "error": str(exc)}), flush=True)
+            continue
+        answered += 1
+        rows = response if isinstance(response, list) else response.get("results", response.get("torrents", []))
+        good = usable_rows(rows, title)
+        time.sleep(float(os.getenv("REGIONAL_CACHE_DELAY_SECONDS", "0.4")))
+        if good:
+            return {"query": variant, "results": good, "scannedAt": datetime.now(timezone.utc).isoformat(),
+                    "status": "ready", "scanVersion": SCAN_VERSION}
+    if answered < len(variants):
+        # Some searches failed: not proof of "nothing". Keep what we knew, or mark unknown.
+        return old_details or {"query": query, "results": [], "status": "unavailable"}
+    return {"query": query, "results": [], "scannedAt": datetime.now(timezone.utc).isoformat(),
+            "status": "empty", "scanVersion": SCAN_VERSION}
+
+
+def probe_embed(tmdb_id):
+    """Ask the NexStream player page itself whether the title exists. True/False, None when unsure.
+
+    The NexStream API hands out an embed link for any TMDB id, so an API "success" proves nothing.
+    """
+    if not PROBE_NEXSTREAM or not tmdb_id:
+        return None
+    url = "https://embedmaster.link/movie/" + str(tmdb_id)
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)", "Accept": "text/html"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            body = r.read(200_000).decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        return False if exc.code in (404, 410) else None
+    except Exception:
+        return None
+    return False if EMBED_NOT_FOUND.search(re.sub(r"<(script|style)[\s\S]*?</\1>", " ", body, flags=re.I)) else True
 
 
 def api_candidates(cat, failures):
@@ -201,10 +265,13 @@ def build_movies(old):
             if entry is None:
                 entry = movies[key] = {"movie": movie, "catalogues": []}
                 entry["torrentDetails"] = scan_torrents(movie, (old_movies.get(key) or {}).get("torrentDetails"))
+                details = entry["torrentDetails"] or {}
+                if movie.get("nexStreamPlayable") is True and not details.get("results"):
+                    entry["nexStreamProbe"] = probe_embed(movie.get("tmdbId") or movie.get("id"))
             if cat not in entry["catalogues"]:
                 entry["catalogues"].append(cat)
             if has_source(entry):
-                if entry["movie"].get("nexStreamPlayable") is True:
+                if entry["movie"].get("nexStreamPlayable") is True and entry.get("nexStreamProbe") is not False:
                     movie = {**movie, "nexStreamPlayable": True}  # keep the reason it is shown
                 final.append(movie)
                 if len(final) % 10 == 0:
