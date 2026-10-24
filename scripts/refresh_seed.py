@@ -55,6 +55,23 @@ def run(cmd, env, **kw):
     subprocess.run(cmd, env=env, check=True, **kw)
 
 
+def port_is_free(port):
+    import socket
+    with socket.socket() as sock:
+        try:
+            sock.bind(("127.0.0.1", port))
+            return True
+        except OSError:
+            return False
+
+
+def free_port():
+    import socket
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
 def wait_ready(base, proc, seconds=180):
     for _ in range(seconds):
         if proc.poll() is not None:
@@ -69,6 +86,11 @@ def wait_ready(base, proc, seconds=180):
 
 def refresh_hollywood_bollywood(env, data_dir):
     port = env.setdefault("PORT", "10111")
+    if not port_is_free(int(port)):
+        # A leftover backend from an earlier, killed run would otherwise answer our health check and
+        # we would build against it (stale code and environment). Use a free port instead.
+        port = env["PORT"] = str(free_port())
+        print(f"Port in use by another process; using {port} for this run's backend.", flush=True)
     base = f"http://127.0.0.1:{port}"
     server = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "fullstack_app:app", "--host", "127.0.0.1", "--port", port],
