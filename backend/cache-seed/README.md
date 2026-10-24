@@ -53,6 +53,12 @@ Each of the six regional catalogues (popular / trending / latest × Hollywood / 
 **3 cached pages of 18 titles** (`REGIONAL_MOVIE_PREWARM_PAGES`). Pages 1–3 are served from the cache
 and the UI is told a page 4 exists. From page 4 on the backend uses the API keys, continues
 right after the cached titles (no repeats) and stores each fetched page so it is only fetched once.
+The refresh (`scripts/build_regional_movie_cache.py`) builds each catalogue's finished list: it walks
+candidates and keeps only titles with a torrent or a NexStream stream until 54 are found, then stores
+them under `catalogues.<name>.final`; the app serves that list as-is. Trending is this week's list,
+then earlier weeks from the weekly archive (each title shows the week it trended), then popular
+titles to fill what is still missing. This week is added to the archive, so after some weeks the
+fill is no longer needed.
 This needs `CACHE_ONLY_MODE=false` and TMDB keys on Render (set in `render.yaml`).
 
 ## Keeping the data fresh (VPS → rolling GitHub release → Render)
