@@ -35,3 +35,8 @@ def test_three_cached_pages_then_live_pages_continue_without_repeats():
 
     assert out["p4"]["status"] == 200 and out["p4"]["n"] == 18
     assert not cached_ids & set(out["p4"]["ids"])  # continues after the cache, no repeats
+
+    # A finished list from the cache builder is served in its own order, 18 per page.
+    served = [i for page in out["final"] for i in page["ids"]]
+    assert served == [7000 + i for i in range(54)]
+    assert all(page["totalPages"] == 4 for page in out["final"])

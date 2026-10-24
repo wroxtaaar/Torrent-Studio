@@ -36,6 +36,7 @@ from core.http_cache import (
 )
 from metadata.imdb import _get_imdb_rating_record
 from integrations.nexstream import nexstream_api_key_configured, resolve_nexstream_movie
+from core.json_cache import read_json_cached
 from core.settings import (
     BACKFILL_MISSING_METADATA,
     CACHE_FIRST,
@@ -601,6 +602,40 @@ def _save_regional_movie_trending_week(
     return True
 
 
+def _prebuilt_final_rows(catalogue_key: str) -> list[dict[str, Any]] | None:
+    """The finished list the cache builder stored for this catalogue (titles that can be watched)."""
+    for path in (REGIONAL_MOVIE_PREBUILT_CACHE_PATH, _CACHE_SEED_DIR / "runtime" / "regional_movie_prebuilt_cache.json"):
+        try:
+            payload = read_json_cached(path)
+        except (OSError, ValueError, TypeError):
+            continue
+        final = ((payload.get("catalogues") or {}).get(catalogue_key) or {}).get("final") if isinstance(payload, dict) else None
+        if isinstance(final, list) and final:
+            return final
+    return None
+
+
+def _prebuilt_final_page(catalogue_key: str, page: int) -> dict[str, Any] | None:
+    final = _prebuilt_final_rows(catalogue_key)
+    if final is None:
+        return None
+    page_size = REGIONAL_MOVIE_CACHE_PAGE_SIZE
+    rows = [dict(row) for row in final if isinstance(row, dict)]
+    start = (page - 1) * page_size
+    return {
+        "catalogue": catalogue_key,
+        "releasedOnly": True,
+        "provider": "Bundled TMDB cache",
+        "page": page,
+        "totalPages": max(1, (len(rows) + page_size - 1) // page_size),
+        "totalResults": len(rows),
+        "pageSize": page_size,
+        "results": rows[start:start + page_size],
+        "releaseEligibility": "streaming-in-india-or-30-days",
+        "attribution": "This product uses the TMDB API but is not endorsed or certified by TMDB.",
+    }
+
+
 def _regional_entry_has_source(entry: dict[str, Any], row: dict[str, Any]) -> bool:
     """Cached titles must be watchable: at least one torrent, or playable on NexStream.
 
@@ -612,13 +647,16 @@ def _regional_entry_has_source(entry: dict[str, Any], row: dict[str, Any]) -> bo
     if row.get("nexStreamPlayable") is True:
         return True
     details = entry.get("torrentDetails")
-    if not isinstance(details, dict):
-        return True
+    if not isinstance(details, dict) or details.get("status") == "unavailable":
+        return True  # never scanned (or the scan itself failed): unknown, so keep it
     return bool(details.get("results"))
 
 
 def _cache_only_regional_movie_catalogue(catalogue_key: str, page: int) -> dict[str, Any] | None:
     """Build a regional movie page from shipped snapshots when live TMDB is disabled."""
+    final_page = _prebuilt_final_page(catalogue_key, page)
+    if final_page is not None:
+        return final_page
     if catalogue_key.startswith("trending-"):
         archive_page = _regional_movie_trending_archive_page(catalogue_key, page)
         if archive_page is not None:
@@ -744,6 +782,7 @@ def _regional_movie_cache_page_is_usable(payload: dict[str, Any], page: int) -> 
 async def _fetch_paginated_regional_movie_catalogue(
     catalogue_key: str, page: int,
     skip_ids: set[str] | None = None, skip_pages: int = 0,
+    nexstream_annotate: bool = False,
 ) -> dict[str, Any]:
     """Build stable 18-item display pages from eligible regional movie candidates.
 
@@ -823,8 +862,10 @@ async def _fetch_paginated_regional_movie_catalogue(
             seen_ids.add(identity)
             source_candidates.append(row)
         if is_bollywood_latest and source_candidates:
-            playable_rows = await _filter_nexstream_playable_movies(source_candidates)
-            eligible_rows.extend(playable_rows)
+            if nexstream_annotate:
+                eligible_rows.extend(await _annotate_nexstream_playable(source_candidates))
+            else:
+                eligible_rows.extend(await _filter_nexstream_playable_movies(source_candidates))
         else:
             eligible_rows.extend(source_candidates)
         if len(eligible_rows) >= wanted:
@@ -988,6 +1029,32 @@ async def _filter_nexstream_playable_movies(
     return playable_rows
 
 
+async def _annotate_nexstream_playable(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Mark titles that NexStream can play, without dropping the others (no key: unchanged)."""
+    if not rows or not nexstream_api_key_configured():
+        return rows
+    semaphore = asyncio.Semaphore(4)
+
+    async def check(row: dict[str, Any]) -> bool:
+        try:
+            movie_id = int(row.get("tmdbId") or row.get("id") or 0)
+        except (TypeError, ValueError):
+            return False
+        if movie_id <= 0:
+            return False
+        async with semaphore:
+            result = await resolve_nexstream_movie(movie_id)
+        sources = result.get("sources")
+        return bool(result.get("success") and isinstance(sources, list) and sources)
+
+    checks = await asyncio.gather(*(check(row) for row in rows), return_exceptions=True)
+    for row, playable in zip(rows, checks):
+        if playable is True:
+            row["nexStreamPlayable"] = True
+            row["nexStreamCheckedAt"] = datetime.now(timezone.utc).isoformat()
+    return rows
+
+
 def _cached_regional_identities(catalogue_key: str) -> set[str] | None:
     """Titles held by the cached first pages, or None unless those pages are completely full.
 
@@ -1034,11 +1101,30 @@ async def api_tmdb_movie_catalogue(
     released_only: bool = Query(True),
     max_size_gb: int = Query(5, ge=1, le=5),
     basic: bool = Query(False),
+    live: bool = Query(False),
 ):
+    if live and catalogue_key in REGIONAL_MOVIE_CATALOGUE_KEYS:
+        # Candidate list for the cache builder: fresh source pages, no cache or paging offsets,
+        # NexStream playback marked on each title instead of being used to drop titles.
+        return await _live_regional_candidates(catalogue_key, page)
     payload = await _api_tmdb_movie_catalogue(catalogue_key, page, released_only, max_size_gb, basic)
     if not basic and released_only and catalogue_key in REGIONAL_MOVIE_CATALOGUE_KEYS:
         return _with_more_pages(payload, page)
     return payload
+
+
+_LIVE_REFRESHED_SOURCE_KEYS: set[tuple[str, int]] = set()
+
+
+async def _live_regional_candidates(catalogue_key: str, page: int) -> dict[str, Any]:
+    source_token = _REGIONAL_MOVIE_SOURCE_FORCE_REFRESH.set(True)
+    refreshed_token = _REGIONAL_MOVIE_SOURCE_REFRESHED_KEYS.set(_LIVE_REFRESHED_SOURCE_KEYS)
+    try:
+        payload = await _fetch_paginated_regional_movie_catalogue(catalogue_key, page, nexstream_annotate=True)
+        return await _enrich_regional_movie_catalogue_metadata(payload)
+    finally:
+        _REGIONAL_MOVIE_SOURCE_REFRESHED_KEYS.reset(refreshed_token)
+        _REGIONAL_MOVIE_SOURCE_FORCE_REFRESH.reset(source_token)
 
 
 async def _api_tmdb_movie_catalogue(
@@ -1094,6 +1180,11 @@ async def _api_tmdb_movie_catalogue(
         "popular-hollywood", "trending-hollywood", "latest-hollywood",
     }:
         force_refresh = _REGIONAL_MOVIE_CATALOGUE_FORCE_REFRESH.get()
+        if not force_refresh and page <= REGIONAL_MOVIE_PREWARM_PAGES:
+            final_page = _prebuilt_final_page(catalogue_key, page)
+            if final_page is not None:
+                _record_cache_event("movie_catalogue", "bundled_final_hit")
+                return await _enrich_regional_movie_catalogue_metadata(final_page)
         if catalogue_key.startswith("trending-") and not force_refresh:
             archived_page = _regional_movie_trending_archive_page(catalogue_key, page)
             if archived_page is not None:

@@ -15,7 +15,10 @@ for i in range(100):
         "torrentDetails": {"results": [] if i % 5 == 0 else [{"title": "x"}]},
         "movie": {"id": 1000 + i, "tmdbId": 1000 + i, "title": f"Cached {i}", "year": 2025,
         "releaseDate": f"2025-{1 + i // 9 % 12:02d}-{1 + i % 9:02d}"}}
-(seed / "runtime" / "regional_movie_prebuilt_cache.json").write_text(json.dumps({"movies": movies}))
+# A finished list written by the cache builder: served exactly as stored, in order.
+final = [{"id": 7000 + i, "tmdbId": 7000 + i, "title": f"Final {i}", "year": 2025, "releaseDate": "2025-01-01"} for i in range(54)]
+(seed / "runtime" / "regional_movie_prebuilt_cache.json").write_text(json.dumps({
+    "movies": movies, "catalogues": {"latest-hollywood": {"final": final}}}))
 
 from fastapi.testclient import TestClient  # noqa: E402
 import main  # noqa: E402
@@ -53,4 +56,8 @@ with TestClient(main.app, raise_server_exceptions=False) as client:
     body = r.json()
     out["p4"] = {"status": r.status_code, "n": len(body.get("results", [])), "totalPages": body.get("totalPages"),
                  "ids": [x["id"] for x in body.get("results", [])]}
+    out["final"] = []
+    for page in (1, 2, 3):
+        body = client.get(f"/api/movies/catalogue/latest-hollywood?page={page}").json()
+        out["final"].append({"ids": [x["id"] for x in body.get("results", [])], "totalPages": body.get("totalPages")})
 print("RESULT " + json.dumps(out))
