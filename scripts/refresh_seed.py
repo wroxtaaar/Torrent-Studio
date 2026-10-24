@@ -3,6 +3,7 @@
 
     python scripts/refresh_seed.py hollywood-bollywood   # weekly workflow
     python scripts/refresh_seed.py franchise             # manual workflow (Marvel, DC, classics)
+    python scripts/refresh_seed.py tv-imdb               # only IMDb ratings for web series / anime
 
 Needs TMDB / Watchmode / OMDb keys in the environment. It works on a temporary copy of the
 seed, runs the backend with CACHE_FIRST=false so stale entries are really refreshed, and then
@@ -28,6 +29,7 @@ GROUPS = {
             "regional_movie_prebuilt_cache.json", "regional_movie_trending_archive.json", "nexstream_cache.json",
         ],
     },
+    "tv-imdb": {"top": [], "runtime": ["imdb_rating_cache.json"]},   # only the IMDb ratings for web series/anime
     "franchise": {
         "top": [
             "marvel_catalogue.json", "marvel_hindi_catalogue.json", "marvel_web_series_catalogue.json",
@@ -83,7 +85,11 @@ def refresh_hollywood_bollywood(env, data_dir):
 
 
 def warm_tv_imdb(env):
-    run([sys.executable, "maintenance/warm_tv_imdb.py"], env, cwd=BACKEND)
+    # Ratings are a bonus: a bad OMDb key must not throw away a finished catalogue refresh.
+    try:
+        run([sys.executable, "maintenance/warm_tv_imdb.py"], env, cwd=BACKEND)
+    except subprocess.CalledProcessError as exc:
+        print(f"WARNING: TV IMDb ratings step failed ({exc}); continuing.", flush=True)
 
 
 def refresh_franchise(env, data_dir):
@@ -121,7 +127,9 @@ def main():
             "BACKFILL_MISSING_METADATA": "true",
             "PYTHONPATH": str(BACKEND),
         }
-        if group == "hollywood-bollywood":
+        if group == "tv-imdb":
+            warm_tv_imdb(env)
+        elif group == "hollywood-bollywood":
             refresh_hollywood_bollywood(env, data_dir)
         else:
             refresh_franchise(env, data_dir)

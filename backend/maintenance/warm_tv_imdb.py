@@ -51,9 +51,16 @@ async def main() -> None:
             for title, year, tmdb_id in shows(json.loads(path.read_text(encoding="utf-8"))):
                 wanted.setdefault((title, year), tmdb_id)
     print(f"TV titles: {len(wanted)}", flush=True)
-    found = missing = 0
+    found = missing = unanswered = 0
     for index, ((title, year), tmdb_id) in enumerate(wanted.items(), 1):
         record = await imdb._get_imdb_rating_record(title, year, "tv", tmdb_id)
+        # An invalid OMDb key or an exhausted daily limit answers nothing at all: stop early (what is
+        # stored stays; a later run continues with the titles that are still missing).
+        unanswered = unanswered + 1 if record.get("status") in {"unavailable", "rate_limited"} else 0
+        if unanswered >= 10:
+            print("STOPPED: OMDb is not answering (invalid API key or daily limit reached). "
+                  "Check OMDB_API_KEY(S) and run the refresh again.", flush=True)
+            break
         if record.get("status") == "found" and record.get("imdbRating") is not None:
             found += 1
         else:
