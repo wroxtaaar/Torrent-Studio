@@ -42,6 +42,11 @@ _TMDB_REQUEST_SEMAPHORE = asyncio.Semaphore(4)
 _WATCHMODE_HTTP_CLIENT: httpx.AsyncClient | None = None
 _WATCHMODE_REQUEST_SEMAPHORE = asyncio.Semaphore(3)
 _WATCHMODE_RATE_LIMITED_UNTIL = 0.0
+# Watchmode allows about 120 requests a minute per plan. Spacing requests out keeps a long refresh
+# below that, instead of hitting 429 and skipping the lookups made during the pause.
+_WATCHMODE_MIN_INTERVAL = float(os.getenv("WATCHMODE_MIN_INTERVAL_SECONDS", "0.6"))
+_WATCHMODE_PACE_LOCK = asyncio.Lock()
+_WATCHMODE_NEXT_SLOT = 0.0
 _WATCHMODE_RESOLVED_TITLE_IDS: dict[int, int | None] = {}
 
 
@@ -72,6 +77,19 @@ def _retry_after_seconds(response: httpx.Response, default: float = 60.0) -> flo
         return max(1.0, min(21600.0, float(str(response.headers.get("Retry-After") or "").strip())))
     except (TypeError, ValueError):
         return default
+
+
+async def _watchmode_pace() -> None:
+    global _WATCHMODE_NEXT_SLOT
+    interval = _WATCHMODE_MIN_INTERVAL / max(1, len(WATCHMODE_API_KEYS))
+    if interval <= 0:
+        return
+    async with _WATCHMODE_PACE_LOCK:
+        now = time.monotonic()
+        wait = max(0.0, _WATCHMODE_NEXT_SLOT - now)
+        _WATCHMODE_NEXT_SLOT = max(now, _WATCHMODE_NEXT_SLOT) + interval
+    if wait:
+        await asyncio.sleep(wait)
 
 
 async def _watchmode_get(path: str, *, params: dict[str, Any] | None = None,
@@ -121,6 +139,7 @@ async def _watchmode_get(path: str, *, params: dict[str, Any] | None = None,
                         keepalive_expiry=30.0,
                     ),
                 )
+            await _watchmode_pace()
             async with _WATCHMODE_REQUEST_SEMAPHORE:
                 response = await _WATCHMODE_HTTP_CLIENT.get(
                     f"{WATCHMODE_API_BASE}{path}",
@@ -136,10 +155,15 @@ async def _watchmode_get(path: str, *, params: dict[str, Any] | None = None,
                 # Watchmode documents plan-level request limits and account-level
                 # quota. Treat 429 as a provider-wide cooldown, not a per-key issue.
                 retry_after = _retry_after_seconds(response)
+                _provider_key_failure(provider, key, retry_after, "HTTP 429")
+                # With several keys, move on to the next one that is not cooling down. Only when
+                # every key is limited is the whole provider paused.
+                if any(other != key and _provider_key_available(provider, other) for other in ordered):
+                    logger.info("Watchmode key rate-limited on %s; trying the next key", path)
+                    return None, False
                 _WATCHMODE_RATE_LIMITED_UNTIL = max(
                     _WATCHMODE_RATE_LIMITED_UNTIL, time.time() + retry_after
                 )
-                _provider_key_failure(provider, key, retry_after, "HTTP 429 (shared cooldown)")
                 logger.warning(
                     "Watchmode shared cooldown activated for %.0fs on %s (limit=%s remaining=%s quota_used=%s)",
                     retry_after, path,
