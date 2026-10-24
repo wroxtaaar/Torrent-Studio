@@ -20,6 +20,7 @@ from core.settings import (
     IMDB_RATING_LOOKUP_VERSION,
     IMDB_RATING_NOT_FOUND_TTL_SECONDS,
     _split_env_keys,
+    env_values,
     logger,
 )
 from metadata.tmdb import (
@@ -109,7 +110,7 @@ async def _fetch_imdb_rating(
     media_type: str = "movie",
     tmdb_id: int = 0,
 ) -> dict[str, Any]:
-    keys = _split_env_keys(os.getenv("OMDB_API_KEYS", ""), os.getenv("OMDB_API_KEY", ""))
+    keys = env_values("OMDB_API_KEYS", "OMDB_API_KEY")
     now = int(time.time())
     normalized_type = "tv" if str(media_type or "movie").casefold() in {"tv", "series"} else "movie"
     omdb_type = "series" if normalized_type == "tv" else "movie"

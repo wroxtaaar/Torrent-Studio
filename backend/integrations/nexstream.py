@@ -161,14 +161,8 @@ def _set_nexstream_cache(key: str, value: dict) -> None:
 
 
 def _env_values(*names: str) -> list[str]:
-    values: list[str] = []
-    for name in names:
-        raw = os.getenv(name, "")
-        for item in raw.replace("\\n", "\n").replace(",", "\n").splitlines():
-            item = item.strip()
-            if item and item not in values:
-                values.append(item)
-    return values
+    from core.settings import env_values
+    return env_values(*names)
 
 
 def nexstream_api_key_configured() -> bool:

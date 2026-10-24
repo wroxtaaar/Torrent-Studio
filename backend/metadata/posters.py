@@ -23,6 +23,7 @@ from core.settings import (
     WATCHMODE_API_KEYS,
     _CACHE_SEED_DIR,
     _split_env_keys,
+    env_values,
     data_file,
     logger,
     stored_ttl,
@@ -592,7 +593,7 @@ async def _omdb_poster_lookup(title: str, year: str = "") -> str | None:
     """Use OMDb as a low-priority fallback with strict title/year validation."""
     if CACHE_ONLY_MODE:
         return None
-    keys = _split_env_keys(os.getenv("OMDB_API_KEYS", ""), os.getenv("OMDB_API_KEY", ""))
+    keys = env_values("OMDB_API_KEYS", "OMDB_API_KEY")
     if not keys:
         return None
     clean_title = str(title or "").strip()

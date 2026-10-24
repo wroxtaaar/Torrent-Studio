@@ -106,7 +106,7 @@ def main():
     if len(sys.argv) != 2 or sys.argv[1] not in GROUPS:
         raise SystemExit(__doc__)
     group = sys.argv[1]
-    if not any(os.getenv(k) for k in ("TMDB_API_KEY", "TMDB_API_KEYS", "TMDB_READ_ACCESS_TOKEN", "TMDB_READ_ACCESS_TOKENS")):
+    if not any(k.startswith("TMDB_") and v.strip() for k, v in os.environ.items()):
         raise SystemExit("No TMDB key in the environment; refusing to run (nothing would be refreshed).")
     with tempfile.TemporaryDirectory(prefix="seed-refresh-") as tmp:
         data_dir = Path(tmp) / "data"

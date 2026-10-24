@@ -3,9 +3,30 @@
 import json
 import logging
 import os
+import re
 from pathlib import Path
 
 _TRUTHY = {"1", "true", "yes", "on"}
+
+
+def env_values(*names: str) -> list[str]:
+    """All credentials for the given variable names, so several keys/tokens can be supplied.
+
+    For each NAME this reads NAME itself plus numbered variants (NAME_2, NAME2, NAME_3 ...), and
+    every value may hold several entries separated by commas, semicolons, spaces or new lines.
+    """
+    found: list[str] = []
+    for name in names:
+        variants = sorted(
+            (key for key in os.environ if re.fullmatch(re.escape(name) + r"_?\d+", key)),
+            key=lambda key: int(re.search(r"(\d+)$", key).group(1)),
+        )
+        for key in [name, *variants]:
+            for item in re.split(r"[,;\s]+", os.getenv(key, "").replace("\\n", " ")):
+                item = item.strip().strip("\"'")
+                if item and item not in found:
+                    found.append(item)
+    return found
 # Cache-only deployments (e.g. Render free without provider keys) must never
 # call TMDB/Watchmode/OMDb/poster providers; prefilled sections read the bundled cache.
 _PROVIDER_KEY_ENV_NAMES = (
@@ -20,7 +41,7 @@ elif _CACHE_ONLY_ENV in {"0", "false", "no", "off"}:
 else:
     # No explicit setting: a deployment without any provider key can only serve
     # from the bundled cache, so behave as cache-only instead of failing live calls.
-    CACHE_ONLY_MODE = not any(os.getenv(name, "").strip() for name in _PROVIDER_KEY_ENV_NAMES)
+    CACHE_ONLY_MODE = not any(env_values(name) for name in _PROVIDER_KEY_ENV_NAMES)
 
 
 # Cache-first (default on): an entry that is already stored -- in the bundled seed or in the
@@ -64,12 +85,11 @@ def _split_env_keys(*values: str) -> list[str]:
         for item in str(value or "").replace("\\n", "\n").replace(",", "\n").splitlines()
         if item.strip()))
 
-TMDB_API_KEYS = _split_env_keys(os.getenv("TMDB_API_KEYS", ""), os.getenv("TMDB_API_KEY", ""))
-TMDB_READ_ACCESS_TOKENS = _split_env_keys(os.getenv("TMDB_READ_ACCESS_TOKENS", ""),
-    os.getenv("TMDB_READ_ACCESS_TOKEN", ""), os.getenv("TMDB_BEARER_TOKEN", ""))
+TMDB_API_KEYS = env_values("TMDB_API_KEYS", "TMDB_API_KEY")
+TMDB_READ_ACCESS_TOKENS = env_values("TMDB_READ_ACCESS_TOKENS", "TMDB_READ_ACCESS_TOKEN", "TMDB_BEARER_TOKEN")
 TMDB_READ_ACCESS_TOKEN = TMDB_READ_ACCESS_TOKENS[0] if TMDB_READ_ACCESS_TOKENS else ""
 TMDB_API_BASE = "https://api.themoviedb.org/3"
-WATCHMODE_API_KEYS = _split_env_keys(os.getenv("WATCHMODE_API_KEYS", ""), os.getenv("WATCHMODE_API_KEY", ""))
+WATCHMODE_API_KEYS = env_values("WATCHMODE_API_KEYS", "WATCHMODE_API_KEY")
 WATCHMODE_API_KEY = WATCHMODE_API_KEYS[0] if WATCHMODE_API_KEYS else ""
 WATCHMODE_API_BASE = "https://api.watchmode.com/v1"
 STREAMING_AVAILABILITY_API_KEY = os.getenv("STREAMING_AVAILABILITY_API_KEY", "").strip()

@@ -11,14 +11,16 @@
 #   GH_TOKEN=<fine-grained token: Contents read/write on this repo>
 #   RENDER_DEPLOY_HOOK=https://api.render.com/deploy/srv-...?key=...
 set -euo pipefail
+# Everything runs inside a function so that `git pull` replacing this file mid-run is harmless.
+main() {
 GROUP="${1:?usage: $0 hollywood-bollywood|franchise|publish-only}"
 REPO="wroxtaaar/Torrent-Studio"
 HOME_DIR="${TS_HOME:-$HOME/torrent-studio-refresh}"
-set -a; . "$HOME/.config/torrent-studio/env"; set +a
-
 mkdir -p "$HOME_DIR"; cd "$HOME_DIR"
 if [ ! -d repo/.git ]; then git clone --depth 1 "https://github.com/$REPO.git" repo; fi
 git -C repo pull --ff-only -q
+# Load keys (repeated TMDB_READ_ACCESS_TOKEN lines are all kept, not just the last one).
+eval "$(python3 repo/scripts/vps/load_env.py "$HOME/.config/torrent-studio/env")"
 [ -d venv ] || python3 -m venv venv
 ./venv/bin/pip install -q -r repo/backend/requirements.txt
 
@@ -38,3 +40,6 @@ gh release view cache-data -R "$REPO" >/dev/null 2>&1 || \
 gh release upload cache-data out/cache-bundle.tar.gz out/cache-bundle.json -R "$REPO" --clobber
 
 curl -fsS -X POST "$RENDER_DEPLOY_HOOK" >/dev/null && echo "Render deploy triggered"
+}
+main "$@"
+exit $?

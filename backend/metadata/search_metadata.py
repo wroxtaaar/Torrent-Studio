@@ -33,6 +33,7 @@ from core.settings import (
     TMDB_SYNOPSIS_LOOKUP_VERSION,
     WATCHMODE_API_KEYS,
     _split_env_keys,
+    env_values,
     logger,
     stored_ttl,
 )
@@ -253,7 +254,7 @@ async def _fallback_tvmaze_search(query: str, timeout: httpx.Timeout) -> list[di
 
 async def _fallback_omdb_search(query: str, timeout: httpx.Timeout) -> list[dict[str, Any]]:
     """OMDb metadata fallback; OMDb does not provide streaming availability."""
-    keys = _split_env_keys(os.getenv("OMDB_API_KEYS", ""), os.getenv("OMDB_API_KEY", ""))
+    keys = env_values("OMDB_API_KEYS", "OMDB_API_KEY")
     if CACHE_ONLY_MODE or not keys:
         return []
     target = _availability_normalize_title(query)
