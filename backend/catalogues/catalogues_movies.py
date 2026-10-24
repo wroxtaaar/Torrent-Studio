@@ -553,7 +553,7 @@ def _regional_movie_trending_archive_page(catalogue_key: str, page: int) -> dict
         "totalResults": total_results,
         "pageSize": page_size,
         "results": rows[start:start + page_size],
-        "releaseEligibility": "streaming-in-india-or-30-days",
+        "releaseEligibility": "torrent-or-nexstream",
         "attribution": "This product uses the TMDB API but is not endorsed or certified by TMDB.",
     }
     _tmdb_movie_catalogue_cache[cache_key] = (time.monotonic(), response)
@@ -631,7 +631,7 @@ def _prebuilt_final_page(catalogue_key: str, page: int) -> dict[str, Any] | None
         "totalResults": len(rows),
         "pageSize": page_size,
         "results": rows[start:start + page_size],
-        "releaseEligibility": "streaming-in-india-or-30-days",
+        "releaseEligibility": "torrent-or-nexstream",
         "attribution": "This product uses the TMDB API but is not endorsed or certified by TMDB.",
     }
 
@@ -762,7 +762,7 @@ def _cache_only_regional_movie_catalogue(catalogue_key: str, page: int) -> dict[
         "totalResults": total_results,
         "pageSize": page_size,
         "results": rows[start:start + page_size],
-        "releaseEligibility": "streaming-in-india-or-30-days",
+        "releaseEligibility": "torrent-or-nexstream",
         "attribution": "This product uses the TMDB API but is not endorsed or certified by TMDB.",
     }
 
@@ -843,7 +843,9 @@ async def _fetch_paginated_regional_movie_catalogue(
             500,
             max(1, int(source_payload.get("totalPages") or source_page)),
         )
-        filtered_payload = await _apply_movie_release_eligibility(source_payload, enabled=True)
+        # Released titles only (TMDB filters by date); whether a title is shown depends on a torrent or
+        # NexStream stream existing, which the cache builder decides, not on Indian OTT availability.
+        filtered_payload = source_payload
         source_candidates: list[dict[str, Any]] = []
         for row in filtered_payload.get("results") or []:
             if not isinstance(row, dict):
@@ -896,7 +898,7 @@ async def _fetch_paginated_regional_movie_catalogue(
         ),
         "pageSize": page_size,
         "results": page_rows,
-        "releaseEligibility": "streaming-in-india-or-30-days",
+        "releaseEligibility": "torrent-or-nexstream",
         "attribution": "This product uses the TMDB API but is not endorsed or certified by TMDB.",
     }
 
