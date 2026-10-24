@@ -21,9 +21,9 @@ services:
       # "true" would block every provider call (pages 4+ would then fail).
       - key: CACHE_ONLY_MODE
         value: "false"
-      - key: TMDB_READ_ACCESS_TOKEN
-        sync: false
-      - key: TMDB_API_KEY
+      # One or more TMDB read access tokens, separated by commas (a TMDB_API_KEY works too, but
+      # you only need one kind).
+      - key: TMDB_READ_ACCESS_TOKENS
         sync: false
       - key: WATCHMODE_API_KEY
         sync: false
