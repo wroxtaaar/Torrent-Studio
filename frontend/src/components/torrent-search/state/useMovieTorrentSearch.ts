@@ -79,10 +79,6 @@ export function useMovieTorrentSearch({ prepareClickIntentRef, prepareTraceIdRef
       }));
       if (groups.length > 0) {
         const expectedTitle = normalizeGroupTitle(movie.title);
-      // 'Dhood (Sandstorm)' is released as plain 'Dhood': also accept the title without a
-      // bracketed alias or subtitle.
-      const baseTitle = normalizeGroupTitle(String(movie.title || '').split(/\s+[-\u2013\u2014:]\s+|\s*\(/)[0]);
-      const expectedTitles = [expectedTitle, baseTitle.length >= 3 ? baseTitle : ''].filter(Boolean);
         const expectedYear = String(movie.year || '');
         const selectedGroup = [...groups].sort((a, b) => {
           const score = (group: TorrentQualityGroup) => {
@@ -195,6 +191,10 @@ export function useMovieTorrentSearch({ prepareClickIntentRef, prepareTraceIdRef
       // movie called "Only Me" won't show unrelated releases containing "Only"
       // and "Me" far apart in their titles.
       const expectedTitle = normalizeGroupTitle(movie.title);
+      // 'Dhood (Sandstorm)' is released as plain 'Dhood': also accept the title without a
+      // bracketed alias or subtitle.
+      const baseTitle = normalizeGroupTitle(String(movie.title || '').split(/\s+[-\u2013\u2014:]\s+|\s*\(/)[0]);
+      const expectedTitles = [expectedTitle, baseTitle.length >= 3 ? baseTitle : ''].filter(Boolean);
       const groupUsableResults = (items: TorrentSearchResult[], requireActiveSeeders: boolean) => {
         const usable = items.filter(result => {
           const releaseTitle = normalizeGroupTitle(String(result.title || ''));
