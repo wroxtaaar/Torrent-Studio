@@ -1017,13 +1017,14 @@ def _with_more_pages(payload: dict[str, Any], page: int) -> dict[str, Any]:
         return payload
     try:
         total_results = int(payload.get("totalResults") or 0)
-        total_pages = int(payload.get("totalPages") or 0)
     except (TypeError, ValueError):
         return payload
-    if total_results < cached_pages * page_size or total_pages > cached_pages:
+    if total_results < cached_pages * page_size:
         return payload
+    # The cache may hold more than 3 pages of rows, but only the first 3 are served from it;
+    # report exactly one more page and let the live pagination take over from there.
     return {**payload, "totalPages": cached_pages + 1,
-            "totalResults": max(total_results, (cached_pages + 1) * page_size)}
+            "totalResults": (cached_pages + 1) * page_size}
 
 
 @router.get("/api/movies/catalogue/{catalogue_key}")
