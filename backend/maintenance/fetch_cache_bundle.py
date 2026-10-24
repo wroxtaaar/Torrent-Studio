@@ -76,19 +76,20 @@ def apply_bundle(seed: Path, base: str) -> str:
         if not any(stage.glob("*.json")):
             raise ValueError("bundle has no catalogue files")
 
-        # Replace the pre-split pages as a unit, then overlay the JSON files.
+        # Replace the pre-split pages as a unit. In a container image the old `pages` directory sits in a
+        # read-only lower layer and cannot be renamed (EXDEV), so build the new one beside it, delete
+        # the old one, and only rename the directory we just created ourselves.
         if (stage / "pages").is_dir():
-            old = seed / "pages.old"
-            shutil.rmtree(old, ignore_errors=True)
-            if (seed / "pages").exists():
-                (seed / "pages").rename(old)
-            shutil.move(str(stage / "pages"), str(seed / "pages"))
-            shutil.rmtree(old, ignore_errors=True)
+            new_pages = seed / "pages.new"
+            shutil.rmtree(new_pages, ignore_errors=True)
+            shutil.copytree(stage / "pages", new_pages)
+            shutil.rmtree(seed / "pages", ignore_errors=True)
+            os.rename(new_pages, seed / "pages")
         for f in stage.rglob("*"):
-            if f.is_file():
+            if f.is_file() and f.relative_to(stage).parts[0] != "pages":
                 dest = seed / f.relative_to(stage)
                 dest.parent.mkdir(parents=True, exist_ok=True)
-                os.replace(f, dest)
+                shutil.move(str(f), str(dest))  # falls back to copy when a rename is not possible
     version_path.write_text(version)
     return f"installed {version}"
 

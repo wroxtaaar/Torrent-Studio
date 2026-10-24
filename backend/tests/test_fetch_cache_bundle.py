@@ -81,3 +81,23 @@ def test_main_never_raises_when_unreachable(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("CACHE_SEED_DIR", str(seed_dir(tmp_path)))
     assert fcb.main() == 0
     assert "skipped" in capsys.readouterr().out
+
+
+def test_old_pages_directory_is_never_renamed(tmp_path, server, monkeypatch):
+    """In a Docker image the baked-in `pages` directory cannot be renamed (cross-device link)."""
+    import os
+    real_rename = os.rename
+
+    def picky_rename(src, dst, *a, **k):
+        if Path(src).name == "pages":
+            raise OSError(18, "Invalid cross-device link")
+        return real_rename(src, dst, *a, **k)
+
+    monkeypatch.setattr(os, "rename", picky_rename)
+    monkeypatch.setattr(Path, "rename", lambda self, target: picky_rename(self, target))
+    root, base = server
+    make_bundle(root, {"marvel_catalogue.json": b'{"new": 1}', "pages/marvel/1.json.gz": b"gz"})
+    seed = seed_dir(tmp_path)
+    assert "installed v1" in fcb.apply_bundle(seed, base)
+    assert (seed / "pages" / "marvel" / "1.json.gz").is_file() and not (seed / "pages" / "old.json.gz").exists()
+    assert json.loads((seed / "marvel_catalogue.json").read_text()) == {"new": 1}
