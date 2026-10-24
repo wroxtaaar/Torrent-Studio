@@ -78,6 +78,8 @@ GitHub never stores refreshed data in `main`'s history. Instead:
 |---|---|---|
 | `hollywood-bollywood` | weekly cron | Regional movie/TV pages, trending archive, shared metadata/OTT/IMDb entries (set `REGIONAL_CACHE_TORRENT_SCAN=false` to skip the slow torrent re-scan) |
 | `franchise` | run by hand when wanted | Missing OTT data and synopses for Marvel, DC and classics |
+| `imdb-dataset` | by hand (also part of both groups above) | IMDb ratings for every movie, web series and anime from IMDb's free dataset (personal, non-commercial use only); no OMDb key needed |
+| `tv-imdb` | by hand | Only the OMDb lookups for web series/anime |
 | `publish-only` | by hand | Re-publish the VPS working copy |
 
 The VPS keeps its own working copy of the seed (`~/torrent-studio-refresh/seed`), so each group's

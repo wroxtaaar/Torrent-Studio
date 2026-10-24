@@ -13,7 +13,7 @@
 set -euo pipefail
 # Everything runs inside a function so that `git pull` replacing this file mid-run is harmless.
 main() {
-GROUP="${1:?usage: $0 hollywood-bollywood|franchise|tv-imdb|publish-only}"
+GROUP="${1:?usage: $0 hollywood-bollywood|franchise|tv-imdb|imdb-dataset|publish-only}"
 REPO="wroxtaaar/Torrent-Studio"
 HOME_DIR="${TS_HOME:-$HOME/torrent-studio-refresh}"
 mkdir -p "$HOME_DIR"; cd "$HOME_DIR"

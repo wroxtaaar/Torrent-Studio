@@ -3,6 +3,7 @@
 
     python scripts/refresh_seed.py hollywood-bollywood   # weekly workflow
     python scripts/refresh_seed.py franchise             # manual workflow (Marvel, DC, classics)
+    python scripts/refresh_seed.py imdb-dataset          # IMDb ratings from IMDb's free dataset (no key)
     python scripts/refresh_seed.py tv-imdb               # only IMDb ratings for web series / anime
 
 Needs TMDB / Watchmode / OMDb keys in the environment. It works on a temporary copy of the
@@ -29,7 +30,8 @@ GROUPS = {
             "regional_movie_prebuilt_cache.json", "regional_movie_trending_archive.json", "nexstream_cache.json",
         ],
     },
-    "tv-imdb": {"top": [], "runtime": ["imdb_rating_cache.json"]},   # only the IMDb ratings for web series/anime
+    "tv-imdb": {"top": [], "runtime": ["imdb_rating_cache.json"]},   # only the OMDb ratings for web series/anime
+    "imdb-dataset": {"top": [], "runtime": ["imdb_rating_cache.json"]},   # only IMDb ratings from the free dataset
     "franchise": {
         "top": [
             "marvel_catalogue.json", "marvel_hindi_catalogue.json", "marvel_web_series_catalogue.json",
@@ -75,6 +77,7 @@ def refresh_hollywood_bollywood(env, data_dir):
         wait_ready(base, server)
         env = {**env, "HOME_DATA_DIR": str(data_dir), "HOME_API_BASE": base}
         run([sys.executable, str(ROOT / "scripts" / "build_regional_movie_cache.py")], env)
+        warm_imdb_dataset(env)
         warm_tv_imdb(env)
     finally:
         server.terminate()
@@ -92,11 +95,20 @@ def warm_tv_imdb(env):
         print(f"WARNING: TV IMDb ratings step failed ({exc}); continuing.", flush=True)
 
 
+def warm_imdb_dataset(env):
+    # Free, no daily limit: runs before the OMDb step so OMDb only has to cover what is left.
+    try:
+        run([sys.executable, "maintenance/warm_imdb_dataset.py"], env, cwd=BACKEND)
+    except subprocess.CalledProcessError as exc:
+        print(f"WARNING: IMDb dataset step failed ({exc}); continuing.", flush=True)
+
+
 def refresh_franchise(env, data_dir):
     run([sys.executable, "maintenance/refresh_franchise_ott.py", "--region", "IN"], env, cwd=BACKEND)
     run([sys.executable, "-c",
          "import asyncio; from catalogues import catalogues_extra as c; asyncio.run(c._enrich_catalogue_synopses())"],
         env, cwd=BACKEND)
+    warm_imdb_dataset(env)
     warm_tv_imdb(env)
 
 
@@ -127,7 +139,9 @@ def main():
             "BACKFILL_MISSING_METADATA": "true",
             "PYTHONPATH": str(BACKEND),
         }
-        if group == "tv-imdb":
+        if group == "imdb-dataset":
+            warm_imdb_dataset(env)
+        elif group == "tv-imdb":
             warm_tv_imdb(env)
         elif group == "hollywood-bollywood":
             refresh_hollywood_bollywood(env, data_dir)
