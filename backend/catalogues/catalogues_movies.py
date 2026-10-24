@@ -1760,7 +1760,7 @@ async def _warm_regional_movie_catalogue_pages() -> bool:
                 )
             elif result_count != REGIONAL_MOVIE_CACHE_PAGE_SIZE:
                 logger.warning(
-                    "Regional movie cache %s page %s has %s titles; TMDB may have fewer eligible titles.",
+                    "Regional movie cache %s page %s has %s titles (expected %s); TMDB may have fewer eligible titles.",
                     catalogue_key, page, result_count, REGIONAL_MOVIE_CACHE_PAGE_SIZE,
                 )
             else:
