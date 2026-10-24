@@ -235,8 +235,12 @@ async def main() -> None:
         async with gate:
             return item, await cinemeta_lookup(item[0], item[1], item[2], item[4])
 
+    missing_report: list[str] = []
     for (media, title, year, tmdb_id, imdb_id), found in await asyncio.gather(*(fallback(i) for i in leftovers)):
         if found is None:
+            if len(missing_report) < 40:
+                why = "IMDb id known, no rating yet (too new / few votes)" if imdb_id else "TMDB has no IMDb id"
+                missing_report.append(f"  - {media} {title} ({year}): {why}")
             no_id += 0 if imdb_id else 1
             no_rating += 1 if imdb_id else 0
             continue
@@ -253,6 +257,8 @@ async def main() -> None:
         from_cinemeta += 1
     imdb._write_synopsis_cache(imdb.IMDB_RATING_CACHE_FILE, {
         "version": 1, "updatedAt": now, "results": list(cache.values())[-20000:]})
+    if missing_report:
+        print("Still without a rating (first 40):\n" + "\n".join(missing_report), flush=True)
     print(f"IMDb dataset: ratings added {added}, from Cinemeta {from_cinemeta}, "
           f"still without a rating {no_id + no_rating}", flush=True)
 
