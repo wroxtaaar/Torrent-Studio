@@ -1,7 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { api, MovieCatalogueKey, TorrentSearchResult } from '../../api/client.ts';
 import { setHighQualityPostersReady } from '../MovieCards.tsx';
-import { torrentResultKey } from './grouping.ts';
+import { imdbRatingKey, torrentResultKey } from './grouping.ts';
 import { CachedFranchiseSearchMode, persistImdbRatings, persistSearchAvailability, persistSearchMetadata, readFranchisePageCache, writeFranchisePageCache } from './persistentCaches.ts';
 import { readPosterTitleCache } from './posterCache.ts';
 import { lowQualityPosterUrl } from './posterUrls.ts';
@@ -396,6 +396,28 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     setFranchiseGridPage(page);
     if (activeFranchiseSearchMode) void loadCachedFranchisePage(activeFranchiseSearchMode, page);
   }
+  // Rating sort: pull every stored IMDb rating in one request (the VPS refresh keeps them current),
+  // so sorting does not wait for per-title lookups page by page.
+  const storedRatingsLoadedRef = useRef(false);
+  useEffect(() => {
+    if (classicsSort.key !== 'rating' || storedRatingsLoadedRef.current) return;
+    storedRatingsLoadedRef.current = true;
+    void fetch('/api/catalogue/imdb-ratings/stored', { headers: { Accept: 'application/json' } })
+      .then(response => (response.ok ? response.json() : null))
+      .then(data => {
+        const rows: any[] = Array.isArray(data?.results) ? data.results : [];
+        if (!rows.length) { storedRatingsLoadedRef.current = false; return; }
+        setImdbRatingsByKey(previous => {
+          const next = { ...previous };
+          for (const rating of rows) {
+            const key = imdbRatingKey(rating.title, rating.year, rating.mediaType === 'tv' ? 'tv' : 'movie');
+            if (!next[key]) next[key] = rating;
+          }
+          return next;
+        });
+      })
+      .catch(() => { storedRatingsLoadedRef.current = false; });
+  }, [classicsSort.key]);
   const { sortedResults, groupedResults } = useGroupedResults({ results, resolutionFilter, sizeSort, timeSort, isMarvelEnglishResults, showMarvelWebSeries, marvelFilmFilter, activeFranchiseSearchMode, classicsSort, imdbRatingsByKey: activeFranchiseSearchMode && classicsSort.key === 'rating' ? imdbRatingsByKey : NO_RATINGS });
   useFranchisePageEffect({ activeFranchiseSearchMode, franchiseGridPage, franchiseGridPageSize, error, groupedResults, searchAvailabilityByGroup, setSearchAvailabilityByGroup });
   useSynopsisPrefetch({ franchiseGridPage, franchiseGridPageSize, groupedResults, searchMetadata, setSearchMetadata, tvMetadataRequestedRef });

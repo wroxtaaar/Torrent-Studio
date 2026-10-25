@@ -8,7 +8,7 @@ import time
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 
 from core.cache_diagnostics import _record_cache_event
 from catalogues.catalogues_extra import _normalize_synopsis_match_title, _write_synopsis_cache
@@ -412,6 +412,22 @@ async def _get_imdb_rating_record(
     finally:
         if task.done() and _IMDB_RATING_INFLIGHT.get(cache_key) is task:
             _IMDB_RATING_INFLIGHT.pop(cache_key, None)
+
+@router.get("/api/catalogue/imdb-ratings/stored")
+async def api_stored_imdb_ratings(response: Response):
+    """Every stored IMDb rating in one small list, so a "sort by rating" needs no per-title lookups."""
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    rows = []
+    for record in _load_imdb_rating_cache().values():
+        if record.get("status") != "found" or record.get("imdbRating") is None:
+            continue
+        rows.append({
+            "title": record.get("title"), "year": record.get("year"), "mediaType": record.get("mediaType") or "movie",
+            "status": "found", "imdbRating": record.get("imdbRating"), "imdbVotes": record.get("imdbVotes"),
+            "imdbId": record.get("imdbId"), "imdbUrl": record.get("imdbUrl"),
+        })
+    return {"status": "ready", "results": rows}
+
 
 @router.get("/api/catalogue/imdb-ratings")
 async def api_catalogue_imdb_ratings(

@@ -404,6 +404,13 @@
     [
      "GET"
     ],
+    "/api/catalogue/imdb-ratings/stored",
+    "api_stored_imdb_ratings"
+   ],
+   [
+    [
+     "GET"
+    ],
     "/api/catalogue/imdb-ratings",
     "api_catalogue_imdb_ratings"
    ],
@@ -1073,6 +1080,13 @@
     ],
     "/api/search",
     "api_search"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/catalogue/imdb-ratings/stored",
+    "api_stored_imdb_ratings"
    ],
    [
     [
