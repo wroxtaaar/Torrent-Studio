@@ -28,7 +28,6 @@ TORRENT_SCAN = os.getenv("REGIONAL_CACHE_TORRENT_SCAN", "true").strip().lower() 
 MAX_SIZE = 5 * 1024**3
 # Same lower bound the app applies when it reads saved torrents; a row below it would be hidden anyway.
 MIN_SIZE = int(os.getenv("REGIONAL_CACHE_MIN_SIZE_MB", "100")) * 1024**2
-NEXSTREAM_MIN_AGE_DAYS = int(os.getenv("REGIONAL_CACHE_NEXSTREAM_MIN_AGE_DAYS", "45"))
 SCAN_VERSION = 2  # bump to force one re-scan of older (possibly too strict) "empty" results
 BAD_QUALITY = re.compile(r"(?:camrip|hdcam|telesync|telecine|dvdscr|screener|workprint)", re.I)
 
@@ -76,18 +75,14 @@ def read_json(path, default):
 
 
 def has_source(entry):
-    """Show a title when a torrent exists or NexStream is likely to play it.
-    Unknown (never scanned / searches failed / ) counts as showable, so a blocked
-    tracker or a flaky check can never remove a title that is actually watchable."""
+    """Show a title only when a usable torrent was found.
+
+    NexStream cannot be verified from a server, so it never keeps a torrent-less title in the cache.
+    A scan that never ran or whose searches failed ("unavailable") is not evidence of absence: keep the title."""
     details = entry.get("torrentDetails")
     if isinstance(details, dict) and details.get("results"):
         return True
-    confirmed_empty = isinstance(details, dict) and details.get("status") == "empty"
-    if nexstream_likely(entry["movie"], need_provider=confirmed_empty):
-        return True
-    if not isinstance(details, dict) or details.get("status") == "unavailable":
-        return True
-    return False
+    return not isinstance(details, dict) or details.get("status") == "unavailable"
 
 
 def fresh_enough(details):
@@ -174,28 +169,6 @@ def scan_torrents(movie, old_details):
             "status": "empty", "scanVersion": SCAN_VERSION}
 
 
-def nexstream_likely(movie, need_provider=False):
-    """Whether NexStream can realistically play this title.
-
-    NexStream's API and its player page (behind a Cloudflare check) cannot be verified from a server,
-    so use what predicts it: a film that is already on a streaming/rent/buy service in India, or that
-    has been out long enough for players to have it. A brand-new cinema release without either is not.
-    """
-    if movie.get("nexStreamPlayable") is not True:
-        return False
-    ott = movie.get("ottAvailability") or {}
-    if ott.get("streamingProviders") or ott.get("rentProviders") or ott.get("buyProviders"):
-        return True
-    if need_provider:
-        # Every torrent search came back empty, so "old enough" alone is not evidence: require a real provider.
-        return False
-    try:
-        released = datetime.fromisoformat(str(movie.get("releaseDate"))[:10]).replace(tzinfo=timezone.utc)
-    except ValueError:
-        return True  # unknown release date: do not drop it
-    return (datetime.now(timezone.utc) - released).days >= NEXSTREAM_MIN_AGE_DAYS
-
-
 def api_candidates(cat, failures):
     """Walk a catalogue's live pages; every title is a candidate (NexStream playback is marked, not filtered)."""
     for page in range(1, PAGE_LIMIT + 1):
@@ -271,10 +244,7 @@ def build_movies(old):
             if cat not in entry["catalogues"]:
                 entry["catalogues"].append(cat)
             if has_source(entry):
-                if nexstream_likely(entry["movie"]):
-                    movie = {**movie, "nexStreamPlayable": True}  # keep the reason it is shown
-                else:
-                    movie = {**movie, "nexStreamPlayable": False}  # shown for its torrent only: no NexStream button
+                movie = {**movie, "nexStreamPlayable": movie.get("nexStreamPlayable") is True}  # the API's own answer
                 final.append(movie)
                 if len(final) % 10 == 0:
                     print(json.dumps({"event": "progress", "catalogue": cat, "shown": len(final), "checked": checked}), flush=True)
