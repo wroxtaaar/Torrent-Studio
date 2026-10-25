@@ -82,7 +82,8 @@ def has_source(entry):
     details = entry.get("torrentDetails")
     if isinstance(details, dict) and details.get("results"):
         return True
-    if nexstream_likely(entry["movie"]):
+    confirmed_empty = isinstance(details, dict) and details.get("status") == "empty"
+    if nexstream_likely(entry["movie"], need_provider=confirmed_empty):
         return True
     if not isinstance(details, dict) or details.get("status") == "unavailable":
         return True
@@ -173,7 +174,7 @@ def scan_torrents(movie, old_details):
             "status": "empty", "scanVersion": SCAN_VERSION}
 
 
-def nexstream_likely(movie):
+def nexstream_likely(movie, need_provider=False):
     """Whether NexStream can realistically play this title.
 
     NexStream's API and its player page (behind a Cloudflare check) cannot be verified from a server,
@@ -185,6 +186,9 @@ def nexstream_likely(movie):
     ott = movie.get("ottAvailability") or {}
     if ott.get("streamingProviders") or ott.get("rentProviders") or ott.get("buyProviders"):
         return True
+    if need_provider:
+        # Every torrent search came back empty, so "old enough" alone is not evidence: require a real provider.
+        return False
     try:
         released = datetime.fromisoformat(str(movie.get("releaseDate"))[:10]).replace(tzinfo=timezone.utc)
     except ValueError:

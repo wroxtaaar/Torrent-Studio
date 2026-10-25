@@ -117,7 +117,9 @@ def test_only_clear_failures_remove_a_title():
     empty = {"status": "empty", "results": []}
     old = {"nexStreamPlayable": True, "releaseDate": "2020-01-01"}
     new = {"nexStreamPlayable": True, "releaseDate": datetime.now(timezone.utc).date().isoformat()}
-    assert b.has_source({"movie": old, "torrentDetails": empty})  # out for a while: NexStream likely has it
+    assert not b.has_source({"movie": old, "torrentDetails": empty})  # no torrent and no OTT: age alone is not evidence
+    assert b.has_source({"movie": old, "torrentDetails": None})  # never scanned: keep
+    assert b.has_source({"movie": {**old, "ottAvailability": {"rentProviders": [{"name": "X"}]}}, "torrentDetails": empty})
     assert not b.has_source({"movie": new, "torrentDetails": empty})  # brand new, no torrent, no OTT
     assert b.has_source({"movie": {**new, "ottAvailability": {"streamingProviders": [{"name": "X"}]}}, "torrentDetails": empty})
     assert b.has_source({"movie": new, "torrentDetails": {"status": "ready", "results": [{}]}})
