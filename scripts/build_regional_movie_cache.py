@@ -75,12 +75,13 @@ def read_json(path, default):
 
 
 def has_source(entry):
-    """Show a title only when a usable torrent was found.
+    """Show a title when a usable torrent was found or NexStream's API returned a stream for it.
 
-    NexStream cannot be verified from a server, so it never keeps a torrent-less title in the cache.
     A scan that never ran or whose searches failed ("unavailable") is not evidence of absence: keep the title."""
     details = entry.get("torrentDetails")
     if isinstance(details, dict) and details.get("results"):
+        return True
+    if entry["movie"].get("nexStreamPlayable") is True:
         return True
     return not isinstance(details, dict) or details.get("status") == "unavailable"
 

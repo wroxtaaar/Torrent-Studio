@@ -116,6 +116,8 @@ def test_only_clear_failures_remove_a_title():
     b = _builder()
     empty = {"status": "empty", "results": []}
     assert not b.has_source({"movie": {}, "torrentDetails": empty})
+    assert not b.has_source({"movie": {"nexStreamPlayable": False}, "torrentDetails": empty})
+    assert b.has_source({"movie": {"nexStreamPlayable": True}, "torrentDetails": empty})  # NexStream only
     assert b.has_source({"movie": {}, "torrentDetails": {"status": "ready", "results": [{}]}})
     assert b.has_source({"movie": {}, "torrentDetails": {"status": "unavailable", "results": []}})  # search failed: keep
     assert b.has_source({"movie": {}, "torrentDetails": None})  # never scanned: keep
