@@ -1,14 +1,9 @@
 import { useMemo } from 'react';
 import { MovieCatalogueItem } from '../../../api/client.ts';
-import { compareReleaseDateDescending, imdbRatingKey, releaseDateSortValue } from '../grouping.ts';
-import { ClassicsSort, classicsComparator, isDefaultClassicsSort, ratingValue } from '../classicsSort.ts';
-
-export const REGIONAL_CATALOGUE_PATTERN = /^(popular|trending|latest)-(bollywood|hollywood)$/;
-export const REGIONAL_CACHED_PAGES = 3;
-export const REGIONAL_PAGE_SIZE = 18;
+import { compareReleaseDateDescending } from '../grouping.ts';
 import { useCatalogueNavigationState } from './useCatalogueNavigationState.ts';
 
-export function useVisibleMovieCatalogue({ movieCatalogue, isMarvelEnglishResults, showMarvelWebSeries, marvelFilmFilter, isDcLiveActionEnglishResults, streamingOnly, ottAvailabilityForMovie, ottAvailability, classicsSort, regionalPool, imdbRatingsByKey }: { classicsSort: ClassicsSort; regionalPool: MovieCatalogueItem[]; imdbRatingsByKey: Record<string, { imdbRating?: number | string | null } | undefined> } & Pick<ReturnType<typeof useCatalogueNavigationState>, 'movieCatalogue' | 'isMarvelEnglishResults' | 'showMarvelWebSeries' | 'marvelFilmFilter' | 'isDcLiveActionEnglishResults' | 'streamingOnly' | 'ottAvailabilityForMovie' | 'ottAvailability'>) {
+export function useVisibleMovieCatalogue({ movieCatalogue, isMarvelEnglishResults, showMarvelWebSeries, marvelFilmFilter, isDcLiveActionEnglishResults, streamingOnly, ottAvailabilityForMovie, ottAvailability }: Pick<ReturnType<typeof useCatalogueNavigationState>, 'movieCatalogue' | 'isMarvelEnglishResults' | 'showMarvelWebSeries' | 'marvelFilmFilter' | 'isDcLiveActionEnglishResults' | 'streamingOnly' | 'ottAvailabilityForMovie' | 'ottAvailability'>) {
   const visibleMovieCatalogueItems = useMemo(() => {
     let movies = movieCatalogue?.results || [];
     if (isMarvelEnglishResults) {
@@ -58,20 +53,10 @@ export function useVisibleMovieCatalogue({ movieCatalogue, isMarvelEnglishResult
     );
     if (!isRegionalMovieCatalogue) {
       movies = [...movies].sort(compareReleaseDateDescending);
-    } else if (!isDefaultClassicsSort(classicsSort) && regionalPool.length && Number(movieCatalogue?.page || 1) <= REGIONAL_CACHED_PAGES) {
-      // Section-wide sort over the cached pages (54 titles): sort the whole pool, then show this page's slice.
-      const page = Number(movieCatalogue?.page || 1);
-      const sortedPool = [...regionalPool].sort(classicsComparator(
-        classicsSort,
-        movie => releaseDateSortValue(movie),
-        movie => ratingValue(imdbRatingsByKey[imdbRatingKey(movie.title, movie.year)]) ?? ratingValue(movie),
-        movie => String(movie.title || ''),
-      ));
-      movies = sortedPool.slice((page - 1) * REGIONAL_PAGE_SIZE, page * REGIONAL_PAGE_SIZE);
     }
     if (streamingOnly) movies = movies.filter(movie => ottAvailabilityForMovie(movie)?.status === 'streaming');
     return movies;
-  }, [movieCatalogue, streamingOnly, ottAvailability, isMarvelEnglishResults, showMarvelWebSeries, marvelFilmFilter, isDcLiveActionEnglishResults, classicsSort.key, classicsSort.direction, regionalPool, imdbRatingsByKey]);
+  }, [movieCatalogue, streamingOnly, ottAvailability, isMarvelEnglishResults, showMarvelWebSeries, marvelFilmFilter, isDcLiveActionEnglishResults]);
   const ottPendingCount = movieCatalogue?.results.filter(movie => {
     const status = ottAvailabilityForMovie(movie)?.status;
     return !status || status === 'loading';
