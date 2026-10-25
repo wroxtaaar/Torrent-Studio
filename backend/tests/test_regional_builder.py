@@ -158,3 +158,13 @@ def test_failure_reports_need_enough_recent_comments():
                 comment(3, "2026-08-01T00:00:00Z"), comment(3, "2026-08-02T00:00:00Z"),  # too old: forgiven
                 {"body": "random chatter"}]
     assert set(module.parse_comments(comments, 2, 30, now)) == {"1"}
+
+
+def test_detail_score_counts_filled_in_card_details():
+    b = _builder()
+    full = {"posterUrl": "p", "overview": "o", "imdbRating": 7.1, "nexStreamPlayable": True,
+            "ottAvailability": {"streamingProviders": [{"name": "X"}]}}
+    assert b.detail_score(full, {"torrentDetails": {"results": [{}]}}) == 6
+    bare = {"id": 1}
+    assert b.detail_score(bare, {"torrentDetails": {"status": "empty", "results": []}}) == 0
+    assert b.detail_score({"ottAvailability": {"status": "not_confirmed", "incomplete": True}}, {}) == 0

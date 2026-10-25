@@ -87,6 +87,27 @@ def load_nexstream_failures():
 NEXSTREAM_FAILED = load_nexstream_failures()
 
 
+DETAIL_ORDERED = {"latest-bollywood"}  # catalogues ordered by how complete each card is
+DETAIL_POOL = int(os.getenv("REGIONAL_CACHE_DETAIL_POOL", "108"))  # candidates compared before taking the top 54
+
+
+def detail_score(movie, entry):
+    """How many of a card's details are filled in (0-6): poster, synopsis, IMDb rating, streaming info,
+    NexStream and torrent. Later runs re-read every candidate, so gaps fill in and the card moves up."""
+    ott = movie.get("ottAvailability") or {}
+    has_ott = bool(ott.get("streamingProviders") or ott.get("rentProviders") or ott.get("buyProviders")) or (
+        bool(ott) and ott.get("incomplete") is False)
+    details = entry.get("torrentDetails")
+    return sum([
+        bool(movie.get("posterUrl")),
+        bool(str(movie.get("overview") or "").strip()),
+        movie.get("imdbRating") not in (None, "", 0),
+        has_ott,
+        movie.get("nexStreamPlayable") is True,
+        bool(isinstance(details, dict) and details.get("results")),
+    ])
+
+
 def movie_tmdb_id(movie):
     value = movie.get("tmdbId") or movie.get("id")
     return int(value) if str(value).isdigit() else 0
@@ -308,11 +329,16 @@ def build_movies(old):
                 entry["catalogues"].append(cat)
             if has_source(entry):
                 movie = {**movie, "nexStreamPlayable": not nexstream_broken(entry)}  # False hides the Play button
+                if cat in DETAIL_ORDERED:
+                    movie = {**movie, "detailScore": detail_score(movie, entry)}
                 final.append(movie)
                 if len(final) % 10 == 0:
                     print(json.dumps({"event": "progress", "catalogue": cat, "shown": len(final), "checked": checked}), flush=True)
-            if len(final) >= FINAL_PER_CATALOGUE or checked >= MAX_CANDIDATES:
+            if len(final) >= (DETAIL_POOL if cat in DETAIL_ORDERED else FINAL_PER_CATALOGUE) or checked >= MAX_CANDIDATES:
                 break
+        if cat in DETAIL_ORDERED:
+            # Most complete cards first (newest first among equals); the rest follow and fill in on later runs.
+            final = sorted(final, key=lambda m: (m.get("detailScore", 0), str(m.get("releaseDate") or "")), reverse=True)[:FINAL_PER_CATALOGUE]
         candidates_by_cat[cat] = collected
         if cat in failures and not final:
             prior = (old.get("catalogues", {}).get(cat) or {}).get("final")
