@@ -52,6 +52,14 @@ class Stub(BaseHTTPRequestHandler):
             # only every third title has a torrent
             rows = [{"title": title, "size": 500 * 1024**2, "magnetUrl": "magnet:?x"}] if n % 3 == 0 else []
             return self.reply(rows)
+        if url.path == "/api/nexstream/resolve":  # NexStream has nothing for any of these titles
+            data = json.dumps({"detail": "NexStream could not resolve this title."}).encode()
+            self.send_response(502)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if url.path.startswith("/api/tv/catalogue/"):
             return self.reply({"results": [{"id": 1, "title": "Show", "year": 2024}], "totalPages": 1, "totalResults": 1})
         self.send_response(404)
@@ -81,7 +89,8 @@ def test_three_full_pages_of_watchable_titles_with_trending_history():
     for cat, body in cache["catalogues"].items():
         final = body["final"]
         assert len(final) == 54, (cat, len(final))
-        for row in final:  # everything shown has a torrent
+        for row in final:  # NexStream has none of them, so everything shown has a torrent
+            assert row.get("nexStreamPlayable") is False
             key = re.sub(r"[^a-z0-9]+", "", row["title"].casefold()) + "|" + str(row["year"])
             assert cache["movies"][key]["torrentDetails"]["results"], row["title"]
 
@@ -114,22 +123,25 @@ def test_torrent_check_is_not_too_strict(monkeypatch=None):
 
 def test_only_clear_failures_remove_a_title():
     b = _builder()
-    empty = {"status": "empty", "results": []}
-    assert not b.has_source({"movie": {}, "torrentDetails": empty})
-    assert not b.has_source({"movie": {"nexStreamPlayable": False}, "torrentDetails": empty})
-    assert b.has_source({"movie": {"nexStreamPlayable": True}, "torrentDetails": empty})  # NexStream only
-    assert b.has_source({"movie": {}, "torrentDetails": {"status": "ready", "results": [{}]}})
-    assert b.has_source({"movie": {}, "torrentDetails": {"status": "unavailable", "results": []}})  # search failed: keep
-    assert b.has_source({"movie": {}, "torrentDetails": None})  # never scanned: keep
-
-
-def test_reported_nexstream_failures_hide_play_and_torrentless_titles():
-    b = _builder()
     b.NEXSTREAM_FAILED = {603}
     empty = {"status": "empty", "results": []}
-    assert not b.has_source({"movie": {"id": 603, "nexStreamPlayable": True}, "torrentDetails": empty})  # reported, no torrent
-    assert b.has_source({"movie": {"id": 604, "nexStreamPlayable": True}, "torrentDetails": empty})  # not reported
-    assert b.has_source({"movie": {"id": 603, "nexStreamPlayable": True}, "torrentDetails": {"status": "ready", "results": [{}]}})
+    assert b.has_source({"movie": {"id": 1}, "torrentDetails": {"status": "ready", "results": [{}]}})  # torrent
+    assert b.has_source({"movie": {"id": 1}, "torrentDetails": empty})  # no torrent, NexStream not known broken
+    assert b.has_source({"movie": {"id": 1}, "torrentDetails": empty, "nexStream": {"ok": None}})  # unsure: keep
+    assert not b.has_source({"movie": {"id": 1}, "torrentDetails": empty, "nexStream": {"ok": False}})  # API said no
+    assert not b.has_source({"movie": {"id": 603}, "torrentDetails": empty})  # users reported it
+    assert b.has_source({"movie": {"id": 603}, "torrentDetails": {"status": "ready", "results": [{}]}})  # torrent still there
+    assert b.has_source({"movie": {"id": 1}, "torrentDetails": {"status": "unavailable", "results": []}, "nexStream": {"ok": False}})  # search failed: keep
+    assert b.nexstream_broken({"movie": {"id": 603}}) and not b.nexstream_broken({"movie": {"id": 604}})
+
+
+def test_nexstream_answers_are_reused_and_unsure_is_not_a_no():
+    b = _builder()
+    fresh = {"nexStream": {"ok": False, "checkedAt": datetime.now(timezone.utc).isoformat()}}
+    assert b.nexstream_state({"id": 5}, fresh)["ok"] is False  # reused, no API call
+    b.check_nexstream = lambda tmdb_id: None
+    stale = {"nexStream": {"ok": False, "checkedAt": "2020-01-01T00:00:00+00:00"}}
+    assert b.nexstream_state({"id": 5}, stale)["ok"] is None  # asked again, API unsure
 
 
 def test_failure_reports_need_enough_recent_comments():

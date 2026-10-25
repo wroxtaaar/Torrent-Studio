@@ -60,6 +60,7 @@ ORDER = ("popular-bollywood", "popular-hollywood", "latest-bollywood", "latest-h
          "trending-bollywood", "trending-hollywood")
 # A scanned title is reused for a while so a weekly run only scans what is new.
 REUSE_DAYS = {"ready": 14, "empty": 1}
+NEXSTREAM_REUSE_DAYS = 7
 
 
 def week_start(today=None):
@@ -86,18 +87,64 @@ def load_nexstream_failures():
 NEXSTREAM_FAILED = load_nexstream_failures()
 
 
-def has_source(entry):
-    """Show a title when a usable torrent was found or NexStream's API returned a stream for it.
+def movie_tmdb_id(movie):
+    value = movie.get("tmdbId") or movie.get("id")
+    return int(value) if str(value).isdigit() else 0
 
-    A scan that never ran or whose searches failed ("unavailable") is not evidence of absence: keep the title."""
+
+def nexstream_broken(entry):
+    """True when NexStream is known not to play this title: its API said no, or users reported it."""
+    tmdb_id = movie_tmdb_id(entry["movie"])
+    return (entry.get("nexStream") or {}).get("ok") is False or (tmdb_id > 0 and tmdb_id in NEXSTREAM_FAILED)
+
+
+def has_source(entry):
+    """Show a title when it has a usable torrent, or NexStream is not known to be broken for it.
+
+    NexStream cannot be verified from a server, so only a definite "no" (its API refusing the title, or
+    users' failure reports) takes it away. A scan that never ran or whose searches failed ("unavailable")
+    is not evidence of absence either: keep the title."""
     details = entry.get("torrentDetails")
     if isinstance(details, dict) and details.get("results"):
         return True
-    reported = entry["movie"].get("tmdbId") or entry["movie"].get("id")
-    failed = str(reported).isdigit() and int(reported) in NEXSTREAM_FAILED
-    if entry["movie"].get("nexStreamPlayable") is True and not failed:
+    if not nexstream_broken(entry):
         return True
     return not isinstance(details, dict) or details.get("status") == "unavailable"
+
+
+TRANSIENT_NEXSTREAM = ("could not connect", "invalid response", "http 5", "http 429", "http 403", "not configured", "timed out")
+
+
+def check_nexstream(tmdb_id):
+    """Ask NexStream (through the local backend) whether it has this movie: True, False, or None when unsure."""
+    if tmdb_id <= 0:
+        return None
+    try:
+        data = request(f"/api/nexstream/resolve?type=movie&tmdb_id={tmdb_id}", timeout=30)
+        return True if data.get("success") and data.get("sources") else False
+    except urllib.error.HTTPError as exc:
+        try:
+            detail = str(json.loads(exc.read().decode("utf-8")).get("detail") or "")
+        except (ValueError, OSError):
+            return None
+        if exc.code == 502 and detail and not any(word in detail.casefold() for word in TRANSIENT_NEXSTREAM):
+            return False  # NexStream answered and has nothing for this title
+        return None
+    except Exception:
+        return None
+
+
+def nexstream_state(movie, old_entry):
+    """Reuse a definite answer for NEXSTREAM_REUSE_DAYS, otherwise ask again."""
+    old = (old_entry or {}).get("nexStream")
+    if isinstance(old, dict) and old.get("ok") in (True, False):
+        try:
+            checked = datetime.fromisoformat(str(old.get("checkedAt")).replace("Z", "+00:00"))
+            if datetime.now(timezone.utc) - checked < timedelta(days=NEXSTREAM_REUSE_DAYS):
+                return old
+        except ValueError:
+            pass
+    return {"ok": check_nexstream(movie_tmdb_id(movie)), "checkedAt": datetime.now(timezone.utc).isoformat()}
 
 
 def fresh_enough(details):
@@ -256,12 +303,11 @@ def build_movies(old):
             if entry is None:
                 entry = movies[key] = {"movie": movie, "catalogues": []}
                 entry["torrentDetails"] = scan_torrents(movie, (old_movies.get(key) or {}).get("torrentDetails"))
+                entry["nexStream"] = nexstream_state(movie, old_movies.get(key))
             if cat not in entry["catalogues"]:
                 entry["catalogues"].append(cat)
             if has_source(entry):
-                reported = movie.get("tmdbId") or movie.get("id")
-                failed = str(reported).isdigit() and int(reported) in NEXSTREAM_FAILED
-                movie = {**movie, "nexStreamPlayable": movie.get("nexStreamPlayable") is True and not failed}  # the API's answer, minus user reports
+                movie = {**movie, "nexStreamPlayable": not nexstream_broken(entry)}  # False hides the Play button
                 final.append(movie)
                 if len(final) % 10 == 0:
                     print(json.dumps({"event": "progress", "catalogue": cat, "shown": len(final), "checked": checked}), flush=True)
