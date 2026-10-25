@@ -1342,6 +1342,13 @@
    ],
    [
     [
+     "POST"
+    ],
+    "/api/nexstream/report",
+    "report_nexstream_failure"
+   ],
+   [
+    [
      "GET"
     ],
     "/",
