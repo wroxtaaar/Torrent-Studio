@@ -189,6 +189,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                           overview: movie.overview || '',
                           poster: movie.posterUrl || movieTorrentPreviewPosterUrl || null,
                           type: 'movie',
+                          direct: movie.nexStreamVerified === true,
                         });
                       },
                     }}

@@ -1,4 +1,4 @@
-export type NexStreamTitle = { id: number; title: string; date: string; overview: string; poster: string | null; type: 'movie' | 'tv' };
+export type NexStreamTitle = { id: number; title: string; date: string; overview: string; poster: string | null; type: 'movie' | 'tv'; direct?: boolean };
 
 export type FranchiseTmdbKey = 'marvel' | 'dc-live-action' | 'dc-animated';
 

@@ -328,7 +328,8 @@ def build_movies(old):
             if cat not in entry["catalogues"]:
                 entry["catalogues"].append(cat)
             if has_source(entry):
-                movie = {**movie, "nexStreamPlayable": not nexstream_broken(entry)}  # False hides the Play button
+                movie = {**movie, "nexStreamPlayable": not nexstream_broken(entry),  # False hides the Play button
+                         "nexStreamVerified": (entry.get("nexStream") or {}).get("ok") is True}  # True: Play can open the player directly
                 if cat in DETAIL_ORDERED:
                     movie = {**movie, "detailScore": detail_score(movie, entry)}
                 final.append(movie)

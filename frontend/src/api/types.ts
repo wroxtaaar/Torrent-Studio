@@ -101,6 +101,8 @@ export interface MovieCatalogueItem {
   trendingRank?: number;
   trendingWeeks?: string[];
   nexStreamPlayable?: boolean;
+  /** The cache build confirmed with NexStream that it has this title (the player link can be opened directly). */
+  nexStreamVerified?: boolean;
   nexStreamCheckedAt?: string;
   imdbRatingStatus?: ImdbRatingResult['status'];
   imdbRating?: number | null;

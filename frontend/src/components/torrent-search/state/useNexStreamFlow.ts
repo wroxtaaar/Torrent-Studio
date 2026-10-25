@@ -135,7 +135,10 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
         NEXSTREAM_RESOLVE_CACHE_TTL_MS,
       );
       let source: { url: string; name?: string } | undefined;
-      if (cachedResolve && /^https:\/\//i.test(cachedResolve.url)) {
+      if (item.type === 'movie' && item.direct && Number(item.id) > 0) {
+        // The cache build already confirmed NexStream has this title; its player link is fixed by the TMDB id.
+        source = { url: 'https://embedmaster.link/movie/' + String(Number(item.id)), name: 'NexStream' };
+      } else if (cachedResolve && /^https:\/\//i.test(cachedResolve.url)) {
         source = cachedResolve;
       } else {
         const params = new URLSearchParams({ type: item.type, tmdb_id: String(item.id) });
