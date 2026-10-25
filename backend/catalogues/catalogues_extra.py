@@ -2146,14 +2146,21 @@ async def _build_extra_catalogue(key: str) -> None:
                                         key, title, str(result) or type(result).__name__,
                                     )
                     else:
-                        try:
-                            items = await asyncio.wait_for(
-                                search_1337x(query, limit=50, allow_series_fallback=False),
-                                timeout=18,
-                            )
-                        except Exception as exc:
-                            logger.info("Catalogue %s primary search failed for %s: %s", key, query, exc)
-                            items = []
+                        # The torrent sites are often slow from a server; a title that has no stored
+                        # rows yet (a newly added one) would stay missing after a single timeout.
+                        items = []
+                        for attempt in (1, 2):
+                            try:
+                                items = await asyncio.wait_for(
+                                    search_1337x(query, limit=50, allow_series_fallback=False),
+                                    timeout=18 if attempt == 1 else 60,
+                                )
+                            except Exception as exc:
+                                logger.warning("Catalogue %s search failed for %s (attempt %s): %s",
+                                               key, query, attempt, str(exc) or type(exc).__name__)
+                                items = []
+                            if items:
+                                break
                         if len(items) < 2:
                             try:
                                 fallback = await asyncio.wait_for(search_yts_movies(query, limit=20), timeout=9)

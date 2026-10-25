@@ -3,6 +3,7 @@
 
     python scripts/refresh_seed.py hollywood-bollywood   # weekly workflow
     python scripts/refresh_seed.py franchise             # manual workflow (Marvel, DC, classics)
+    python scripts/refresh_seed.py classics              # only the Classics lists (new titles, ratings, streaming)
     python scripts/refresh_seed.py imdb-dataset          # IMDb ratings from IMDb's free dataset (no key)
     python scripts/refresh_seed.py tv-imdb               # only IMDb ratings for web series / anime
 
@@ -32,6 +33,10 @@ GROUPS = {
     },
     "tv-imdb": {"top": [], "runtime": ["imdb_rating_cache.json"]},   # only the OMDb ratings for web series/anime
     "imdb-dataset": {"top": [], "runtime": ["imdb_rating_cache.json"]},   # only IMDb ratings from the free dataset
+    "classics": {
+        "top": ["classics_catalogue.json", "classics_web_series_tv_catalogue.json", "classics_anime_tv_catalogue.json"],
+        "runtime": SHARED_RUNTIME,
+    },
     "franchise": {
         "top": [
             "marvel_catalogue.json", "marvel_hindi_catalogue.json", "marvel_web_series_catalogue.json",
@@ -126,6 +131,14 @@ def warm_imdb_dataset(env):
         print(f"WARNING: IMDb dataset step failed ({exc}); continuing.", flush=True)
 
 
+def refresh_classics(env):
+    """Quick run for the Classics lists only (minutes, not hours)."""
+    run([sys.executable, "maintenance/rebuild_classics.py"], env, cwd=BACKEND)
+    run([sys.executable, "maintenance/refresh_franchise_ott.py", "--region", "IN"], env, cwd=BACKEND)
+    warm_imdb_dataset(env)
+    warm_tv_imdb(env)
+
+
 def refresh_franchise(env, data_dir):
     # Titles added to the Classics lists get searched/resolved first; everything already stored is kept.
     run([sys.executable, "maintenance/rebuild_classics.py"], env, cwd=BACKEND)
@@ -170,6 +183,8 @@ def main():
             warm_tv_imdb(env)
         elif group == "hollywood-bollywood":
             refresh_hollywood_bollywood(env, data_dir)
+        elif group == "classics":
+            refresh_classics(env)
         else:
             refresh_franchise(env, data_dir)
 

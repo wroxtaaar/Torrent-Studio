@@ -4,6 +4,7 @@
 #
 #   refresh_and_publish.sh hollywood-bollywood     # weekly
 #   refresh_and_publish.sh franchise               # when you want Marvel/DC/classics updated
+#   refresh_and_publish.sh classics                # only the Classics lists (much quicker)
 #   refresh_and_publish.sh publish-only            # just re-publish the current working copy
 #
 # Config in ~/.config/torrent-studio/env (chmod 600):
@@ -13,7 +14,7 @@
 set -euo pipefail
 # Everything runs inside a function so that `git pull` replacing this file mid-run is harmless.
 main() {
-GROUP="${1:?usage: $0 hollywood-bollywood|franchise|tv-imdb|imdb-dataset|publish-only}"
+GROUP="${1:?usage: $0 hollywood-bollywood|franchise|classics|tv-imdb|imdb-dataset|publish-only}"
 REPO="wroxtaaar/Torrent-Studio"
 HOME_DIR="${TS_HOME:-$HOME/torrent-studio-refresh}"
 mkdir -p "$HOME_DIR"; cd "$HOME_DIR"
