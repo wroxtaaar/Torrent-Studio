@@ -55,7 +55,28 @@ async def main() -> None:
     kill = sorted({str(r.get("mediaTitle") or r.get("title")) for r in stored.get("results") or []
                    if "kill bill" in str(r.get("mediaTitle") or r.get("title") or "").casefold()})
     print(f"classics movies stored: {len(stored.get('results') or [])} rows; Kill Bill: {kill or 'NONE'}", flush=True)
+    await diagnose_missing_titles(stored)
     await rebuild_tv()
+
+
+async def diagnose_missing_titles(stored: dict) -> None:
+    """For each listed title with no stored rows, run the same search and show why nothing matched."""
+    config = catalogues_extra._EXTRA_CATALOGUES["classics"]
+    have = {(re.sub(r"[^a-z0-9]+", "", str(r.get("catalogueTitle") or r.get("mediaTitle") or "").casefold()))
+            for r in stored.get("results") or []}
+    for title, year in config.get("titles", []):
+        if re.sub(r"[^a-z0-9]+", "", title.casefold()) in have:
+            continue
+        query = f"{title} {year}".strip()
+        try:
+            items = await asyncio.wait_for(catalogues_extra.search_1337x(query, limit=50, allow_series_fallback=False), timeout=90)
+        except Exception as exc:  # noqa: BLE001
+            print(f"MISSING {title} ({year}): search failed: {type(exc).__name__}: {exc}", flush=True)
+            continue
+        matched = [i for i in items if isinstance(i, dict) and catalogues_extra._marvel_result_matches_title(i, title, year)]
+        print(f"MISSING {title} ({year}): search returned {len(items)}, {len(matched)} matched the title", flush=True)
+        for item in items[:6]:
+            print(f"    {str(item.get('title'))[:100]}", flush=True)
 
 
 if __name__ == "__main__":
