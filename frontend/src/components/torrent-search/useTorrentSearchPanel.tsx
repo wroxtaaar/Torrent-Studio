@@ -289,14 +289,20 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       }
     }
   };
-  async function loadCachedFranchisePage(mode: CachedFranchiseSearchMode, page: number): Promise<void> {
-    franchisePageRequestRef.current?.abort();
-    franchisePageRequestRef.current = null;
-    franchisePageGenerationRef.current += 1;
+  // background: used to fetch the other pages for a section-wide sort. It must never abort the page the
+  // user asked for, touch the loading state, or bump the request generation (that made "Next" crawl).
+  async function loadCachedFranchisePage(mode: CachedFranchiseSearchMode, page: number, background = false): Promise<void> {
+    if (!background) {
+      franchisePageRequestRef.current?.abort();
+      franchisePageRequestRef.current = null;
+      franchisePageGenerationRef.current += 1;
+    }
     const loaded = franchiseLoadedPagesRef.current.get(mode);
     if (loaded?.has(page)) {
-      setIsSearching(false);
-      setCatalogueBuildProgress('');
+      if (!background) {
+        setIsSearching(false);
+        setCatalogueBuildProgress('');
+      }
       return;
     }
     const browserCachedPage = readFranchisePageCache(mode, page);
@@ -313,18 +319,23 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       nowLoaded.add(page);
       franchiseLoadedPagesRef.current.set(mode, nowLoaded);
       if (browserCachedPage.totalMovies > 0) setCatalogueExpectedTitles(browserCachedPage.totalMovies);
-      setSearched(true);
-      setError('');
-      setCatalogueBuildProgress('');
-      setIsSearching(false);
+      if (!background) {
+        setSearched(true);
+        setError('');
+        setCatalogueBuildProgress('');
+        setIsSearching(false);
+      }
       return;
     }
     const controller = new AbortController();
-    franchisePageRequestRef.current = controller;
-    const generation = ++franchisePageGenerationRef.current;
-    setIsSearching(true);
-    setError('');
-    setCatalogueBuildProgress(`Loading page ${page} of the ${mode.replace(/-/g, ' ')} catalogue…`);
+    if (!background) franchisePageRequestRef.current = controller;
+    const generation = background ? franchisePageGenerationRef.current : ++franchisePageGenerationRef.current;
+    const isStale = () => controller.signal.aborted || (!background && generation !== franchisePageGenerationRef.current);
+    if (!background) {
+      setIsSearching(true);
+      setError('');
+      setCatalogueBuildProgress(`Loading page ${page} of the ${mode.replace(/-/g, ' ')} catalogue…`);
+    }
     try {
       const fetchPage = () => mode === 'marvel'
         ? api.getMarvelCatalogue(controller.signal, { page, pageSize: franchiseGridPageSize })
@@ -332,8 +343,8 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       let catalogue = await fetchPage();
       let attempts = 0;
       while ((catalogue.status === 'building' || catalogue.status === 'idle') && attempts < 8) {
-        if (generation !== franchisePageGenerationRef.current || controller.signal.aborted) return;
-        setCatalogueBuildProgress(
+        if (isStale()) return;
+        if (!background) setCatalogueBuildProgress(
           'Building shared ' + mode.replace(/-/g, ' ') + ' catalogue: ' +
           catalogue.completed + ' of ' + catalogue.total + ' searches completed.'
         );
@@ -341,7 +352,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
         attempts += 1;
         catalogue = await fetchPage();
       }
-      if (generation !== franchisePageGenerationRef.current || controller.signal.aborted) return;
+      if (isStale()) return;
       if (catalogue.status !== 'ready' || !Array.isArray(catalogue.results)) {
         throw new Error(catalogue.error || ('Could not load page ' + page + ' of the catalogue.'));
       }
@@ -361,18 +372,20 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       const totalPages = Number(catalogue.totalPages) || Math.max(1, Math.ceil(totalTitles / franchiseGridPageSize));
       writeFranchisePageCache(mode, page, pageRows, totalTitles, totalPages);
       if (totalTitles > 0) setCatalogueExpectedTitles(totalTitles);
-      setSearched(true);
-      setCatalogueBuildProgress(
-        catalogue.refreshing
-          ? 'Showing cached catalogue results; a refreshed page will appear on a later visit.'
-          : ''
-      );
+      if (!background) {
+        setSearched(true);
+        setCatalogueBuildProgress(
+          catalogue.refreshing
+            ? 'Showing cached catalogue results; a refreshed page will appear on a later visit.'
+            : ''
+        );
+      }
     } catch (error: any) {
-      if (controller.signal.aborted || generation !== franchisePageGenerationRef.current) return;
+      if (background || isStale()) return;
       setError(String(error?.message || 'Could not load this catalogue page.'));
       setCatalogueBuildProgress('');
     } finally {
-      if (generation === franchisePageGenerationRef.current) {
+      if (!background && generation === franchisePageGenerationRef.current) {
         setIsSearching(false);
         if (franchisePageRequestRef.current === controller) franchisePageRequestRef.current = null;
       }
@@ -397,7 +410,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     let cancelled = false;
     void (async () => {
       for (let page = 2; page <= totalPages && !cancelled; page += 1) {
-        await loadCachedFranchisePage('classics', page);
+        await loadCachedFranchisePage('classics', page, true);
       }
     })();
     return () => { cancelled = true; };
