@@ -13,7 +13,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from catalogues import catalogues_extra as extra  # noqa: E402
 
 
+async def providers(query: str) -> None:
+    """Each provider on its own, so a blocked one is visible."""
+    calls = {
+        "search_1337x": extra.search_1337x(query, limit=50, allow_series_fallback=False),
+        "1337x direct": extra.search_1337x_direct(query, limit=50, pages=1, category="Movies", provider_query=query),
+        "limetorrents": extra.search_limetorrents(query, limit=30, pages=1),
+    }
+    for name, call in calls.items():
+        try:
+            items = await asyncio.wait_for(call, timeout=40)
+            print(f"   [{name}] {query!r}: {len(items)} results" + (f", first: {str(items[0].get('title'))[:70]}" if items else ""))
+        except Exception as exc:
+            print(f"   [{name}] {query!r}: FAILED {type(exc).__name__}: {exc}")
+
+
 async def main(title: str, year: int) -> None:
+    print("providers, one by one (Inception is a control that must return results):")
+    for query in ("Inception 2010", "Kill Bill", f"{title} {year}"):
+        await providers(query)
     for query in (f"{title} {year}", title, title.replace(":", "").replace(".", "")):
         try:
             items = await asyncio.wait_for(extra.search_1337x(query, limit=50, allow_series_fallback=False), timeout=40)
