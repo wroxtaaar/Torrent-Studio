@@ -10,7 +10,7 @@ export function useNexStreamState() {
   const nexStreamSearchControllerRef = useRef<AbortController | null>(null);
   const nexStreamSearchGenerationRef = useRef(0);
   const [nexStreamError, setNexStreamError] = useState('');
-  const [nexStreamPlayer, setNexStreamPlayer] = useState<{ title: string; year?: string; sourceName: string; url: string; type: 'movie' | 'tv'; season?: number; episode?: number } | null>(null);
+  const [nexStreamPlayer, setNexStreamPlayer] = useState<{ title: string; year?: string; sourceName: string; url: string; type: 'movie' | 'tv'; tmdbId?: number; season?: number; episode?: number } | null>(null);
   const [nexStreamResolvingId, setNexStreamResolvingId] = useState<string | null>(null);
   const [nexStreamEpisodePicker, setNexStreamEpisodePicker] = useState<NexStreamTitle | null>(null);
   const [nexStreamSeasons, setNexStreamSeasons] = useState<Array<{ seasonNumber: number; name: string; episodeCount: number }>>([]);

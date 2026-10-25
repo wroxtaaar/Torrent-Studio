@@ -1,3 +1,4 @@
+import { isNexStreamReported } from '../nexstreamReports.ts';
 import { Loader2 } from 'lucide-react';
 import { API_BASE } from '../../../api/client.ts';
 import { formatBytes } from '../../../utils/formatters.ts';
@@ -172,7 +173,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                     onSelectVariant={key => setSelectedMovieTorrentQualityByGroup(previous => ({ ...previous, [previewGroup.key]: key }))}
                     variantsAriaLabel={`Choose quality for ${previewGroup.title}`}
                     prepared={result && prepareState.primaryFile ? preparedActionsFor(prepareState.torrentKey, prepareState.primaryFile) : null}
-                    directStream={movie.nexStreamPlayable === false ? undefined : {
+                    directStream={movie.nexStreamPlayable === false || isNexStreamReported(movie.tmdbId || movie.id) ? undefined : {
                       disabled: !Number(movie.tmdbId || movie.id) || nexStreamResolvingId === nexStreamMovieId,
                       label: nexStreamResolvingId === nexStreamMovieId ? 'Resolving…' : 'Direct Stream',
                       onClick: () => {

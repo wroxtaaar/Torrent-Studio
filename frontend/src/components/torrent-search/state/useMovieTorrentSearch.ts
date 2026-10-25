@@ -1,6 +1,7 @@
 import { API_BASE, MovieCatalogueItem, TorrentSearchResult } from '../../../api/client.ts';
 import searchLimits from '../../../../search_limits.json';
 import { TorrentQualityGroup, groupTorrentResults, normalizeGroupTitle, torrentGroupReleaseYear, torrentResultKey } from '../grouping.ts';
+import { isNexStreamReported } from '../nexstreamReports.ts';
 import { cataloguePosterSource } from '../cataloguePosters.ts';
 import { catalogueMovieIdentity } from '../helpers.ts';
 import { useSearchMetadataState } from './useSearchMetadataState.ts';
@@ -47,7 +48,7 @@ export function useMovieTorrentSearch({ prepareClickIntentRef, prepareTraceIdRef
 
     // A title with no torrent but a NexStream stream still gets a Prepare card, with only the Play button.
     const openNexStreamOnlyCard = (): boolean => {
-      if (movie.nexStreamPlayable === false || !Number(movie.tmdbId || movie.id)) return false;
+      if (movie.nexStreamPlayable === false || isNexStreamReported(movie.tmdbId || movie.id) || !Number(movie.tmdbId || movie.id)) return false;
       const stub = { title: movie.title, mediaTitle: movie.title, posterUrl: movie.posterUrl || undefined, tmdbId: movie.tmdbId || movie.id, id: movie.tmdbId || movie.id, year: movie.year || undefined } as unknown as TorrentSearchResult;
       const group: TorrentQualityGroup = { key: 'nexstream-only:' + String(movie.id), title: movie.title, year: String(movie.year || ''), variants: [], posterResult: stub };
       setSelectedMovieTorrentQualityByGroup({});

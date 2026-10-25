@@ -74,6 +74,18 @@ def read_json(path, default):
         return default
 
 
+def load_nexstream_failures():
+    """tmdb ids users reported as not playable (written by maintenance/pull_nexstream_reports.py)."""
+    try:
+        data = json.loads((BASE / "nexstream_failures.json").read_text(encoding="utf-8"))
+        return {int(k) for k in (data.get("movies") or {})}
+    except (OSError, ValueError, TypeError, AttributeError):
+        return set()
+
+
+NEXSTREAM_FAILED = load_nexstream_failures()
+
+
 def has_source(entry):
     """Show a title when a usable torrent was found or NexStream's API returned a stream for it.
 
@@ -81,7 +93,9 @@ def has_source(entry):
     details = entry.get("torrentDetails")
     if isinstance(details, dict) and details.get("results"):
         return True
-    if entry["movie"].get("nexStreamPlayable") is True:
+    reported = entry["movie"].get("tmdbId") or entry["movie"].get("id")
+    failed = str(reported).isdigit() and int(reported) in NEXSTREAM_FAILED
+    if entry["movie"].get("nexStreamPlayable") is True and not failed:
         return True
     return not isinstance(details, dict) or details.get("status") == "unavailable"
 
@@ -245,7 +259,9 @@ def build_movies(old):
             if cat not in entry["catalogues"]:
                 entry["catalogues"].append(cat)
             if has_source(entry):
-                movie = {**movie, "nexStreamPlayable": movie.get("nexStreamPlayable") is True}  # the API's own answer
+                reported = movie.get("tmdbId") or movie.get("id")
+                failed = str(reported).isdigit() and int(reported) in NEXSTREAM_FAILED
+                movie = {**movie, "nexStreamPlayable": movie.get("nexStreamPlayable") is True and not failed}  # the API's answer, minus user reports
                 final.append(movie)
                 if len(final) % 10 == 0:
                     print(json.dumps({"event": "progress", "catalogue": cat, "shown": len(final), "checked": checked}), flush=True)

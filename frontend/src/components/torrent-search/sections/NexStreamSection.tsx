@@ -1,3 +1,4 @@
+import { reportNexStreamFailure } from '../nexstreamReports.ts';
 import { Loader2, Play, Maximize2 } from 'lucide-react';
 import { TvShowCard } from '../TvShowCard.tsx';
 import { imdbRatingKey } from '../grouping.ts';
@@ -120,6 +121,16 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
                 <div className="min-w-0">
                   <div className="truncate text-xs font-bold text-slate-100">{nexStreamPlayer.title}{nexStreamPlayer.year ? ' (' + nexStreamPlayer.year + ')' : ''}</div>
                 </div>
+                {nexStreamPlayer.type === 'movie' && nexStreamPlayer.tmdbId && (
+                  <button
+                    type="button"
+                    onClick={() => { reportNexStreamFailure({ tmdbId: nexStreamPlayer.tmdbId as number, title: nexStreamPlayer.title, year: nexStreamPlayer.year }, 'player_not_working'); setNexStreamPlayer(null); }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-500/15"
+                    title="Tell us this title does not play; Play is hidden for it from now on"
+                  >
+                    Not playing? Report
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer')}

@@ -121,3 +121,28 @@ def test_only_clear_failures_remove_a_title():
     assert b.has_source({"movie": {}, "torrentDetails": {"status": "ready", "results": [{}]}})
     assert b.has_source({"movie": {}, "torrentDetails": {"status": "unavailable", "results": []}})  # search failed: keep
     assert b.has_source({"movie": {}, "torrentDetails": None})  # never scanned: keep
+
+
+def test_reported_nexstream_failures_hide_play_and_torrentless_titles():
+    b = _builder()
+    b.NEXSTREAM_FAILED = {603}
+    empty = {"status": "empty", "results": []}
+    assert not b.has_source({"movie": {"id": 603, "nexStreamPlayable": True}, "torrentDetails": empty})  # reported, no torrent
+    assert b.has_source({"movie": {"id": 604, "nexStreamPlayable": True}, "torrentDetails": empty})  # not reported
+    assert b.has_source({"movie": {"id": 603, "nexStreamPlayable": True}, "torrentDetails": {"status": "ready", "results": [{}]}})
+
+
+def test_failure_reports_need_enough_recent_comments():
+    import importlib.util
+    from datetime import datetime, timezone
+    spec = importlib.util.spec_from_file_location("pull_reports", ROOT / "backend" / "maintenance" / "pull_nexstream_reports.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    now = datetime(2026, 10, 25, tzinfo=timezone.utc)
+    def comment(tmdb, at):
+        return {"body": 'nexstream-report:{"tmdbId":%d,"title":"T","year":2026,"at":"%s"}' % (tmdb, at)}
+    comments = [comment(1, "2026-10-20T00:00:00Z"), comment(1, "2026-10-21T00:00:00Z"),  # two reports: failing
+                comment(2, "2026-10-21T00:00:00Z"),                                      # one report: not enough
+                comment(3, "2026-08-01T00:00:00Z"), comment(3, "2026-08-02T00:00:00Z"),  # too old: forgiven
+                {"body": "random chatter"}]
+    assert set(module.parse_comments(comments, 2, 30, now)) == {"1"}

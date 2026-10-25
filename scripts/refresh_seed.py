@@ -104,6 +104,7 @@ def refresh_hollywood_bollywood(env, data_dir):
     try:
         wait_ready(base, server)
         env = {**env, "HOME_DATA_DIR": str(data_dir), "HOME_API_BASE": base}
+        run([sys.executable, "maintenance/pull_nexstream_reports.py", str(data_dir)], env, cwd=BACKEND)
         run([sys.executable, str(ROOT / "scripts" / "build_regional_movie_cache.py")], env)
         warm_imdb_dataset(env)
         warm_tv_imdb(env)

@@ -1,3 +1,4 @@
+import { reportNexStreamFailure } from '../nexstreamReports.ts';
 import { fetchNexStreamEpisodeMetadata, nexStreamEpisodeCache, nexStreamEpisodeCacheKey, prefetchNexStreamEpisodeMetadata } from '../nexstream.ts';
 import { writeLocalCache } from '../helpers.ts';
 import { NexStreamTitle } from '../types.ts';
@@ -174,12 +175,15 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
           sourceName: String(source.name || 'NexStream'),
           url: String(source.url),
           type: item.type,
+          tmdbId: Number(item.id) || undefined,
           season,
           episode,
         });
       }
       setNexStreamError('');
     } catch (error: any) {
+      // NexStream itself said it cannot play this movie: tell the server so every user stops seeing Play for it.
+      if (item.type === 'movie') reportNexStreamFailure({ tmdbId: Number(item.id), title: item.title, year: String(item.date || '').slice(0, 4) }, 'resolve_failed');
       setNexStreamError(String(error?.message || 'Could not start NexStream playback.'));
     } finally {
       setNexStreamResolvingId(null);
