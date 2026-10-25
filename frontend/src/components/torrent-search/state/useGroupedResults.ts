@@ -94,8 +94,8 @@ export function useGroupedResults({ results, resolutionFilter, sizeSort, timeSor
       });
     }
 
-    // Classics: the user picks Year or Rating (IMDb), each newest/highest first by default.
-    if (activeFranchiseSearchMode === 'classics') {
+    // Every franchise section: the user picks Year or Rating (IMDb), each newest/highest first by default.
+    if (activeFranchiseSearchMode) {
       const ratingOf = (group: (typeof groups)[number]) => {
         const bare = String(group.title || '').replace(/\s*\(?(?:19|20)\d{2}\)?\s*$/, '').trim();
         return ratingValue(imdbRatingsByKey[imdbRatingKey(bare, group.year, 'movie')] || imdbRatingsByKey[imdbRatingKey(group.title, group.year, 'movie')]);

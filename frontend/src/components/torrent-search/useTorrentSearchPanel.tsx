@@ -1,11 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo } from 'react';
-import { api, MovieCatalogueKey, TorrentSearchResult } from '../../api/client.ts';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { api, MovieCatalogueItem, MovieCatalogueKey, TorrentSearchResult } from '../../api/client.ts';
 import { setHighQualityPostersReady } from '../MovieCards.tsx';
 import { torrentResultKey } from './grouping.ts';
 import { CachedFranchiseSearchMode, persistImdbRatings, persistSearchAvailability, persistSearchMetadata, readFranchisePageCache, writeFranchisePageCache } from './persistentCaches.ts';
 import { readPosterTitleCache } from './posterCache.ts';
 import { lowQualityPosterUrl } from './posterUrls.ts';
 import { isDefaultClassicsSort } from './classicsSort.ts';
+import { REGIONAL_CACHED_PAGES, REGIONAL_CATALOGUE_PATTERN } from './state/useVisibleMovieCatalogue.ts';
 import { CachedFranchiseKey, FranchiseTmdbKey, RegionalCatalogueGroup, RegionalCatalogueMode, RegionalTvGroup, RegionalTvMode } from './types.ts';
 import { useNexStreamState } from './state/useNexStreamState.ts';
 import { useSearchMetadataState } from './state/useSearchMetadataState.ts';
@@ -146,7 +147,27 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     'dc-live-action': 'DC',
     'dc-animated': 'DC Animated',
   };
-  const { visibleMovieCatalogueItems, ottPendingCount } = useVisibleMovieCatalogue({ movieCatalogue, isMarvelEnglishResults, showMarvelWebSeries, marvelFilmFilter, isDcLiveActionEnglishResults, streamingOnly, ottAvailabilityForMovie, ottAvailability });
+  // Hollywood/Bollywood: a section-wide sort needs the three cached pages together. Fetch them quietly
+  // (stored files, fast path) and keep them as a pool the visible page is sliced from.
+  const [regionalPool, setRegionalPool] = useState<{ catalogue: string; rows: MovieCatalogueItem[] }>({ catalogue: '', rows: [] });
+  const regionalCatalogueKey = movieCatalogue && REGIONAL_CATALOGUE_PATTERN.test(movieCatalogue.catalogue) ? movieCatalogue.catalogue : '';
+  useEffect(() => {
+    if (!regionalCatalogueKey || isDefaultClassicsSort(classicsSort) || regionalPool.catalogue === regionalCatalogueKey) return;
+    let cancelled = false;
+    void (async () => {
+      const pages = Math.min(REGIONAL_CACHED_PAGES, Math.max(1, Number(movieCatalogue?.totalPages) || REGIONAL_CACHED_PAGES));
+      const rows: MovieCatalogueItem[] = [];
+      for (let page = 1; page <= pages && !cancelled; page += 1) {
+        try {
+          const data = await api.getMovieCatalogue(regionalCatalogueKey, page, true, undefined, 5, true);
+          rows.push(...(data.results || []).map(movie => ({ ...movie, posterUrl: lowQualityPosterUrl(movie.posterUrl || '', 'w185') })));
+        } catch { /* a missing page just leaves that page unsorted */ }
+      }
+      if (!cancelled && rows.length) setRegionalPool({ catalogue: regionalCatalogueKey, rows });
+    })();
+    return () => { cancelled = true; };
+  }, [regionalCatalogueKey, classicsSort.key, classicsSort.direction]);
+  const { visibleMovieCatalogueItems, ottPendingCount } = useVisibleMovieCatalogue({ movieCatalogue, isMarvelEnglishResults, showMarvelWebSeries, marvelFilmFilter, isDcLiveActionEnglishResults, streamingOnly, ottAvailabilityForMovie, ottAvailability, classicsSort, regionalPool: regionalPool.catalogue === regionalCatalogueKey ? regionalPool.rows : [], imdbRatingsByKey });
   const { preparingTorrentKey, setPreparingTorrentKey, playingTorrentKey, setPlayingTorrentKey, copiedTorrentKey, setCopiedTorrentKey, prepareWaitTitle, setPrepareWaitTitle, prepareWaitOpen, setPrepareWaitOpen, prepareError, setPrepareError, setFullTorrentTitle, setFullTorrentTitleKey, setFullTorrentTitleFading, fullTorrentTitleFadeTimerRef, fullTorrentTitleHideTimerRef, preparedByKeyRef } = usePrepareState();
   const { posterOverrides, setPosterOverrides, metadataPosterFailed, setMetadataPosterFailed, posterTitleCacheLoadedRef, posterLoadedRef, posterMetadataFailedRef, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterBackgroundActiveRef, posterBackgroundActiveKeysRef, posterBackgroundGenerationRef, posterBackgroundAttemptsRef, posterResolveCacheRef } = usePosterState();
   if (!posterTitleCacheLoadedRef.current) {
@@ -396,7 +417,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     setFranchiseGridPage(page);
     if (activeFranchiseSearchMode) void loadCachedFranchisePage(activeFranchiseSearchMode, page);
   }
-  const { sortedResults, groupedResults } = useGroupedResults({ results, resolutionFilter, sizeSort, timeSort, isMarvelEnglishResults, showMarvelWebSeries, marvelFilmFilter, activeFranchiseSearchMode, classicsSort, imdbRatingsByKey: activeFranchiseSearchMode === 'classics' && classicsSort.key === 'rating' ? imdbRatingsByKey : NO_RATINGS });
+  const { sortedResults, groupedResults } = useGroupedResults({ results, resolutionFilter, sizeSort, timeSort, isMarvelEnglishResults, showMarvelWebSeries, marvelFilmFilter, activeFranchiseSearchMode, classicsSort, imdbRatingsByKey: activeFranchiseSearchMode && classicsSort.key === 'rating' ? imdbRatingsByKey : NO_RATINGS });
   useFranchisePageEffect({ activeFranchiseSearchMode, franchiseGridPage, franchiseGridPageSize, error, groupedResults, searchAvailabilityByGroup, setSearchAvailabilityByGroup });
   useSynopsisPrefetch({ franchiseGridPage, franchiseGridPageSize, groupedResults, searchMetadata, setSearchMetadata, tvMetadataRequestedRef });
   usePosterEffects({ groupedResults, franchiseGridPage, franchiseGridPageSize, posterFirstPageReadyRef, setPosterFirstPageReady, previousPosterPageRef, movieCatalogue, posterFirstPageReady, queueOttLookups, posterBackgroundGenerationRef, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterBackgroundAttemptsRef, posterBackgroundActiveKeysRef, enqueuePosterBackgroundJobs, pendingPosterAction, setPendingPosterAction, prepareClickIntentRef, prepareTraceIdRef, setExpandedSearchGroupKey, searchMovieTorrents });
@@ -404,13 +425,13 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
   // Sorting the Classics by rating or oldest-first needs every page, not just the visible one:
   // fetch the remaining cached pages one after another (cheap, they are stored files).
   useEffect(() => {
-    if (activeFranchiseSearchMode !== 'classics' || isDefaultClassicsSort(classicsSort)) return;
+    if (!activeFranchiseSearchMode || isDefaultClassicsSort(classicsSort)) return;
     const totalPages = Math.ceil(catalogueExpectedTitles / franchiseGridPageSize);
     if (totalPages <= 1) return;
     let cancelled = false;
     void (async () => {
-      for (let page = 2; page <= totalPages && !cancelled; page += 1) {
-        await loadCachedFranchisePage('classics', page, true);
+      for (let page = 1; page <= totalPages && !cancelled; page += 1) {
+        await loadCachedFranchisePage(activeFranchiseSearchMode, page, true);
       }
     })();
     return () => { cancelled = true; };
@@ -424,7 +445,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       .map((item: any) => ({ title: item.title, year: item.date ? String(item.date).slice(0, 4) : null }));
     return [...fromCatalogue, ...fromNexStream].filter(item => item.title);
   }, [regionalWebSeriesCatalogue, dcWebSeriesCatalogue, marvelWebSeriesCatalogue, nexStreamResults]);
-  useCatalogueDetailsPrefetch({ rateAllGroups: activeFranchiseSearchMode === 'classics' && classicsSort.key === 'rating', tvItems: tvItemsForImdb, franchiseGridPage, franchiseGridPageSize, movieCatalogue, groupedResults, searchMetadata, imdbRatingsByKey, imdbRatingRequestedRef, imdbRetryCountRef, setImdbRetryTick, imdbInFlightRef, setImdbRatingsByKey, imdbRetryTick, visibleMovieCatalogueItems });
+  useCatalogueDetailsPrefetch({ extraMovieItems: classicsSort.key === 'rating' && regionalPool.catalogue === regionalCatalogueKey ? regionalPool.rows : [], rateAllGroups: Boolean(activeFranchiseSearchMode) && classicsSort.key === 'rating', tvItems: tvItemsForImdb, franchiseGridPage, franchiseGridPageSize, movieCatalogue, groupedResults, searchMetadata, imdbRatingsByKey, imdbRatingRequestedRef, imdbRetryCountRef, setImdbRetryTick, imdbInFlightRef, setImdbRatingsByKey, imdbRetryTick, visibleMovieCatalogueItems });
   const clearTmdbCacheAndReload = async () => {
     const currentCatalogue = movieCatalogue;
     const key = currentCatalogue?.catalogue || tmdbFranchiseKey;
