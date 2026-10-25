@@ -46,7 +46,10 @@ async def rebuild_tv() -> None:
 
 
 async def main() -> None:
-    await catalogues_extra._build_extra_catalogue("classics")
+    built = await catalogues_extra._build_extra_catalogue("classics")
+    rows = (built or {}).get("results") or [] if isinstance(built, dict) else []
+    kill = sorted({str(r.get("title")) for r in rows if "kill bill" in str(r.get("title") or "").casefold()})
+    print(f"classics movies: {len(rows)} rows; Kill Bill titles: {kill or 'NONE'}", flush=True)
     await rebuild_tv()
 
 
