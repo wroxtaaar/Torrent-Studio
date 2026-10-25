@@ -45,6 +45,17 @@ export function useMovieTorrentSearch({ prepareClickIntentRef, prepareTraceIdRef
     movieTorrentSearchControllerRef.current = controller;
     const generation = ++movieTorrentSearchGenerationRef.current;
 
+    // A title with no torrent but a NexStream stream still gets a Prepare card, with only the Play button.
+    const openNexStreamOnlyCard = (): boolean => {
+      if (movie.nexStreamPlayable === false || !Number(movie.tmdbId || movie.id)) return false;
+      const stub = { title: movie.title, mediaTitle: movie.title, posterUrl: movie.posterUrl || undefined, tmdbId: movie.tmdbId || movie.id, id: movie.tmdbId || movie.id, year: movie.year || undefined } as unknown as TorrentSearchResult;
+      const group: TorrentQualityGroup = { key: 'nexstream-only:' + String(movie.id), title: movie.title, year: String(movie.year || ''), variants: [], posterResult: stub };
+      setSelectedMovieTorrentQualityByGroup({});
+      setMovieTorrentPreviewGroup(group);
+      setMovieTorrentPreviewCatalogueId(previewIdentity);
+      setMovieTorrentPickerGroups(null);
+      return true;
+    };
     setMovieTorrentSearchTitle(titleQuery);
     setMovieTorrentPreviewCatalogueId(previewIdentity);
     setMovieTorrentPreviewPosterUrl(
@@ -105,7 +116,7 @@ export function useMovieTorrentSearch({ prepareClickIntentRef, prepareTraceIdRef
         if (!/^(popular|trending|latest)-(bollywood|hollywood)$/.test(String(movieCatalogue?.catalogue || ''))) {
           startPosterBackgroundSearch(selectedGroup.variants);
         }
-      } else {
+      } else if (!openNexStreamOnlyCard()) {
         setMovieTorrentSearchError('No usable torrent releases were found for ' + titleQuery + '. Try again later or use a shorter title.');
       }
       setMovieTorrentSearchLoading(false);
@@ -245,6 +256,7 @@ export function useMovieTorrentSearch({ prepareClickIntentRef, prepareTraceIdRef
       }
 
       if (groups.length === 0) {
+        if (openNexStreamOnlyCard()) return;
         if (movieCatalogue?.catalogue === 'popular-bollywood') {
           setMovieTorrentSearchError('Coming soon on OTT — this title is not available to prepare right now. Check back later for a streaming release.');
         } else {

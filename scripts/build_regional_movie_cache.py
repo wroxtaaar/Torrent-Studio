@@ -274,7 +274,7 @@ def build_movies(old):
                 if nexstream_likely(entry["movie"]):
                     movie = {**movie, "nexStreamPlayable": True}  # keep the reason it is shown
                 else:
-                    movie = {k: v for k, v in movie.items() if k != "nexStreamPlayable"}
+                    movie = {**movie, "nexStreamPlayable": False}  # shown for its torrent only: no NexStream button
                 final.append(movie)
                 if len(final) % 10 == 0:
                     print(json.dumps({"event": "progress", "catalogue": cat, "shown": len(final), "checked": checked}), flush=True)

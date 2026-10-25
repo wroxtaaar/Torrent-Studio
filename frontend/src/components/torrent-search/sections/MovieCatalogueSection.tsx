@@ -83,9 +83,10 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
               const movieTitleHref = imdbTitleLink(movieImdb, movie.title, movie.year);
 
               if (previewGroup) {
-                const selectedKey = selectedMovieTorrentQualityByGroup[previewGroup.key] || torrentResultKey(previewGroup.variants[0]);
+                const selectedKey = selectedMovieTorrentQualityByGroup[previewGroup.key] || (previewGroup.variants[0] ? torrentResultKey(previewGroup.variants[0]) : '');
                 const result = previewGroup.variants.find(variant => torrentResultKey(variant) === selectedKey) || previewGroup.variants[0];
-                const prepareState = prepareStateFor(result);
+                // No torrent for this title: the card shows only the NexStream Play button.
+                const prepareState = prepareStateFor(result || previewGroup.posterResult);
                 // Keep the catalogue poster as the source of truth for the
                 // inline Prepare card; torrent-result poster metadata is often absent
                 // or delayed and must not replace the movie's known poster.
@@ -150,9 +151,9 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                       }
                     }}
                     imdb={movieImdb}
-                    seeders={result.seeders}
-                    indexer={result.indexer}
-                    quality={extractedQuality(result)}
+                    seeders={result?.seeders}
+                    indexer={result?.indexer}
+                    quality={result ? extractedQuality(result) : undefined}
                     title={movie.title}
                     titleHref={movieTitleHref}
                     year={movie.year || previewGroup.year}
@@ -167,11 +168,11 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                         label: `${quality.label} · ${size} · ▲${seeds}${provider ? ` · ${provider}` : ''}`,
                       };
                     })}
-                    selectedVariantKey={torrentResultKey(result)}
+                    selectedVariantKey={result ? torrentResultKey(result) : ''}
                     onSelectVariant={key => setSelectedMovieTorrentQualityByGroup(previous => ({ ...previous, [previewGroup.key]: key }))}
                     variantsAriaLabel={`Choose quality for ${previewGroup.title}`}
-                    prepared={prepareState.primaryFile ? preparedActionsFor(prepareState.torrentKey, prepareState.primaryFile) : null}
-                    directStream={{
+                    prepared={result && prepareState.primaryFile ? preparedActionsFor(prepareState.torrentKey, prepareState.primaryFile) : null}
+                    directStream={movie.nexStreamPlayable === false ? undefined : {
                       disabled: !Number(movie.tmdbId || movie.id) || nexStreamResolvingId === nexStreamMovieId,
                       label: nexStreamResolvingId === nexStreamMovieId ? 'Resolving…' : 'Direct Stream',
                       onClick: () => {
@@ -190,7 +191,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                         });
                       },
                     }}
-                    prepare={{
+                    prepare={!result ? undefined : {
                       isPreparing: prepareState.isPreparing,
                       disabled: !prepareState.source || prepareState.isPreparing,
                       onClick: () => void prepareMovieTorrent(result),
