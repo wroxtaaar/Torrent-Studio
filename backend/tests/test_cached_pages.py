@@ -40,3 +40,6 @@ def test_three_cached_pages_then_live_pages_continue_without_repeats():
     served = [i for page in out["final"] for i in page["ids"]]
     assert served == [7000 + i for i in range(54)]
     assert all(page["totalPages"] == 4 for page in out["final"])
+    # The fast first paint serves the same stored rows at once (no enrichment wait) and still reports page 4.
+    assert out["fast"]["ids"] == [7000 + i for i in range(18, 36)]
+    assert out["fast"]["basic"] is True and out["fast"]["totalPages"] == 4

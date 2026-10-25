@@ -2,7 +2,7 @@ import React from 'react';
 import { Check, Copy, Database, Download, Film, Loader2, Play, Users, X } from 'lucide-react';
 import type { ImdbRatingResult } from '../api/client.ts';
 import { MovieCatalogueCard } from './MovieCatalogueCard.tsx';
-import { PosterEventHandler, normalizeLowQualityPosterUrl, requestHighQualityPoster } from './movie-cards/posterUpgrade.ts';
+import { PosterEventHandler, normalizeLowQualityPosterUrl, requestHighQualityPoster, resizeKnownPosterHost } from './movie-cards/posterUpgrade.ts';
 
 // Kept here so existing imports of these helpers from MovieCards keep working.
 export { requestHighQualityPoster, setHighQualityPostersReady } from './movie-cards/posterUpgrade.ts';
@@ -138,6 +138,12 @@ export const MovieCompactCard: React.FC<MovieCompactCardProps> = ({
                         if (image.src.includes('/t/p/w780/')) {
                           image.dataset.posterQuality = 'low-retrying';
                           image.src = image.src.replace('/t/p/w780/', '/t/p/w185/');
+                          return;
+                        }
+                        const lowVariant = resizeKnownPosterHost(image.src, 'low');
+                        if (lowVariant && lowVariant !== image.src) {
+                          image.dataset.posterQuality = 'low-retrying';
+                          image.src = lowVariant;
                           return;
                         }
                       }
@@ -335,6 +341,12 @@ export const MoviePrepareCard: React.FC<MoviePrepareCardProps> = ({
                         if (image.src.includes('/t/p/w780/')) {
                           image.dataset.posterQuality = 'low-retrying';
                           image.src = image.src.replace('/t/p/w780/', '/t/p/w185/');
+                          return;
+                        }
+                        const lowVariant = resizeKnownPosterHost(image.src, 'low');
+                        if (lowVariant && lowVariant !== image.src) {
+                          image.dataset.posterQuality = 'low-retrying';
+                          image.src = lowVariant;
                           return;
                         }
                       }

@@ -3,8 +3,10 @@ import searchLimits from '../../../../search_limits.json';
 import { groupTorrentResults, normalizeGroupTitle, releaseDateSortValue, torrentGroupReleaseYear, torrentQualityDetails } from '../grouping.ts';
 import { useCatalogueNavigationState } from './useCatalogueNavigationState.ts';
 import { useSearchInputState } from './useSearchInputState.ts';
+import { ClassicsSort, classicsComparator, ratingValue } from '../classicsSort.ts';
+import { imdbRatingKey } from '../grouping.ts';
 
-export function useGroupedResults({ results, resolutionFilter, sizeSort, timeSort, isMarvelEnglishResults, showMarvelWebSeries, marvelFilmFilter, activeFranchiseSearchMode }: Pick<ReturnType<typeof useSearchInputState>, 'results' | 'resolutionFilter' | 'sizeSort' | 'timeSort'> & Pick<ReturnType<typeof useCatalogueNavigationState>, 'isMarvelEnglishResults' | 'showMarvelWebSeries' | 'marvelFilmFilter' | 'activeFranchiseSearchMode'>) {
+export function useGroupedResults({ results, resolutionFilter, sizeSort, timeSort, isMarvelEnglishResults, showMarvelWebSeries, marvelFilmFilter, activeFranchiseSearchMode, classicsSort, imdbRatingsByKey }: { classicsSort: ClassicsSort; imdbRatingsByKey: Record<string, { imdbRating?: number | string | null } | undefined> } & Pick<ReturnType<typeof useSearchInputState>, 'results' | 'resolutionFilter' | 'sizeSort' | 'timeSort'> & Pick<ReturnType<typeof useCatalogueNavigationState>, 'isMarvelEnglishResults' | 'showMarvelWebSeries' | 'marvelFilmFilter' | 'activeFranchiseSearchMode'>) {
   const sortedResults = useMemo(() => {
     // Use the shared root search_limits.json settings. Keep both bounds local
     // to this memo: the manual-search handler has its own separate scope.
@@ -92,6 +94,20 @@ export function useGroupedResults({ results, resolutionFilter, sizeSort, timeSor
       });
     }
 
+    // Classics: the user picks Year or Rating (IMDb), each newest/highest first by default.
+    if (activeFranchiseSearchMode === 'classics') {
+      const ratingOf = (group: (typeof groups)[number]) => {
+        const bare = String(group.title || '').replace(/\s*\(?(?:19|20)\d{2}\)?\s*$/, '').trim();
+        return ratingValue(imdbRatingsByKey[imdbRatingKey(bare, group.year, 'movie')] || imdbRatingsByKey[imdbRatingKey(group.title, group.year, 'movie')]);
+      };
+      return [...groups].sort(classicsComparator(
+        classicsSort,
+        group => releaseDateSortValue(group.posterResult),
+        ratingOf,
+        group => normalizeGroupTitle(group.title),
+      ));
+    }
+
     // Sort whole movie groups, never individual torrent variants.
     return [...groups].sort((a, b) => {
       if (activeFranchiseSearchMode) {
@@ -106,7 +122,7 @@ export function useGroupedResults({ results, resolutionFilter, sizeSort, timeSor
       if (yearA !== yearB) return yearB - yearA;
       return normalizeGroupTitle(a.title).localeCompare(normalizeGroupTitle(b.title), undefined, { numeric: true });
     });
-  }, [sortedResults, activeFranchiseSearchMode, isMarvelEnglishResults, showMarvelWebSeries, marvelFilmFilter]);
+  }, [sortedResults, activeFranchiseSearchMode, isMarvelEnglishResults, showMarvelWebSeries, marvelFilmFilter, classicsSort, imdbRatingsByKey]);
 
   return {
     sortedResults,

@@ -1014,6 +1014,8 @@ _EXTRA_CATALOGUES["classics"] = {
         ("Skyscraper", 2018),
         ("Sherlock Holmes", 2009),
         ("Sherlock Holmes: A Game of Shadows", 2011),
+        ("Kill Bill: Vol. 1", 2003),
+        ("Kill Bill: Vol. 2", 2004),
     ],
 }
 _EXTRA_CATALOGUES["marvel-hindi"] = {

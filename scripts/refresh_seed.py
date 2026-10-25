@@ -37,6 +37,7 @@ GROUPS = {
             "marvel_catalogue.json", "marvel_hindi_catalogue.json", "marvel_web_series_catalogue.json",
             "dc_live_action_catalogue.json", "dc_live_action_hindi_catalogue.json",
             "dc_animated_catalogue.json", "classics_catalogue.json",
+            "classics_web_series_tv_catalogue.json", "classics_anime_tv_catalogue.json",
         ],
         "runtime": SHARED_RUNTIME + ["marvel_tv_catalogue_cache.json", "dc_tv_catalogue_cache.json"],
     },
@@ -126,6 +127,8 @@ def warm_imdb_dataset(env):
 
 
 def refresh_franchise(env, data_dir):
+    # Titles added to the Classics lists get searched/resolved first; everything already stored is kept.
+    run([sys.executable, "maintenance/rebuild_classics.py"], env, cwd=BACKEND)
     run([sys.executable, "maintenance/refresh_franchise_ott.py", "--region", "IN"], env, cwd=BACKEND)
     run([sys.executable, "-c",
          "import asyncio; from catalogues import catalogues_extra as c; asyncio.run(c._enrich_catalogue_synopses())"],

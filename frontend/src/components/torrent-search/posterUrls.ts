@@ -1,4 +1,5 @@
 import { API_BASE, TorrentSearchResult } from '../../api/client.ts';
+import { resizeKnownPosterHost } from '../movie-cards/posterUpgrade.ts';
 
 export const posterKeyFor = (result: TorrentSearchResult) =>
   String(
@@ -26,7 +27,7 @@ export const lowQualityPosterUrl = (value: unknown, size: 'w185' | 'w342' | 'w50
       parsed.searchParams.set('size', size === 'w780' ? 'w780' : 'w185');
       return parsed.toString();
     }
-    if (parsed.hostname !== 'image.tmdb.org') return url;
+    if (parsed.hostname !== 'image.tmdb.org') return resizeKnownPosterHost(url, 'low') || url;
     parsed.pathname = parsed.pathname.replace(/\/t\/p\/(?:original|w780|w500|w185|w342|w300|w200|w154|w92)\//, '/t/p/' + size + '/');
     return parsed.toString();
   } catch {

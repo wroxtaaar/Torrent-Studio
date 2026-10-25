@@ -1110,7 +1110,7 @@ async def api_tmdb_movie_catalogue(
         # NexStream playback marked on each title instead of being used to drop titles.
         return await _live_regional_candidates(catalogue_key, page)
     payload = await _api_tmdb_movie_catalogue(catalogue_key, page, released_only, max_size_gb, basic)
-    if not basic and released_only and catalogue_key in REGIONAL_MOVIE_CATALOGUE_KEYS:
+    if released_only and catalogue_key in REGIONAL_MOVIE_CATALOGUE_KEYS and (not basic or payload.get("prebuilt")):
         return _with_more_pages(payload, page)
     return payload
 
@@ -1144,6 +1144,18 @@ async def _api_tmdb_movie_catalogue(
     if catalogue_key not in allowed:
         raise HTTPException(status_code=404, detail="Unknown movie catalogue.")
 
+    if (
+        basic and released_only and catalogue_key in REGIONAL_MOVIE_CATALOGUE_KEYS
+        and page <= REGIONAL_MOVIE_PREWARM_PAGES
+        and not _REGIONAL_MOVIE_CATALOGUE_FORCE_REFRESH.get()
+    ):
+        # Cached pages: the finished rows go out as they are stored (they already carry their
+        # synopsis, poster, ratings and streaming info), so the page paints at once. The full
+        # call afterwards only refreshes the enrichment.
+        final_page = _prebuilt_final_page(catalogue_key, page)
+        if final_page is not None:
+            _record_cache_event("movie_catalogue", "bundled_final_fast_hit")
+            return {**final_page, "basic": True, "prebuilt": True}
     if basic:
         # Fast first paint for deep pages: return basic source metadata immediately;
         # the frontend replaces this with the fully eligible/enriched page.

@@ -60,4 +60,6 @@ with TestClient(main.app, raise_server_exceptions=False) as client:
     for page in (1, 2, 3):
         body = client.get(f"/api/movies/catalogue/latest-hollywood?page={page}").json()
         out["final"].append({"ids": [x["id"] for x in body.get("results", [])], "totalPages": body.get("totalPages")})
+    body = client.get("/api/movies/catalogue/latest-hollywood?page=2&basic=true").json()
+    out["fast"] = {"ids": [x["id"] for x in body.get("results", [])], "basic": body.get("basic"), "totalPages": body.get("totalPages")}
 print("RESULT " + json.dumps(out))

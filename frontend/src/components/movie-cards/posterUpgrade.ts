@@ -33,6 +33,34 @@ if (typeof document !== 'undefined') {
   document.addEventListener('touchstart', notePosterUserActivity, { passive: true });
 }
 
+/**
+ * Direct IMDb/Amazon and Metahub poster links can also be requested small first.
+ * Amazon: '..._V1_.jpg' is the full-size original; '_V1_UX185_.jpg' / '_V1_UX500_.jpg' are resized.
+ * Metahub: '/poster/small/' vs '/poster/medium/'. Returns null for any other host or shape.
+ */
+export function resizeKnownPosterHost(value: string, quality: 'low' | 'high'): string | null {
+  const url = String(value || '').trim();
+  if (!url) return null;
+  try {
+    const parsed = new URL(url, window.location.origin);
+    const host = parsed.hostname.toLowerCase();
+    if (host.endsWith('media-amazon.com')) {
+      const marker = '._V1_';
+      const at = parsed.pathname.indexOf(marker);
+      if (at < 0) return null;
+      parsed.pathname = parsed.pathname.slice(0, at) + marker + (quality === 'low' ? 'UX185_' : 'UX500_') + '.jpg';
+      return parsed.toString();
+    }
+    if (host === 'images.metahub.space' && /\/poster\/(?:small|medium)\//.test(parsed.pathname)) {
+      parsed.pathname = parsed.pathname.replace(/\/poster\/(?:small|medium)\//, '/poster/' + (quality === 'low' ? 'small' : 'medium') + '/');
+      return parsed.toString();
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export function normalizeLowQualityPosterUrl(value: string): string {
   const url = String(value || '').trim();
   if (!url) return '';
@@ -47,6 +75,9 @@ export function normalizeLowQualityPosterUrl(value: string): string {
         /\/t\/p\/(?:original|w780|w500|w342|w300|w200|w185|w154|w92)\//,
         '/t/p/w185/',
       );
+    } else {
+      const resized = resizeKnownPosterHost(url, 'low');
+      if (resized) return resized;
     }
     return parsed.toString();
   } catch {
@@ -104,6 +135,17 @@ export function upgradeToHighQualityPoster(image: HTMLImageElement): boolean {
     }
   } catch {
     // Fall through to the direct TMDB URL handling below.
+  }
+  const resizedHigh = resizeKnownPosterHost(current, 'high');
+  if (resizedHigh && resizedHigh !== current && resizeKnownPosterHost(current, 'low') === current) {
+    image.fetchPriority = 'low';
+    image.loading = 'lazy';
+    image.dataset.highQualityTried = 'true';
+    image.dataset.posterQuality = 'high-pending';
+    image.src = resizedHigh;
+    upgradedHighQualityPosters.add(image);
+    highQualityUpgradeInFlight = true;
+    return true;
   }
   if (!current.includes('image.tmdb.org') || !/\/t\/p\/w185\//.test(current)) return false;
   image.fetchPriority = 'low';

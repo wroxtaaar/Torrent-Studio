@@ -3,6 +3,7 @@ import { MovieCataloguePage } from '../../../api/client.ts';
 import { CachedFranchiseSearchMode } from '../persistentCaches.ts';
 import { ActiveTopSection, CachedFranchiseKey, ClassicsContentTab, FranchiseTmdbKey, MainCatalogueMenu, MarvelFilmFilter, RegionalCatalogueGroup, RegionalCatalogueMode, RegionalContentTab, RegionalTvGroup, RegionalTvMode } from '../types.ts';
 import { useOttAvailability } from '../useOttAvailability.ts';
+import { ClassicsSort, DEFAULT_CLASSICS_SORT } from '../classicsSort.ts';
 
 export function useCatalogueNavigationState() {
   const [isSearching, setIsSearching] = useState(false);
@@ -21,6 +22,7 @@ export function useCatalogueNavigationState() {
   const [regionalContentTabs, setRegionalContentTabs] = useState<Record<RegionalCatalogueGroup, RegionalContentTab>>({ bollywood: null, hollywood: null });
   const [marvelContentTab, setMarvelContentTab] = useState<RegionalContentTab>(null);
   const [classicsContentTab, setClassicsContentTab] = useState<ClassicsContentTab>('movies');
+  const [classicsSort, setClassicsSort] = useState<ClassicsSort>(DEFAULT_CLASSICS_SORT);
   const [activeFranchiseSearchMode, setActiveFranchiseSearchMode] = useState<CachedFranchiseSearchMode | null>(null);
   const franchisePageRequestRef = useRef<AbortController | null>(null);
   const franchisePageGenerationRef = useRef(0);
@@ -83,6 +85,8 @@ export function useCatalogueNavigationState() {
     setMarvelContentTab,
     classicsContentTab,
     setClassicsContentTab,
+    classicsSort,
+    setClassicsSort,
     activeFranchiseSearchMode,
     setActiveFranchiseSearchMode,
     franchisePageRequestRef,
