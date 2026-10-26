@@ -39,6 +39,19 @@ async def main() -> None:
     for kind, languages, countries in (("movies", "hi", "in"), ("movies", "hi", None), ("shows", "hi", None), ("movies", "en", None)):
         await step(f"trending {kind} languages={languages} countries={countries}",
                    trakt.trakt_trending(kind, languages=languages, countries=countries, limit=10))
+    slug = "/users/apollocat/lists/trending-bollywood-movies"
+    await step("list info (updated_at, item_count, likes)", trakt.trakt_get(slug))
+    for kind in ("shows", "movies"):
+        async def titles(kind=kind):
+            data = await trakt.trakt_get(f"{slug}/items/{kind}", {"limit": 15, "sort_by": "rank"})
+            if not isinstance(data, list):
+                return data
+            out = []
+            for row in data:
+                item = row.get(row.get("type") or kind[:-1]) or {}
+                out.append((row.get("rank"), row.get("listed_at", "")[:10], item.get("title"), item.get("year"), (item.get("ids") or {}).get("tmdb")))
+            return out
+        await step(f"list items: {kind} (rank, listed_at, title, year, tmdb)", titles())
     await step("movie details (Inception, extended=full)", trakt.trakt_get("/movies/tt1375666", {"extended": "full"}))
     await step("movie ratings (Inception)", trakt.trakt_get("/movies/tt1375666/ratings"))
     await step("rating helper", trakt.trakt_rating("movies", imdb_id="tt1375666"))
