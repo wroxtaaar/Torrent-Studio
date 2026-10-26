@@ -36,6 +36,7 @@ from core.http_cache import (
 )
 from metadata.imdb import _get_imdb_rating_record
 from integrations.nexstream import nexstream_api_key_configured, resolve_nexstream_movie
+from integrations.mdblist import BOLLYWOOD_TRENDING_LIST, mdblist_list_items
 from integrations.trakt import trakt_trending
 from core.json_cache import read_json_cached
 from core.settings import (
@@ -389,6 +390,12 @@ async def _trakt_trending_tmdb_items(language_code: str) -> list[dict[str, Any]]
         if entry["tmdbId"] not in seen_ids:
             seen_ids.add(entry["tmdbId"])
             entries.append(entry)
+    if language_code == "hi":
+        # MDBList's daily IMDb-based Bollywood list (it also holds Tamil/Telugu films: keep Hindi ones only).
+        listed = [{"tmdbId": row["tmdbId"]} for row in await mdblist_list_items(BOLLYWOOD_TRENDING_LIST, "movies", 60)
+                  if row["language"] == "hi"][:40]
+        known = {entry["tmdbId"] for entry in listed}
+        entries = listed + [entry for entry in entries if entry["tmdbId"] not in known]
     if not entries:
         return []
     semaphore = asyncio.Semaphore(4)
@@ -401,6 +408,8 @@ async def _trakt_trending_tmdb_items(language_code: str) -> list[dict[str, Any]]
                 return None
         if not isinstance(item, dict) or not item.get("id"):
             return None
+        if str(item.get("original_language") or "").lower() != language_code:
+            return None  # e.g. a Hindi-dubbed Hollywood film
         item = dict(item)
         item.setdefault("genre_ids", [g.get("id") for g in item.get("genres") or [] if isinstance(g, dict)])
         item["viaTrakt"] = True

@@ -76,3 +76,53 @@ async def mdblist_imdb_rating(media_type: str, *, tmdb_id: int = 0, imdb_id: str
         return parse_imdb_rating(response.json())
     except ValueError:
         return None
+
+
+_LIST_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+BOLLYWOOD_TRENDING_LIST = "apollocat/trending-bollywood-movies"  # IMDb-based, refreshed daily by MDBList
+
+
+def parse_list_items(payload: Any, kind: str = "movies") -> list[dict[str, Any]]:
+    """[{title, year, tmdbId, language, rank}] from an MDBList list-items response, in list order."""
+    rows = payload.get(kind) if isinstance(payload, dict) else None
+    out: list[dict[str, Any]] = []
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict):
+            continue
+        ids = row.get("ids") if isinstance(row.get("ids"), dict) else {}
+        raw = row.get("id") or ids.get("tmdb")
+        if not str(raw or "").isdigit() or int(raw) <= 0:
+            continue
+        out.append({"title": row.get("title"), "year": row.get("release_year") or row.get("year"),
+                    "tmdbId": int(raw), "language": str(row.get("language") or "").lower(), "rank": row.get("rank")})
+    out.sort(key=lambda item: (item["rank"] is None, item["rank"] or 0))
+    return out
+
+
+async def mdblist_list_items(list_path: str, kind: str = "movies", limit: int = 100) -> list[dict[str, Any]]:
+    """Items of an MDBList list ("user/slug"); [] when not configured, in CACHE_ONLY_MODE, or on any failure."""
+    global _cursor
+    keys = mdblist_keys()
+    if CACHE_ONLY_MODE or not keys or time.time() < _blocked_until:
+        return []
+    cache_key = f"{list_path}|{kind}|{limit}"
+    hit = _LIST_CACHE.get(cache_key)
+    if hit and time.time() - hit[0] < 3600:
+        return hit[1]
+    key = keys[_cursor % len(keys)]
+    _cursor += 1
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=4.0)) as client:
+            response = await client.get(f"{MDBLIST_BASE}/lists/{list_path}/items", params={"apikey": key, "limit": limit})
+    except httpx.HTTPError as exc:
+        logger.info("MDBList list %s failed: %s", list_path, type(exc).__name__)
+        return []
+    if response.status_code != 200:
+        return []
+    try:
+        items = parse_list_items(response.json(), kind)
+    except ValueError:
+        return []
+    if items:
+        _LIST_CACHE[cache_key] = (time.time(), items)
+    return items
