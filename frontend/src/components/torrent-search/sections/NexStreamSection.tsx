@@ -117,7 +117,7 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
           {nexStreamPlayer && (
             <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/85 p-2 sm:p-5">
               <div className="relative flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-violet-400/40 bg-slate-950 shadow-2xl">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3 pr-14">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3 pr-24">
                 <div className="min-w-0">
                   <div className="truncate text-xs font-bold text-slate-100">{nexStreamPlayer.title}{nexStreamPlayer.year ? ' (' + nexStreamPlayer.year + ')' : ''}</div>
                 </div>
@@ -131,29 +131,22 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
                     Not playing? Report
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const box = document.getElementById('nexstream-player-container');
-                    if (document.fullscreenElement) { void document.exitFullscreen(); return; }
-                    // Fullscreen our own box: it works even when the player inside the frame cannot go fullscreen.
-                    if (box?.requestFullscreen) { void box.requestFullscreen().catch(() => window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer')); }
-                    else { window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer'); }
-                  }}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-violet-400/40 px-3 py-2 text-xs font-semibold text-violet-200 hover:bg-violet-500/15"
-                  title="Make the player fill the screen (press Esc to leave)"
-                >
-                  <Maximize2 className="h-4 w-4" /> Full screen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer')}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-violet-400/40 px-3 py-2 text-xs font-semibold text-violet-200 hover:bg-violet-500/15"
-                  title="Open the player in a new tab"
-                >
-                  <Maximize2 className="h-4 w-4" /> New tab
-                </button>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const box = document.getElementById('nexstream-player-container');
+                  if (document.fullscreenElement) { void document.exitFullscreen(); return; }
+                  // Fullscreen our own box: it works even when the player inside the frame cannot go fullscreen.
+                  if (box?.requestFullscreen) { void box.requestFullscreen().catch(() => window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer')); }
+                  else { window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer'); }
+                }}
+                className="absolute right-12 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900/95 text-slate-200 shadow-lg hover:bg-slate-700"
+                aria-label="Full screen"
+                title="Full screen (press Esc to leave)"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </button>
               <button
                 type="button"
                 onClick={() => setNexStreamPlayer(null)}
