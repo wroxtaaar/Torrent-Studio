@@ -14,22 +14,37 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from integrations import mdblist, trakt  # noqa: E402
 
 
+async def step(label: str, coro, limit: float = 25.0) -> None:
+    """Run one probe step; a slow or failing call is reported, never allowed to stop the rest."""
+    print(f"-> {label} ...", flush=True)
+    try:
+        result = await asyncio.wait_for(coro, limit)
+    except asyncio.TimeoutError:
+        print(f"   TIMED OUT after {limit:.0f}s", flush=True)
+        return
+    except Exception as exc:  # noqa: BLE001
+        print(f"   FAILED: {type(exc).__name__}: {exc}", flush=True)
+        return
+    if isinstance(result, (dict, list)):
+        text = json.dumps(result, indent=1)
+        print("  ", text[:900] + (" ..." if len(text) > 900 else ""), flush=True)
+    else:
+        print("  ", result, flush=True)
+
+
 async def main() -> None:
     if not trakt.trakt_client_ids():
         print("TRAKT_CLIENT_ID is not set.")
         return
-    for kind, languages, countries in (("movies", "hi", "in"), ("movies", "en", None), ("shows", "hi", "in")):
-        items = await trakt.trakt_trending(kind, languages=languages, countries=countries, limit=10)
-        print(f"trending {kind} languages={languages} countries={countries}: {len(items)}")
-        for item in items[:5]:
-            print("   ", item)
-    for path in ("/movies/tt1375666?extended=full", "/movies/tt1375666/ratings"):
-        data = await trakt.trakt_get(path.split("?")[0], {"extended": "full"} if "?" in path else None)
-        print(path, "->", json.dumps(data, indent=1)[:900] if data else data)
-    print("rating helper:", await trakt.trakt_rating("movies", imdb_id="tt1375666"))
+    for kind, languages, countries in (("movies", "hi", "in"), ("movies", "hi", None), ("shows", "hi", None), ("movies", "en", None)):
+        await step(f"trending {kind} languages={languages} countries={countries}",
+                   trakt.trakt_trending(kind, languages=languages, countries=countries, limit=10))
+    await step("movie details (Inception, extended=full)", trakt.trakt_get("/movies/tt1375666", {"extended": "full"}))
+    await step("movie ratings (Inception)", trakt.trakt_get("/movies/tt1375666/ratings"))
+    await step("rating helper", trakt.trakt_rating("movies", imdb_id="tt1375666"))
     if mdblist.mdblist_keys():
-        print("MDBList (Inception, TMDB 27205):", await mdblist.mdblist_imdb_rating("movie", tmdb_id=27205))
-        print("MDBList (Breaking Bad series, TMDB 1396):", await mdblist.mdblist_imdb_rating("tv", tmdb_id=1396))
+        await step("MDBList Inception (TMDB 27205)", mdblist.mdblist_imdb_rating("movie", tmdb_id=27205))
+        await step("MDBList Breaking Bad (TMDB 1396)", mdblist.mdblist_imdb_rating("tv", tmdb_id=1396))
     else:
         print("MDBLIST_API_KEY is not set: skipping the MDBList check.")
 
