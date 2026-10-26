@@ -4,7 +4,7 @@
 Reports are comments on one GitHub issue (see integrations/nexstream_reports.py). This reads them with
 the `gh` CLI, so the VPS needs no extra credentials. The file is rebuilt from the issue every run, so the
 issue itself is the durable store. A title counts as failing once it has NEXSTREAM_FAILURE_MIN_REPORTS
-reports (default 2) and its newest one is younger than NEXSTREAM_FAILURE_DAYS (default 30), after which
+reports (default 1: a single report counts) and its newest one is younger than NEXSTREAM_FAILURE_DAYS (default 30), after which
 it is given another chance.
 
     python maintenance/pull_nexstream_reports.py OUTPUT_DIR
@@ -66,7 +66,7 @@ def main() -> int:
         return 0
     movies = parse_comments(
         comments,
-        int(os.getenv("NEXSTREAM_FAILURE_MIN_REPORTS", "2")),
+        int(os.getenv("NEXSTREAM_FAILURE_MIN_REPORTS", "1")),
         int(os.getenv("NEXSTREAM_FAILURE_DAYS", "30")),
     )
     target.write_text(json.dumps({"movies": movies}, ensure_ascii=False, indent=1), encoding="utf-8")
