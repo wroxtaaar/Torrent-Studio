@@ -36,6 +36,7 @@ from core.http_cache import (
 )
 from metadata.imdb import _get_imdb_rating_record
 from integrations.nexstream import nexstream_api_key_configured, resolve_nexstream_movie
+from integrations.trakt import trakt_trending
 from core.json_cache import read_json_cached
 from core.settings import (
     BACKFILL_MISSING_METADATA,
@@ -234,6 +235,10 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
                     and str(row.get("original_language") or "").lower() == language_code
                 ],
             }
+            if page == 1:
+                # Trakt's trending list is mixed in with TMDB's (a title in both appears once).
+                trakt_items = await _trakt_trending_tmdb_items(language_code)
+                payload = {**payload, "results": _interleave_unique(payload.get("results") or [], trakt_items)}
         else:
             params["with_original_language"] = language_code
             params["sort_by"] = (
@@ -370,6 +375,47 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
         "results": results,
         "attribution": "This product uses the TMDB API but is not endorsed or certified by TMDB.",
     }
+
+
+async def _trakt_trending_tmdb_items(language_code: str) -> list[dict[str, Any]]:
+    """Trakt's trending movies for this language as TMDB movie records (empty when Trakt is not configured)."""
+    entries = await trakt_trending("movies", languages=language_code, countries="in" if language_code == "hi" else None, limit=40)
+    if not entries:
+        return []
+    semaphore = asyncio.Semaphore(4)
+
+    async def load(entry: dict[str, Any]) -> dict[str, Any] | None:
+        async with semaphore:
+            try:
+                item = await _tmdb_get_json(f"movie/{entry['tmdbId']}", {"language": "en-US"})
+            except HTTPException:
+                return None
+        if not isinstance(item, dict) or not item.get("id"):
+            return None
+        item = dict(item)
+        item.setdefault("genre_ids", [g.get("id") for g in item.get("genres") or [] if isinstance(g, dict)])
+        item["viaTrakt"] = True
+        return item
+
+    loaded = await asyncio.gather(*(load(entry) for entry in entries), return_exceptions=True)
+    return [item for item in loaded if isinstance(item, dict)]
+
+
+def _interleave_unique(first: list[Any], second: list[Any]) -> list[Any]:
+    """TMDB and Trakt results alternately, each title once (same TMDB id)."""
+    seen: set[Any] = set()
+    out: list[Any] = []
+    for index in range(max(len(first), len(second))):
+        for source in (first, second):
+            if index < len(source):
+                item = source[index]
+                ident = item.get("id") if isinstance(item, dict) else None
+                if ident is not None and ident in seen:
+                    continue
+                if ident is not None:
+                    seen.add(ident)
+                out.append(item)
+    return out
 
 
 async def _apply_movie_release_eligibility(payload: dict[str, Any], *, enabled: bool = True) -> dict[str, Any]:
