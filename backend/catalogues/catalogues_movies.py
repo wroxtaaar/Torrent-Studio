@@ -379,7 +379,16 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
 
 async def _trakt_trending_tmdb_items(language_code: str) -> list[dict[str, Any]]:
     """Trakt's trending movies for this language as TMDB movie records (empty when Trakt is not configured)."""
-    entries = await trakt_trending("movies", languages=language_code, countries="in" if language_code == "hi" else None, limit=40)
+    # Trakt's Indian audience is small: "Hindi" alone finds more than "Hindi and India" (the loop below keeps only
+    # films whose TMDB original language matches), so ask for both and merge.
+    lists = [await trakt_trending("movies", languages=language_code, limit=40)]
+    if language_code == "hi":
+        lists.append(await trakt_trending("movies", languages="hi", countries="in", limit=40))
+    entries, seen_ids = [], set()
+    for entry in (e for lst in lists for e in lst):
+        if entry["tmdbId"] not in seen_ids:
+            seen_ids.add(entry["tmdbId"])
+            entries.append(entry)
     if not entries:
         return []
     semaphore = asyncio.Semaphore(4)
