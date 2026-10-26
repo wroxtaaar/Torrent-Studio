@@ -1,5 +1,7 @@
 // Titles whose NexStream playback does not work are reported to the server (it keeps them in a shared
 // list used when the cache is rebuilt) and remembered here so this browser stops offering Play at once.
+import { apiFetch } from '../../api/http.ts';
+
 const STORAGE_KEY = 'nexstream_reported_v1';
 const FORGIVE_AFTER_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -30,7 +32,7 @@ export function reportNexStreamFailure(
   } catch { /* storage unavailable: the server report still goes out */ }
   if (already) return;
   const year = Number(item.year);
-  void fetch('/api/nexstream/report', {
+  void apiFetch('/api/nexstream/report', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

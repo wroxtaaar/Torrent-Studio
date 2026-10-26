@@ -283,7 +283,10 @@ async def attach_seedr_session(request: Request, call_next):
         # Every state-changing API call needs the session CSRF token, not only
         # /api/seedr/*: compatibility routes such as /api/files/delete and
         # /api/v2/torrents/* also act on the connected Seedr account.
-        if path.startswith("/api/") and method not in {"GET", "HEAD", "OPTIONS"}:
+        # NexStream failure reports act on no account (they only add a rate-limited comment to a GitHub issue),
+        # and the browser may report before a Seedr session exists, so they skip the CSRF check.
+        csrf_exempt = path == "/api/nexstream/report"
+        if path.startswith("/api/") and method not in {"GET", "HEAD", "OPTIONS"} and not csrf_exempt:
             if not _seedr_session_csrf_ok(request):
                 response = JSONResponse(
                     status_code=403,
