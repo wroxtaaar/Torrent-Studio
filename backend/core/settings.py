@@ -129,7 +129,7 @@ TMDB_SEARCH_METADATA_CACHE_FILE = Path(os.getenv("TMDB_SEARCH_METADATA_CACHE_FIL
 TMDB_SEARCH_METADATA_QUERY_TTL_SECONDS = stored_ttl(max(3600, int(os.getenv("TMDB_SEARCH_METADATA_QUERY_TTL_SECONDS", str(30 * 24 * 60 * 60)))))
 IMDB_RATING_CACHE_FILE = Path(os.getenv("IMDB_RATING_CACHE_FILE", data_file("imdb_rating_cache.json")))
 IMDB_RATING_CACHE_TTL_SECONDS = stored_ttl(max(86400, int(os.getenv("IMDB_RATING_CACHE_TTL_SECONDS", str(30 * 24 * 60 * 60)))))
-IMDB_RATING_LOOKUP_VERSION = 5
+IMDB_RATING_LOOKUP_VERSION = 6  # 6: MDBList fallback, so earlier misses are looked up once more
 # Misses are re-checked sooner than hits: OMDb data and title matching improve over time.
 IMDB_RATING_NOT_FOUND_TTL_SECONDS = stored_ttl(max(3600, int(os.getenv("IMDB_RATING_NOT_FOUND_TTL_SECONDS", str(24 * 60 * 60)))))
 

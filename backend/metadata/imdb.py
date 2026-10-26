@@ -9,6 +9,7 @@ from typing import Any
 
 import httpx
 from fastapi import APIRouter, Query, Response
+from integrations.mdblist import mdblist_imdb_rating
 
 from core.cache_diagnostics import _record_cache_event
 from catalogues.catalogues_extra import _normalize_synopsis_match_title, _write_synopsis_cache
@@ -103,7 +104,7 @@ async def _save_imdb_rating_cache_record(record: dict[str, Any]) -> None:
             logger.warning("Could not persist IMDb rating cache: %s", exc)
 
 
-async def _fetch_imdb_rating(
+async def _fetch_imdb_rating_omdb(
     title: str,
     year: int,
     cache_key: str,
@@ -345,6 +346,37 @@ async def _fetch_imdb_rating(
         return record
 
     return {**base, "status": "unavailable", "reason": "No usable OMDb key or transient upstream error", "cacheable": False}
+
+async def _fetch_imdb_rating(
+    title: str,
+    year: int,
+    cache_key: str,
+    media_type: str = "movie",
+    tmdb_id: int = 0,
+) -> dict[str, Any]:
+    """OMDb first; MDBList (IMDb rating by TMDB/IMDb id) when OMDb has no rating or cannot answer."""
+    record = await _fetch_imdb_rating_omdb(title, year, cache_key, media_type, tmdb_id)
+    if record.get("status") == "found" and record.get("imdbRating") is not None:
+        return record
+    found = await mdblist_imdb_rating(
+        "tv" if str(media_type or "movie").casefold() in {"tv", "series"} else "movie",
+        tmdb_id=tmdb_id, imdb_id=str(record.get("imdbId") or ""),
+    )
+    if not found:
+        return record
+    imdb_id = found.get("imdbId") or record.get("imdbId")
+    return {
+        **record,
+        "status": "found",
+        "imdbRating": found["imdbRating"],
+        "imdbVotes": found.get("imdbVotes") or record.get("imdbVotes"),
+        "imdbId": imdb_id,
+        "imdbUrl": f"https://www.imdb.com/title/{imdb_id}/" if imdb_id else None,
+        "ratingLookupSource": "mdblist",
+        "reason": None,
+        "cacheable": True,
+    }
+
 
 async def _get_imdb_rating_record(
     title: str, year: int, media_type: str = "movie", tmdb_id: int = 0

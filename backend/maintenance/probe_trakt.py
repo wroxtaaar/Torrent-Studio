@@ -11,7 +11,7 @@ from pathlib import Path
 
 os.environ.setdefault("CACHE_ONLY_MODE", "false")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from integrations import trakt  # noqa: E402
+from integrations import mdblist, trakt  # noqa: E402
 
 
 async def main() -> None:
@@ -27,6 +27,11 @@ async def main() -> None:
         data = await trakt.trakt_get(path.split("?")[0], {"extended": "full"} if "?" in path else None)
         print(path, "->", json.dumps(data, indent=1)[:900] if data else data)
     print("rating helper:", await trakt.trakt_rating("movies", imdb_id="tt1375666"))
+    if mdblist.mdblist_keys():
+        print("MDBList (Inception, TMDB 27205):", await mdblist.mdblist_imdb_rating("movie", tmdb_id=27205))
+        print("MDBList (Breaking Bad series, TMDB 1396):", await mdblist.mdblist_imdb_rating("tv", tmdb_id=1396))
+    else:
+        print("MDBLIST_API_KEY is not set: skipping the MDBList check.")
 
 
 asyncio.run(main())
