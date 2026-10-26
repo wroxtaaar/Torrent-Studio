@@ -118,10 +118,14 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     setSearched(false);
     setIsSearching(false);
     setShowRecentSearches(false);
+    // A newer section action bumps this counter, so a late answer cannot reappear after switching away.
+    const generation = ++searchGenerationRef.current;
+    searchRequestRef.current?.abort();
     try {
-      setRegionalWebSeriesCatalogue(await api.getTvCatalogue(key));
+      const page = await api.getTvCatalogue(key);
+      if (generation === searchGenerationRef.current) setRegionalWebSeriesCatalogue(page);
     } catch (error: any) {
-      setRegionalWebSeriesError(String(error?.message || 'Could not load web series.'));
+      if (generation === searchGenerationRef.current) setRegionalWebSeriesError(String(error?.message || 'Could not load web series.'));
     } finally {
       setRegionalWebSeriesLoading(false);
     }
@@ -192,9 +196,17 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     dcWebSeriesCatalogue,
     marvelWebSeriesCatalogue,
   ]);
-  const { runSearch } = useSearchRunner({ setFranchiseGridPage, setActiveFranchiseSearchMode, franchisePageRequestRef, franchisePageGenerationRef, franchiseLoadedPagesRef, posterFirstPageReadyRef, setPosterFirstPageReady, setIsPresetCatalogueAction, setIsMarvelEnglishResults, setIsDcLiveActionEnglishResults, setShowMarvelWebSeries, setError, setSearched, setIsSearching, setCatalogueBuildProgress, setCatalogueExpectedTitles, setMovieCatalogue, franchiseGridPageSize, franchiseGridPage, setShowDcWebSeries, setMovieTorrentSearchError, setMovieTorrentPreviewCatalogueId, movieTorrentSearchControllerRef, movieTorrentSearchGenerationRef, setMovieTorrentSearchLoading, setMovieTorrentPickerGroups, setMovieTorrentPreviewGroup, setExpandedSearchGroupKey, query, setResults, searchGenerationRef, searchRequestRef, setShowRecentSearches, setQuery, setSearchMetadata, setSearchMetadataStatus, setSearchAvailabilityByGroup, setSelectedQualityByGroup, setPosterOverrides, posterMetadataFailedRef, posterLoadedRef, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterBackgroundAttemptsRef, posterBackgroundGenerationRef, saveRecentSearch, searchNexStreamTitles, nexStreamSearchGenerationRef, nexStreamSearchControllerRef, setNexStreamLoading, setNexStreamSearchMode, setNexStreamResults, setNexStreamError, setNexStreamPlayer });
+  const { runSearch: runSearchRaw } = useSearchRunner({ setFranchiseGridPage, setActiveFranchiseSearchMode, franchisePageRequestRef, franchisePageGenerationRef, franchiseLoadedPagesRef, posterFirstPageReadyRef, setPosterFirstPageReady, setIsPresetCatalogueAction, setIsMarvelEnglishResults, setIsDcLiveActionEnglishResults, setShowMarvelWebSeries, setError, setSearched, setIsSearching, setCatalogueBuildProgress, setCatalogueExpectedTitles, setMovieCatalogue, franchiseGridPageSize, franchiseGridPage, setShowDcWebSeries, setMovieTorrentSearchError, setMovieTorrentPreviewCatalogueId, movieTorrentSearchControllerRef, movieTorrentSearchGenerationRef, setMovieTorrentSearchLoading, setMovieTorrentPickerGroups, setMovieTorrentPreviewGroup, setExpandedSearchGroupKey, query, setResults, searchGenerationRef, searchRequestRef, setShowRecentSearches, setQuery, setSearchMetadata, setSearchMetadataStatus, setSearchAvailabilityByGroup, setSelectedQualityByGroup, setPosterOverrides, posterMetadataFailedRef, posterLoadedRef, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterBackgroundAttemptsRef, posterBackgroundGenerationRef, saveRecentSearch, searchNexStreamTitles, nexStreamSearchGenerationRef, nexStreamSearchControllerRef, setNexStreamLoading, setNexStreamSearchMode, setNexStreamResults, setNexStreamError, setNexStreamPlayer });
   const { searchMovieTorrents, selectMovieTorrentGroup, closeMoviePrepareCard } = useMovieTorrentSearch({ prepareClickIntentRef, prepareTraceIdRef, setExpandedSearchGroupKey, movieTorrentSearchControllerRef, movieTorrentSearchGenerationRef, setMovieTorrentSearchTitle, setMovieTorrentPreviewCatalogueId, setMovieTorrentPreviewPosterUrl, cataloguePosterUrlsRef, setMovieTorrentSearchLoading, setMovieTorrentSearchError, setMovieTorrentPreviewGroup, setMovieTorrentPickerGroups, setSelectedMovieTorrentQualityByGroup, movieTorrentDetailsCacheRef, prepareBuildPendingRef, movieCatalogue, setSearched, error, setResults, setQuery, setSelectedQualityByGroup, startPosterBackgroundSearch, persistMovieTorrentCache });
-  const { loadDcWebSeries, loadClassicsTvCatalogue, loadMarvelWebSeries } = useWebSeriesLoaders({ setShowDcWebSeries, dcWebSeriesCatalogue, dcWebSeriesLoading, setDcWebSeriesLoading, setDcWebSeriesError, setDcWebSeriesCatalogue, marvelWebSeriesCatalogue, setMarvelWebSeriesCatalogue, setMarvelWebSeriesLoading, setMarvelWebSeriesError, marvelWebSeriesLoading, setShowMarvelWebSeries, error, setClassicsContentTab });
+  // Opening any Marvel/DC/Classics/search view must close a Hollywood/Bollywood web-series list, otherwise it
+  // stays on screen and the new results appear below it.
+  const runSearch: typeof runSearchRaw = (...args) => {
+    setRegionalWebSeriesCatalogue(null);
+    setRegionalWebSeriesError('');
+    setRegionalWebSeriesLoading(false);
+    return runSearchRaw(...args);
+  };
+  const { loadDcWebSeries, loadClassicsTvCatalogue, loadMarvelWebSeries } = useWebSeriesLoaders({ searchGenerationRef, setShowDcWebSeries, dcWebSeriesCatalogue, dcWebSeriesLoading, setDcWebSeriesLoading, setDcWebSeriesError, setDcWebSeriesCatalogue, marvelWebSeriesCatalogue, setMarvelWebSeriesCatalogue, setMarvelWebSeriesLoading, setMarvelWebSeriesError, marvelWebSeriesLoading, setShowMarvelWebSeries, error, setClassicsContentTab });
   const openMovieCatalogue = async (
     key: MovieCatalogueKey,
     searchText: string,
