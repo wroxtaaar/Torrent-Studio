@@ -133,11 +133,25 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
                 )}
                 <button
                   type="button"
+                  onClick={() => {
+                    const box = document.getElementById('nexstream-player-container');
+                    if (document.fullscreenElement) { void document.exitFullscreen(); return; }
+                    // Fullscreen our own box: it works even when the player inside the frame cannot go fullscreen.
+                    if (box?.requestFullscreen) { void box.requestFullscreen().catch(() => window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer')); }
+                    else { window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer'); }
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-violet-400/40 px-3 py-2 text-xs font-semibold text-violet-200 hover:bg-violet-500/15"
+                  title="Make the player fill the screen (press Esc to leave)"
+                >
+                  <Maximize2 className="h-4 w-4" /> Full screen
+                </button>
+                <button
+                  type="button"
                   onClick={() => window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer')}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-violet-400/40 px-3 py-2 text-xs font-semibold text-violet-200 hover:bg-violet-500/15"
-                  title="Open fullscreen playback in a new tab"
+                  title="Open the player in a new tab"
                 >
-                  <Maximize2 className="h-4 w-4" /> Full screen / New tab
+                  <Maximize2 className="h-4 w-4" /> New tab
                 </button>
               </div>
               <button
