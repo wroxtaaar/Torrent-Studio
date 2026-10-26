@@ -37,7 +37,6 @@ from core.http_cache import (
 from metadata.imdb import _get_imdb_rating_record
 from integrations.nexstream import nexstream_api_key_configured, resolve_nexstream_movie
 from integrations.mdblist import BOLLYWOOD_TRENDING_LIST, mdblist_list_items
-from integrations.trakt import trakt_trending
 from core.json_cache import read_json_cached
 from core.settings import (
     BACKFILL_MISSING_METADATA,
@@ -237,9 +236,9 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
                 ],
             }
             if page == 1:
-                # Trakt's trending list is mixed in with TMDB's (a title in both appears once).
-                trakt_items = await _trakt_trending_tmdb_items(language_code)
-                payload = {**payload, "results": _interleave_unique(payload.get("results") or [], trakt_items)}
+                # MDBList's daily IMDb-based list is mixed in with TMDB's (a title in both appears once).
+                listed_items = await _listed_trending_tmdb_items(language_code)
+                payload = {**payload, "results": _interleave_unique(payload.get("results") or [], listed_items)}
         else:
             params["with_original_language"] = language_code
             params["sort_by"] = (
@@ -378,18 +377,9 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
     }
 
 
-async def _trakt_trending_tmdb_items(language_code: str) -> list[dict[str, Any]]:
-    """Trakt's trending movies for this language as TMDB movie records (empty when Trakt is not configured)."""
-    # Trakt's Indian audience is small: "Hindi" alone finds more than "Hindi and India" (the loop below keeps only
-    # films whose TMDB original language matches), so ask for both and merge.
-    lists = [await trakt_trending("movies", languages=language_code, limit=40)]
-    if language_code == "hi":
-        lists.append(await trakt_trending("movies", languages="hi", countries="in", limit=40))
-    entries, seen_ids = [], set()
-    for entry in (e for lst in lists for e in lst):
-        if entry["tmdbId"] not in seen_ids:
-            seen_ids.add(entry["tmdbId"])
-            entries.append(entry)
+async def _listed_trending_tmdb_items(language_code: str) -> list[dict[str, Any]]:
+    """MDBList's trending list for this language as TMDB movie records (empty when not configured or not Hindi)."""
+    entries: list[dict[str, Any]] = []
     if language_code == "hi":
         # MDBList's daily IMDb-based Bollywood list (it also holds Tamil/Telugu films: keep Hindi ones only).
         listed = [{"tmdbId": row["tmdbId"]} for row in await mdblist_list_items(BOLLYWOOD_TRENDING_LIST, "movies", 60)
@@ -412,7 +402,7 @@ async def _trakt_trending_tmdb_items(language_code: str) -> list[dict[str, Any]]
             return None  # e.g. a Hindi-dubbed Hollywood film
         item = dict(item)
         item.setdefault("genre_ids", [g.get("id") for g in item.get("genres") or [] if isinstance(g, dict)])
-        item["viaTrakt"] = True
+        item["viaList"] = True
         return item
 
     loaded = await asyncio.gather(*(load(entry) for entry in entries), return_exceptions=True)
@@ -420,7 +410,7 @@ async def _trakt_trending_tmdb_items(language_code: str) -> list[dict[str, Any]]
 
 
 def _interleave_unique(first: list[Any], second: list[Any]) -> list[Any]:
-    """TMDB and Trakt results alternately, each title once (same TMDB id)."""
+    """TMDB and MDBList results alternately, each title once (same TMDB id)."""
     seen: set[Any] = set()
     out: list[Any] = []
     for index in range(max(len(first), len(second))):
