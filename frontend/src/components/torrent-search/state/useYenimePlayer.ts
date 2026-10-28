@@ -105,6 +105,59 @@ export function useYenimePlayer() {
     });
   };
 
+  const switchToYenimePlayer = (title: string, year?: number | null, catalogueMalId?: number | string | null, episode = 1, tmdbId?: number | null, season = 1) => {
+    const generation = ++generationRef.current;
+    setYenimePlayer(null);
+    setYenimeEpisodePicker(null);
+    setYenimeEpisodes([]);
+    setYenimeSeasons([]);
+    setYenimeEpisodesError('');
+    setYenimeProvider('yenime');
+
+    const numericEpisode = Number(episode);
+    const validEpisode = Number.isInteger(numericEpisode) && numericEpisode > 0 ? numericEpisode : 1;
+    const existingMalId = Number(catalogueMalId) || yenimeMalIdForTitle(title);
+
+    const launchResolvedMalId = (malId: number) => {
+      try {
+        const url = buildYenimeUrl(malId, validEpisode, 'sub');
+        if (generation !== generationRef.current) return;
+        setYenimeRequest(null);
+        setYenimePlayer({ title, malId, episode: validEpisode, season, tmdbId: tmdbId || undefined, type: 'sub', url });
+      } catch (error: unknown) {
+        if (generation !== generationRef.current) return;
+        setYenimeRequest({ title, malId: String(malId), episode: String(validEpisode), type: 'sub', resolving: false, error: error instanceof Error ? error.message : 'Could not open Yenime.' });
+      }
+    };
+
+    if (existingMalId && Number.isInteger(existingMalId) && existingMalId > 0) {
+      launchResolvedMalId(existingMalId);
+      return;
+    }
+
+    setYenimeRequest({ title, malId: '', episode: String(validEpisode), type: 'sub', resolving: true, error: '' });
+    void api.resolveYenimeMalId(title, year, null).then(result => {
+      if (generation !== generationRef.current) return;
+      if (result.status === 'resolved' && result.malId) {
+        launchResolvedMalId(result.malId);
+        return;
+      }
+      setYenimeRequest({
+        title,
+        malId: '',
+        episode: String(validEpisode),
+        type: 'sub',
+        resolving: false,
+        error: result.status === 'ambiguous'
+          ? 'Multiple matches were found. Enter the correct MAL ID manually.'
+          : 'No confident MAL ID match was found. Enter the MAL ID manually.',
+      });
+    }).catch((error: unknown) => {
+      if (generation !== generationRef.current) return;
+      setYenimeRequest({ title, malId: '', episode: String(validEpisode), type: 'sub', resolving: false, error: error instanceof Error ? error.message : 'Could not resolve the MAL ID automatically.' });
+    });
+  };
+
   const closeYenime = () => {
     generationRef.current += 1;
     episodeLoadGenerationRef.current += 1;
@@ -137,7 +190,7 @@ export function useYenimePlayer() {
     yenimeRequest, yenimePlayer, yenimeEpisodePicker, yenimeSeasons, yenimeEpisodes,
     yenimeSelectedSeason, yenimeEpisodesLoading, yenimeEpisodesError, yenimeProvider,
     setYenimePlayer, setYenimeRequest, setYenimeSelectedSeason, setYenimeProvider,
-    openYenimeRequest, closeYenime, closeYenimeEpisodePicker,
+    openYenimeRequest, switchToYenimePlayer, closeYenime, closeYenimeEpisodePicker,
     loadYenimeEpisodes, launchYenime,
   };
 }

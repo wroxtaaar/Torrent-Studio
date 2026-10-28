@@ -5,7 +5,7 @@ import { imdbRatingKey } from '../grouping.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 
 export function NexStreamSection({ vm }: { vm: PanelModel }) {
-  const { imdbRatingsByKey, loadNexStreamEpisodes, nexStreamEpisodePicker, nexStreamEpisodePrefetchStatus, nexStreamEpisodes, nexStreamEpisodesError, nexStreamEpisodesLoading, nexStreamError, nexStreamLoading, nexStreamPlayer, nexStreamResolvingId, nexStreamResults, nexStreamSearchMode, nexStreamSeasons, nexStreamSelectedSeason, playWithNexStream, setNexStreamEpisodePicker, setNexStreamPlayer, openYenimeRequest } = vm;
+  const { imdbRatingsByKey, loadNexStreamEpisodes, nexStreamEpisodePicker, nexStreamEpisodePrefetchStatus, nexStreamEpisodes, nexStreamEpisodesError, nexStreamEpisodesLoading, nexStreamError, nexStreamLoading, nexStreamPlayer, nexStreamResolvingId, nexStreamResults, nexStreamSearchMode, nexStreamSeasons, nexStreamSelectedSeason, playWithNexStream, setNexStreamEpisodePicker, setNexStreamPlayer, switchToYenimePlayer } = vm;
   const [playerLoading, setPlayerLoading] = useState(false);
   useEffect(() => {
     setPlayerLoading(Boolean(nexStreamPlayer));
@@ -120,22 +120,20 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
 
           {nexStreamPlayer && (
             <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/85 p-2 sm:p-5">
-              <div className="relative flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-violet-400/40 bg-slate-950 shadow-2xl">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3 pr-24">
-                  <div className="min-w-0">
-                    <div className="truncate text-xs font-bold text-slate-100">{nexStreamPlayer.title}{nexStreamPlayer.year ? ' (' + nexStreamPlayer.year + ')' : ''}</div>
-                  </div>
-                  {nexStreamPlayer.anime && (
-                    <div className="flex rounded-lg border border-slate-700 bg-slate-900 p-1" role="group" aria-label="Streaming provider">
-                      <button type="button" onClick={() => {
-                        const player = nexStreamPlayer;
-                        setNexStreamPlayer(null);
-                        openYenimeRequest(player.title, Number(player.year) || null, null, player.episode || 1, player.tmdbId, player.season || 1);
-                      }} className="rounded-md px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-800">Yenime</button>
-                      <button type="button" className="rounded-md bg-violet-500 px-3 py-1.5 text-xs font-bold text-white" aria-current="true">VidRift</button>
-                    </div>
-                  )}
+              <div className="relative flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-violet-400/40 bg-slate-950 shadow-2xl aspect-video">
+                <div className="absolute left-2 top-2 z-10 max-w-[40%] rounded-md border border-slate-700 bg-slate-950/95 px-3 py-2 text-xs text-white">
+                  <span className="block truncate">{nexStreamPlayer.title}{nexStreamPlayer.type === 'tv' && nexStreamPlayer.season && nexStreamPlayer.episode ? ` · S${nexStreamPlayer.season} E${nexStreamPlayer.episode}` : nexStreamPlayer.year ? ` (${nexStreamPlayer.year})` : ''}</span>
                 </div>
+                {nexStreamPlayer.anime && (
+                  <div className="absolute left-1/2 top-2 z-10 flex -translate-x-1/2 rounded-lg border border-slate-700 bg-slate-900 p-1" role="group" aria-label="Streaming provider">
+                    <button type="button" onClick={() => {
+                      const player = nexStreamPlayer;
+                      setNexStreamPlayer(null);
+                      switchToYenimePlayer(player.title, Number(player.year) || null, null, player.episode || 1, player.tmdbId || null, player.season || 1);
+                    }} className="rounded-md px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-800">Yenime</button>
+                    <button type="button" className="rounded-md bg-violet-500 px-3 py-1.5 text-xs font-bold text-white" aria-current="true">VidRift</button>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => {
