@@ -1,4 +1,3 @@
-import { reportNexStreamFailure } from '../nexstreamReports.ts';
 import { Loader2, Play, Maximize2 } from 'lucide-react';
 import { TvShowCard } from '../TvShowCard.tsx';
 import { imdbRatingKey } from '../grouping.ts';
@@ -121,16 +120,7 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
                 <div className="min-w-0">
                   <div className="truncate text-xs font-bold text-slate-100">{nexStreamPlayer.title}{nexStreamPlayer.year ? ' (' + nexStreamPlayer.year + ')' : ''}</div>
                 </div>
-                {nexStreamPlayer.type === 'movie' && nexStreamPlayer.tmdbId && (
-                  <button
-                    type="button"
-                    onClick={() => { reportNexStreamFailure({ tmdbId: nexStreamPlayer.tmdbId as number, title: nexStreamPlayer.title, year: nexStreamPlayer.year }, 'player_not_working'); setNexStreamPlayer(null); }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-500/15"
-                    title="Tell us this title does not play; Play is hidden for it from now on"
-                  >
-                    Not playing? Report
-                  </button>
-                )}
+
               </div>
               <button
                 type="button"
@@ -151,7 +141,7 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
                 type="button"
                 onClick={() => setNexStreamPlayer(null)}
                 className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900/95 text-lg font-bold text-slate-200 shadow-lg hover:bg-slate-700"
-                aria-label="Close NexStream player"
+                aria-label="Close VidRift player"
                 title="Close player"
               >
                 ×
@@ -164,7 +154,7 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
                   id="nexstream-player-frame"
                   key={nexStreamPlayer.url}
                   src={nexStreamPlayer.url}
-                  title={'NexStream player for ' + nexStreamPlayer.title}
+                  title={'VidRift player for ' + nexStreamPlayer.title}
                   allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
                   allowFullScreen
                   referrerPolicy="strict-origin-when-cross-origin"
