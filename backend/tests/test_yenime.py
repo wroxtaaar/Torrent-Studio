@@ -15,8 +15,8 @@ def _load_yenime_module():
 
 def test_build_yenime_url_for_mal_episode_sub_and_dub():
     yenime = _load_yenime_module()
-    assert yenime.build_yenime_url(5114, 1, "sub") == "https://megaplay.buzz/stream/mal/5114/1/sub"
-    assert yenime.build_yenime_url("5114", "2", "dub") == "https://megaplay.buzz/stream/mal/5114/2/dub"
+    assert yenime.build_yenime_url(5114, 1, "sub") == "https://player.yenime.net/anime/mal/5114/1"
+    assert yenime.build_yenime_url("5114", "2", "dub") == "https://player.yenime.net/anime/mal/5114/2?dub=1"
 
 
 @pytest.mark.parametrize("mal_id", [0, -1, "", "abc", 1.5, None])
@@ -43,7 +43,7 @@ def test_build_yenime_url_rejects_invalid_stream_types(stream_type):
 def test_resolver_reports_availability_unverified():
     yenime = _load_yenime_module()
     result = yenime.build_yenime_url(5114, 1, "sub")
-    assert result.startswith("https://megaplay.buzz/stream/mal/")
+    assert result.startswith("https://player.yenime.net/anime/mal/")
 
 
 def test_existing_catalogue_mal_id_is_used_directly():
@@ -80,4 +80,5 @@ def test_missing_resolution_requires_manual_mal_id():
 
 def test_episode_selection_is_preserved_in_url():
     yenime = _load_yenime_module()
-    assert yenime.build_yenime_url(16498, 12, "sub").endswith("/12/sub")
+    assert yenime.build_yenime_url(16498, 12, "sub") == "https://player.yenime.net/anime/mal/16498/12"
+    assert yenime.build_yenime_url(16498, 12, "dub") == "https://player.yenime.net/anime/mal/16498/12?dub=1"

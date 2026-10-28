@@ -33,7 +33,8 @@ def build_yenime_url(mal_id, episode, stream_type="sub"):
     stream_type = str(stream_type) if stream_type is not None else ""
     if stream_type not in ("sub", "dub"):
         raise ValueError("Stream type must be sub or dub")
-    return f"https://megaplay.buzz/stream/mal/{int(mal_id)}/{int(episode)}/{stream_type}"
+    base_url = f"https://player.yenime.net/anime/mal/{int(mal_id)}/{int(episode)}"
+    return f"{base_url}?dub=1" if stream_type == "dub" else base_url
 
 
 def normalize_anime_title(value) -> str:

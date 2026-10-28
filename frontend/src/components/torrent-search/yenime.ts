@@ -12,7 +12,8 @@ export function buildYenimeUrl(malId: unknown, episode: unknown, type: 'sub' | '
   if (!validMalId(malId)) throw new Error('A positive MAL ID is required.');
   if (!validEpisode(episode)) throw new Error('A positive episode number is required.');
   if (type !== 'sub' && type !== 'dub') throw new Error('Stream type must be sub or dub.');
-  return `https://megaplay.buzz/stream/mal/${Number(malId)}/${Number(episode)}/${type}`;
+  const baseUrl = `https://player.yenime.net/anime/mal/${Number(malId)}/${Number(episode)}`;
+  return type === 'dub' ? `${baseUrl}?dub=1` : baseUrl;
 }
 
 export const YENIME_ANIME_MAL_IDS: Record<string, number> = {
