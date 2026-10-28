@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { api } from '../../../api/client.ts';
+import { fetchNexStreamEpisodeMetadata, type NexStreamEpisode, type NexStreamSeason } from '../nexstream.ts';
 import { buildYenimeUrl, yenimeMalIdForTitle } from '../yenime.ts';
 
 export type YenimePlayerRequest = {
@@ -20,12 +21,54 @@ export function useYenimePlayer() {
     resolving: boolean;
   } | null>(null);
   const [yenimePlayer, setYenimePlayer] = useState<YenimePlayerRequest | null>(null);
+  const [yenimeEpisodePicker, setYenimeEpisodePicker] = useState<{ title: string; tmdbId?: number } | null>(null);
+  const [yenimeSeasons, setYenimeSeasons] = useState<NexStreamSeason[]>([]);
+  const [yenimeEpisodes, setYenimeEpisodes] = useState<NexStreamEpisode[]>([]);
+  const [yenimeSelectedSeason, setYenimeSelectedSeason] = useState(1);
+  const [yenimeEpisodesLoading, setYenimeEpisodesLoading] = useState(false);
+  const [yenimeEpisodesError, setYenimeEpisodesError] = useState('');
   const generationRef = useRef(0);
+  const episodeLoadGenerationRef = useRef(0);
 
-  const openYenimeRequest = (title: string, year?: number | null, catalogueMalId?: number | string | null, episode?: number | string | null) => {
+  const loadYenimeEpisodes = async (tmdbId: number, season: number) => {
+    const generation = ++episodeLoadGenerationRef.current;
+    setYenimeEpisodesLoading(true);
+    setYenimeEpisodesError('');
+    try {
+      const data = await fetchNexStreamEpisodeMetadata(tmdbId, season);
+      if (generation !== episodeLoadGenerationRef.current) return;
+      setYenimeSeasons(data.seasons);
+      setYenimeEpisodes(data.episodes);
+      setYenimeSelectedSeason(data.selectedSeason);
+    } catch (error: unknown) {
+      if (generation !== episodeLoadGenerationRef.current) return;
+      setYenimeEpisodes([]);
+      setYenimeEpisodesError(error instanceof Error ? error.message : 'Could not load episode list.');
+    } finally {
+      if (generation === episodeLoadGenerationRef.current) setYenimeEpisodesLoading(false);
+    }
+  };
+
+  const closeYenimeEpisodePicker = () => {
+    generationRef.current += 1;
+    episodeLoadGenerationRef.current += 1;
+    setYenimeEpisodePicker(null);
+    setYenimeEpisodes([]);
+    setYenimeSeasons([]);
+    setYenimeEpisodesError('');
+    setYenimeRequest(null);
+  };
+
+  const openYenimeRequest = (title: string, year?: number | null, catalogueMalId?: number | string | null, episode?: number | string | null, tmdbId?: number | string | null) => {
     const generation = ++generationRef.current;
     setYenimePlayer(null);
+    const numericTmdbId = Number(tmdbId);
+    const validTmdbId = Number.isInteger(numericTmdbId) && numericTmdbId > 0 ? numericTmdbId : undefined;
     const existingMalId = catalogueMalId || yenimeMalIdForTitle(title);
+    setYenimeEpisodePicker({ title, tmdbId: validTmdbId });
+    setYenimeEpisodes([]);
+    setYenimeSeasons([]);
+    setYenimeEpisodesError(validTmdbId ? '' : 'Episode artwork and dates are unavailable, but you can still enter an episode number below.');
     setYenimeRequest({
       title,
       malId: existingMalId?.toString() || '',
@@ -34,6 +77,7 @@ export function useYenimePlayer() {
       error: '',
       resolving: !existingMalId,
     });
+    if (validTmdbId) void loadYenimeEpisodes(validTmdbId, 1);
 
     if (existingMalId) return;
     void api.resolveYenimeMalId(title, year, null).then(result => {
@@ -56,8 +100,13 @@ export function useYenimePlayer() {
 
   const closeYenime = () => {
     generationRef.current += 1;
+    episodeLoadGenerationRef.current += 1;
     setYenimeRequest(null);
     setYenimePlayer(null);
+    setYenimeEpisodePicker(null);
+    setYenimeEpisodes([]);
+    setYenimeSeasons([]);
+    setYenimeEpisodesError('');
   };
 
   const launchYenime = (malIdText: string, episodeText: string, type: 'sub' | 'dub') => {
@@ -67,11 +116,19 @@ export function useYenimePlayer() {
       const episode = Number(episodeText);
       const url = buildYenimeUrl(malId, episode, type);
       setYenimeRequest(null);
+      setYenimeEpisodePicker(null);
+      setYenimeEpisodes([]);
       setYenimePlayer({ title: yenimeRequest.title, malId, episode, type, url });
     } catch (error: unknown) {
       setYenimeRequest(current => current ? { ...current, error: error instanceof Error ? error.message : 'Could not open Yenime.' } : current);
     }
   };
 
-  return { yenimeRequest, yenimePlayer, setYenimeRequest, setYenimePlayer, openYenimeRequest, closeYenime, launchYenime };
+  return {
+    yenimeRequest, yenimePlayer, yenimeEpisodePicker, yenimeSeasons, yenimeEpisodes,
+    yenimeSelectedSeason, yenimeEpisodesLoading, yenimeEpisodesError,
+    setYenimePlayer, setYenimeRequest, setYenimeSelectedSeason,
+    openYenimeRequest, closeYenime, closeYenimeEpisodePicker,
+    loadYenimeEpisodes, launchYenime,
+  };
 }
