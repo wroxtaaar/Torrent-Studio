@@ -47,6 +47,31 @@
   min-width: 44px;
 }
 
+.webtor-embed-frame {
+  position: relative;
+  width: auto;
+  min-width: 0;
+  min-height: 240px;
+  height: min(68vh, 720px);
+}
+
+.webtor-embed-frame > iframe {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  border: 0;
+}
+
+@media (max-width: 639px) {
+  .webtor-embed-frame {
+    min-height: 200px;
+    height: min(62vh, 560px);
+  }
+}
+
 
 /* Phone-first layout helpers */
 html {
