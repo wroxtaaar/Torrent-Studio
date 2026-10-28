@@ -114,23 +114,8 @@ def movie_tmdb_id(movie):
 
 
 def nexstream_broken(entry):
-    """True when NexStream is known not to play this title: its API said no, or users reported it."""
-    tmdb_id = movie_tmdb_id(entry["movie"])
-    return (entry.get("nexStream") or {}).get("ok") is False or (tmdb_id > 0 and tmdb_id in NEXSTREAM_FAILED)
-
-
-def has_source(entry):
-    """Show a title when it has a usable torrent, or NexStream is not known to be broken for it.
-
-    NexStream cannot be verified from a server, so only a definite "no" (its API refusing the title, or
-    users' failure reports) takes it away. A scan that never ran or whose searches failed ("unavailable")
-    is not evidence of absence either: keep the title."""
-    details = entry.get("torrentDetails")
-    if isinstance(details, dict) and details.get("results"):
-        return True
-    if not nexstream_broken(entry):
-        return True
-    return not isinstance(details, dict) or details.get("status") == "unavailable"
+    """VidRift has no documented per-title availability API; legacy NexStream failures do not apply."""
+    return False
 
 
 TRANSIENT_NEXSTREAM = ("could not connect", "invalid response", "http 5", "http 429", "http 403", "not configured", "timed out")
