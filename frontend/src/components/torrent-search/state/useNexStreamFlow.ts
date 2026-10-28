@@ -4,9 +4,12 @@ import { NexStreamTitle } from '../types.ts';
 import { useNexStreamState } from './useNexStreamState.ts';
 import { useCatalogueNavigationState } from './useCatalogueNavigationState.ts';
 import { NEXSTREAM_SEARCH_CACHE_KEY } from '../constants.ts';
+import { useRef } from 'react';
 import { readLocalCache } from '../localCache.ts';
+import { buildVidRiftMovieUrl, buildVidRiftTvUrl, validTmdbId } from '../vidrift.ts';
 
 export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearchGenerationRef, setNexStreamSearchMode, setNexStreamLoadingTitle, setNexStreamLoading, setNexStreamError, setNexStreamResults, setNexStreamPlayer, setNexStreamEpisodePrefetchStatus, setNexStreamSeasons, setNexStreamEpisodes, setNexStreamSelectedSeason, setNexStreamEpisodesError, setNexStreamEpisodesLoading, setNexStreamEpisodePicker, setNexStreamResolvingId, error }: Pick<ReturnType<typeof useNexStreamState>, 'nexStreamSearchControllerRef' | 'nexStreamSearchGenerationRef' | 'setNexStreamSearchMode' | 'setNexStreamLoadingTitle' | 'setNexStreamLoading' | 'setNexStreamError' | 'setNexStreamResults' | 'setNexStreamPlayer' | 'setNexStreamEpisodePrefetchStatus' | 'setNexStreamSeasons' | 'setNexStreamEpisodes' | 'setNexStreamSelectedSeason' | 'setNexStreamEpisodesError' | 'setNexStreamEpisodesLoading' | 'setNexStreamEpisodePicker' | 'setNexStreamResolvingId'> & Pick<ReturnType<typeof useCatalogueNavigationState>, 'error'>) {
+  const episodeLoadGenerationRef = useRef(0);
   const searchNexStreamTitles = async (titleQuery: string, mediaType: 'movie' | 'tv' = 'movie') => {
     nexStreamSearchControllerRef.current?.abort();
     const controller = new AbortController();
@@ -86,6 +89,7 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
     }
   };
   const loadNexStreamEpisodes = async (item: NexStreamTitle, season: number) => {
+    const generation = ++episodeLoadGenerationRef.current;
     const cached = nexStreamEpisodeCache.get(nexStreamEpisodeCacheKey(item.id, season));
     if (cached) {
       setNexStreamSeasons(cached.seasons);
@@ -100,18 +104,23 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
     setNexStreamEpisodesError('');
     try {
       const data = await fetchNexStreamEpisodeMetadata(item.id, season);
+      if (generation !== episodeLoadGenerationRef.current) return;
       setNexStreamSeasons(data.seasons);
       setNexStreamEpisodes(data.episodes);
       setNexStreamSelectedSeason(data.selectedSeason);
     } catch (error: any) {
+      if (generation !== episodeLoadGenerationRef.current) return;
       setNexStreamEpisodesError(String(error?.message || 'Could not load episode list.'));
       setNexStreamEpisodes([]);
     } finally {
-      setNexStreamEpisodesLoading(false);
+      if (generation === episodeLoadGenerationRef.current) setNexStreamEpisodesLoading(false);
     }
   };
   const playWithNexStream = async (item: NexStreamTitle, chosenSeason?: number, chosenEpisode?: number, openInNewWindow = false) => {
-    const popup = openInNewWindow ? window.open('about:blank', '_blank') : null;
+    if (!validTmdbId(item.id)) {
+      setNexStreamError('This title has no valid TMDB ID for VidRift playback.');
+      return;
+    }
     if (item.type === 'tv' && (chosenSeason === undefined || chosenEpisode === undefined)) {
       setNexStreamEpisodePicker(item);
       setNexStreamEpisodes([]);
@@ -127,15 +136,13 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
     setNexStreamResolvingId(resolvingId);
     setNexStreamError('');
     try {
-      // VidRift is an embed-only provider: its documented API is a TMDB-ID
-      // iframe URL, not a server-side source-resolution endpoint.
+      // VidRift is embed-only: construction does not verify availability.
       const tmdbId = Number(item.id);
-      if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
-        throw new Error('This title has no valid TMDB ID for VidRift playback.');
-      }
       const sourceUrl = item.type === 'tv'
-        ? 'https://embed.vidrift.net/embed/tv/' + tmdbId + '/' + String(season) + '/' + String(episode)
-        : 'https://embed.vidrift.net/embed/movie/' + tmdbId;
+        ? buildVidRiftTvUrl(tmdbId, season, episode)
+        : buildVidRiftMovieUrl(tmdbId);
+      if (!sourceUrl) throw new Error('This title has an invalid VidRift playback ID or episode.');
+      const popup = openInNewWindow ? window.open('about:blank', '_blank') : null;
       if (popup) {
         popup.location.href = sourceUrl;
       } else if (openInNewWindow) {

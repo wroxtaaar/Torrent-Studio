@@ -121,27 +121,25 @@ def test_torrent_check_is_not_too_strict(monkeypatch=None):
     assert [r["title"] for r in b.usable_rows(rows, "Dhood (Sandstorm)")] == ["Dhood.2026.1080p.WEB-DL"]
 
 
-def test_only_clear_failures_remove_a_title():
+def test_only_torrents_confirm_catalogue_source_and_legacy_failures_are_ignored():
     b = _builder()
-    b.NEXSTREAM_FAILED = {603}
     empty = {"status": "empty", "results": []}
-    assert b.has_source({"movie": {"id": 1}, "torrentDetails": {"status": "ready", "results": [{}]}})  # torrent
-    assert b.has_source({"movie": {"id": 1}, "torrentDetails": empty})  # no torrent, NexStream not known broken
-    assert b.has_source({"movie": {"id": 1}, "torrentDetails": empty, "nexStream": {"ok": None}})  # unsure: keep
-    assert not b.has_source({"movie": {"id": 1}, "torrentDetails": empty, "nexStream": {"ok": False}})  # API said no
-    assert not b.has_source({"movie": {"id": 603}, "torrentDetails": empty})  # users reported it
-    assert b.has_source({"movie": {"id": 603}, "torrentDetails": {"status": "ready", "results": [{}]}})  # torrent still there
-    assert b.has_source({"movie": {"id": 1}, "torrentDetails": {"status": "unavailable", "results": []}, "nexStream": {"ok": False}})  # search failed: keep
-    assert b.nexstream_broken({"movie": {"id": 603}}) and not b.nexstream_broken({"movie": {"id": 604}})
+    assert b.has_source({"movie": {"id": 1}, "torrentDetails": {"status": "ready", "results": [{}]}})
+    assert not b.has_source({"movie": {"id": 1}, "torrentDetails": empty})
+    assert not b.has_source({"movie": {"id": 1}, "torrentDetails": empty, "nexStream": {"ok": True}})
+    assert not b.has_source({"movie": {"id": 603}, "torrentDetails": empty, "nexStream": {"ok": False}})
+    assert b.has_source({"movie": {"id": 603}, "torrentDetails": {"status": "ready", "results": [{}]}})
+    assert b.has_source({"movie": {"id": 1}, "torrentDetails": {"status": "unavailable", "results": []}})
+    assert not b.nexstream_broken({"movie": {"id": 603}})
 
 
-def test_nexstream_answers_are_reused_and_unsure_is_not_a_no():
+def test_legacy_nexstream_answers_are_never_preserved_as_vidrift_verification():
     b = _builder()
-    fresh = {"nexStream": {"ok": False, "checkedAt": datetime.now(timezone.utc).isoformat()}}
-    assert b.nexstream_state({"id": 5}, fresh)["ok"] is False  # reused, no API call
-    b.check_nexstream = lambda tmdb_id: None
-    stale = {"nexStream": {"ok": False, "checkedAt": "2020-01-01T00:00:00+00:00"}}
-    assert b.nexstream_state({"id": 5}, stale)["ok"] is None  # asked again, API unsure
+    legacy = {"nexStream": {"ok": False, "checkedAt": datetime.now(timezone.utc).isoformat()}}
+    state = b.nexstream_state({"id": 5}, legacy)
+    assert state["ok"] is None
+    assert state["provider"] == "VidRift"
+    assert state["availabilityVerified"] is False
 
 
 def test_failure_reports_need_enough_recent_comments():

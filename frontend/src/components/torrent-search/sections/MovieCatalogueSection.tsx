@@ -1,4 +1,3 @@
-import { isNexStreamReported } from '../nexstreamReports.ts';
 import { Loader2 } from 'lucide-react';
 import { API_BASE } from '../../../api/client.ts';
 import { formatBytes } from '../../../utils/formatters.ts';
@@ -86,7 +85,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
               if (previewGroup) {
                 const selectedKey = selectedMovieTorrentQualityByGroup[previewGroup.key] || (previewGroup.variants[0] ? torrentResultKey(previewGroup.variants[0]) : '');
                 const result = previewGroup.variants.find(variant => torrentResultKey(variant) === selectedKey) || previewGroup.variants[0];
-                // No torrent for this title: the card shows only the NexStream Play button.
+                // No torrent for this title: the card can offer manual unverified VidRift playback only.
                 const prepareState = prepareStateFor(result || previewGroup.posterResult);
                 // Keep the catalogue poster as the source of truth for the
                 // inline Prepare card; torrent-result poster metadata is often absent
@@ -173,13 +172,13 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                     onSelectVariant={key => setSelectedMovieTorrentQualityByGroup(previous => ({ ...previous, [previewGroup.key]: key }))}
                     variantsAriaLabel={`Choose quality for ${previewGroup.title}`}
                     prepared={result && prepareState.primaryFile ? preparedActionsFor(prepareState.torrentKey, prepareState.primaryFile) : null}
-                    directStream={movie.nexStreamPlayable === false || isNexStreamReported(movie.tmdbId || movie.id) ? undefined : {
+                    directStream={!Number(movie.tmdbId || movie.id) ? undefined : {
                       disabled: !Number(movie.tmdbId || movie.id) || nexStreamResolvingId === nexStreamMovieId,
                       label: nexStreamResolvingId === nexStreamMovieId ? 'Resolving…' : 'Direct Stream',
                       onClick: () => {
                         const tmdbId = Number(movie.tmdbId || movie.id);
                         if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
-                          setNexStreamError('This catalogue card has no valid TMDB ID for NexStream.');
+                          setNexStreamError('This catalogue card has no valid TMDB ID for VidRift playback.');
                           return;
                         }
                         void playWithNexStream({
@@ -189,7 +188,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                           overview: movie.overview || '',
                           poster: movie.posterUrl || movieTorrentPreviewPosterUrl || null,
                           type: 'movie',
-                          direct: movie.nexStreamVerified === true,
+                          direct: movie.directStreamAvailability?.verified === true,
                         });
                       },
                     }}

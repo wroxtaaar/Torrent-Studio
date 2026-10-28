@@ -104,6 +104,7 @@ export interface MovieCatalogueItem {
   /** The cache build confirmed with NexStream that it has this title (the player link can be opened directly). */
   nexStreamVerified?: boolean;
   nexStreamCheckedAt?: string;
+  directStreamAvailability?: { provider: string; verified: boolean; status: string };
   imdbRatingStatus?: ImdbRatingResult['status'];
   imdbRating?: number | null;
   imdbVotes?: string | null;

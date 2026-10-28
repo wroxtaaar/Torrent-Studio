@@ -114,43 +114,29 @@ def movie_tmdb_id(movie):
 
 
 def nexstream_broken(entry):
-    """VidRift has no documented per-title availability API; legacy NexStream failures do not apply."""
+    """Legacy NexStream failures never suppress VidRift catalogue entries."""
     return False
+
+
+def has_source(entry):
+    """Count a torrent as a source; an unverified embed URL never counts as availability."""
+    details = (entry or {}).get("torrentDetails")
+    if not isinstance(details, dict) or details.get("status") == "unavailable":
+        return True  # unknown scan: preserve the title
+    return bool(details.get("results"))
 
 
 TRANSIENT_NEXSTREAM = ("could not connect", "invalid response", "http 5", "http 429", "http 403", "not configured", "timed out")
 
 
 def check_nexstream(tmdb_id):
-    """Ask NexStream (through the local backend) whether it has this movie: True, False, or None when unsure."""
-    if tmdb_id <= 0:
-        return None
-    try:
-        data = request(f"/api/nexstream/resolve?type=movie&tmdb_id={tmdb_id}", timeout=30)
-        return True if data.get("success") and data.get("sources") else False
-    except urllib.error.HTTPError as exc:
-        try:
-            detail = str(json.loads(exc.read().decode("utf-8")).get("detail") or "")
-        except (ValueError, OSError):
-            return None
-        if exc.code == 502 and detail and not any(word in detail.casefold() for word in TRANSIENT_NEXSTREAM):
-            return False  # NexStream answered and has nothing for this title
-        return None
-    except Exception:
-        return None
+    """VidRift has no per-title availability API; report only unknown for every TMDB ID."""
+    return None
 
 
 def nexstream_state(movie, old_entry):
-    """Reuse a definite answer for NEXSTREAM_REUSE_DAYS, otherwise ask again."""
-    old = (old_entry or {}).get("nexStream")
-    if isinstance(old, dict) and old.get("ok") in (True, False):
-        try:
-            checked = datetime.fromisoformat(str(old.get("checkedAt")).replace("Z", "+00:00"))
-            if datetime.now(timezone.utc) - checked < timedelta(days=NEXSTREAM_REUSE_DAYS):
-                return old
-        except ValueError:
-            pass
-    return {"ok": check_nexstream(movie_tmdb_id(movie)), "checkedAt": datetime.now(timezone.utc).isoformat()}
+    """Legacy NexStream/VidRift state is always unverified; never preserve old API answers as VidRift verification."""
+    return {"ok": None, "provider": "VidRift", "availabilityVerified": False, "checkedAt": datetime.now(timezone.utc).isoformat()}
 
 
 def fresh_enough(details):
@@ -313,8 +299,9 @@ def build_movies(old):
             if cat not in entry["catalogues"]:
                 entry["catalogues"].append(cat)
             if has_source(entry):
-                movie = {**movie, "nexStreamPlayable": not nexstream_broken(entry),  # False hides the Play button
-                         "nexStreamVerified": (entry.get("nexStream") or {}).get("ok") is True}  # True: Play can open the player directly
+                movie = {**movie, "nexStreamPlayable": False,
+                         "nexStreamVerified": False,
+                         "directStreamAvailability": {"provider": "VidRift", "verified": False, "status": "unverified"}}
                 if cat in DETAIL_ORDERED:
                     movie = {**movie, "detailScore": detail_score(movie, entry)}
                 final.append(movie)

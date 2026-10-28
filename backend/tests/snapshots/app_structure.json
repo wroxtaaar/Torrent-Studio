@@ -651,6 +651,41 @@
     ],
     "/api/feedback",
     "submit_feedback"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/nexstream/search",
+    "search_titles"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/nexstream/episodes",
+    "get_tv_episodes"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/nexstream/resolve",
+    "resolve_nexstream"
+   ],
+   [
+    [
+     "POST"
+    ],
+    "/api/nexstream/report",
+    "report_nexstream_failure"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/vidrift/resolve",
+    "resolve_vidrift"
    ]
   ],
   "middleware": [
@@ -1360,6 +1395,13 @@
     ],
     "/api/nexstream/report",
     "report_nexstream_failure"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/vidrift/resolve",
+    "resolve_vidrift"
    ],
    [
     [

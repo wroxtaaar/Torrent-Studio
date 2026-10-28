@@ -15,6 +15,7 @@ import httpx
 from core.cache_diagnostics import _InstrumentedAsyncClient, _record_cache_event
 from fastapi import APIRouter, HTTPException, Query
 from core.settings import _CACHE_SEED_DIR, stored_ttl, data_file
+from integrations.vidrift import build_vidrift_movie_url, build_vidrift_tv_url
 
 router = APIRouter()
 NEXSTREAM_API_BASE = "https://api.codespecters.com"
@@ -184,10 +185,10 @@ async def resolve_nexstream_movie(tmdb_id: int) -> dict:
         "tmdbId": str(tmdb_id),
         "season": None,
         "episode": None,
-        "meta": {"provider": "VidRift", "availabilityVerified": False},
+        "meta": {"provider": "VidRift", "availabilityVerified": False, "availability": "unverified"},
         "sources": [{
             "name": "VidRift",
-            "url": f"https://embed.vidrift.net/embed/movie/{tmdb_id}",
+            "url": build_vidrift_movie_url(tmdb_id),
         }],
     }
 
@@ -412,15 +413,15 @@ async def resolve_nexstream(
     if media_type == "tv":
         if season is None or episode is None:
             raise HTTPException(status_code=422, detail="TV playback requires both season and episode.")
-        path = f"/embed/tv/{tmdb_id}/{season}/{episode}"
+        url = build_vidrift_tv_url(tmdb_id, season, episode)
     else:
-        path = f"/embed/movie/{tmdb_id}"
+        url = build_vidrift_movie_url(tmdb_id)
     return {
         "success": True,
         "type": media_type,
         "tmdbId": str(tmdb_id),
         "season": season if media_type == "tv" else None,
         "episode": episode if media_type == "tv" else None,
-        "meta": {"provider": "VidRift", "availabilityVerified": False},
-        "sources": [{"name": "VidRift", "url": "https://embed.vidrift.net" + path}],
+        "meta": {"provider": "VidRift", "availabilityVerified": False, "availability": "unverified"},
+        "sources": [{"name": "VidRift", "url": url}],
     }

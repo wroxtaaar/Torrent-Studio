@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Loader2, Play, Maximize2 } from 'lucide-react';
 import { TvShowCard } from '../TvShowCard.tsx';
 import { imdbRatingKey } from '../grouping.ts';
@@ -5,6 +6,10 @@ import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 
 export function NexStreamSection({ vm }: { vm: PanelModel }) {
   const { imdbRatingsByKey, loadNexStreamEpisodes, nexStreamEpisodePicker, nexStreamEpisodePrefetchStatus, nexStreamEpisodes, nexStreamEpisodesError, nexStreamEpisodesLoading, nexStreamError, nexStreamLoading, nexStreamPlayer, nexStreamResolvingId, nexStreamResults, nexStreamSearchMode, nexStreamSeasons, nexStreamSelectedSeason, playWithNexStream, setNexStreamEpisodePicker, setNexStreamPlayer } = vm;
+  const [playerLoading, setPlayerLoading] = useState(false);
+  useEffect(() => {
+    setPlayerLoading(Boolean(nexStreamPlayer));
+  }, [nexStreamPlayer?.url]);
   return (
     <>
       {(nexStreamPlayer || nexStreamSearchMode === 'tv' || nexStreamSearchMode === 'movie') && (
@@ -45,8 +50,8 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
                     >
                       {nexStreamResolvingId === 'tv:' + item.id ? <><Loader2 className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />Resolving…</>
                         : nexStreamEpisodePrefetchStatus[String(item.id)] === 'loading' ? <><Loader2 className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />Preparing episodes…</>
-                        : nexStreamEpisodePrefetchStatus[String(item.id)] === 'ready' ? <><Play className="mr-1.5 inline h-3.5 w-3.5" />Choose episode</>
-                        : <><Play className="mr-1.5 inline h-3.5 w-3.5" />{nexStreamEpisodePrefetchStatus[String(item.id)] === 'error' ? 'Retry episode data' : 'Choose episode'}</>}
+                          : nexStreamEpisodePrefetchStatus[String(item.id)] === 'ready' ? <><Play className="mr-1.5 inline h-3.5 w-3.5" />Choose episode</>
+                            : <><Play className="mr-1.5 inline h-3.5 w-3.5" />{nexStreamEpisodePrefetchStatus[String(item.id)] === 'error' ? 'Retry episode data' : 'Choose episode'}</>}
                     </button>
                   }
                 />
@@ -116,51 +121,53 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
           {nexStreamPlayer && (
             <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/85 p-2 sm:p-5">
               <div className="relative flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-violet-400/40 bg-slate-950 shadow-2xl">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3 pr-24">
-                <div className="min-w-0">
-                  <div className="truncate text-xs font-bold text-slate-100">{nexStreamPlayer.title}{nexStreamPlayer.year ? ' (' + nexStreamPlayer.year + ')' : ''}</div>
-                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3 pr-24">
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-bold text-slate-100">{nexStreamPlayer.title}{nexStreamPlayer.year ? ' (' + nexStreamPlayer.year + ')' : ''}</div>
+                  </div>
 
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const box = document.getElementById('nexstream-player-container');
-                  if (document.fullscreenElement) { void document.exitFullscreen(); return; }
-                  // Fullscreen our own box: it works even when the player inside the frame cannot go fullscreen.
-                  if (box?.requestFullscreen) { void box.requestFullscreen().catch(() => window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer')); }
-                  else { window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer'); }
-                }}
-                className="absolute right-12 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900/95 text-slate-200 shadow-lg hover:bg-slate-700"
-                aria-label="Full screen"
-                title="Full screen (press Esc to leave)"
-              >
-                <Maximize2 className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setNexStreamPlayer(null)}
-                className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900/95 text-lg font-bold text-slate-200 shadow-lg hover:bg-slate-700"
-                aria-label="Close VidRift player"
-                title="Close player"
-              >
-                ×
-              </button>
-              <div
-                id="nexstream-player-container"
-                className="min-h-0 flex-1 aspect-video overflow-hidden bg-black max-sm:aspect-video max-sm:max-h-[calc(96vh-90px)]"
-              >
-                <iframe
-                  id="nexstream-player-frame"
-                  key={nexStreamPlayer.url}
-                  src={nexStreamPlayer.url}
-                  title={'VidRift player for ' + nexStreamPlayer.title}
-                  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                  allowFullScreen
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  className="h-full w-full border-0"
-                />
-              </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const box = document.getElementById('nexstream-player-container');
+                    if (document.fullscreenElement) { void document.exitFullscreen(); return; }
+                    // Fullscreen our own box: it works even when the player inside the frame cannot go fullscreen.
+                    if (box?.requestFullscreen) { void box.requestFullscreen().catch(() => window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer')); }
+                    else { window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer'); }
+                  }}
+                  className="absolute right-12 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900/95 text-slate-200 shadow-lg hover:bg-slate-700"
+                  aria-label="Full screen"
+                  title="Full screen (press Esc to leave)"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNexStreamPlayer(null)}
+                  className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900/95 text-lg font-bold text-slate-200 shadow-lg hover:bg-slate-700"
+                  aria-label="Close VidRift player"
+                  title="Close player"
+                >
+                  ×
+                </button>
+                <div
+                  id="nexstream-player-container"
+                  className="relative min-h-0 flex-1 aspect-video overflow-hidden bg-black max-sm:aspect-video max-sm:max-h-[calc(96vh-90px)]"
+                >
+                  {playerLoading && <div className="absolute inset-0 z-[1] flex items-center justify-center bg-black/70 text-sm text-slate-200" role="status"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading VidRift player…</div>}
+                  <iframe
+                    id="nexstream-player-frame"
+                    key={nexStreamPlayer.url}
+                    src={nexStreamPlayer.url}
+                    onLoad={() => setPlayerLoading(false)}
+                    title={'VidRift player for ' + nexStreamPlayer.title}
+                    allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                    allowFullScreen
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    className="h-full w-full border-0"
+                  />
+                </div>
               </div>
             </div>
           )}
