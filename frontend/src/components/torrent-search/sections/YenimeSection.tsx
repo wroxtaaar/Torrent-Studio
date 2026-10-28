@@ -1,5 +1,6 @@
 import React from 'react';
-import { Loader2, Maximize2, Play, X } from 'lucide-react';
+import { Loader2, Play, X } from 'lucide-react';
+import { TorrentPlayerShell } from '../TorrentPlayerShell.tsx';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 
 export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
@@ -167,37 +168,27 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
       )}
 
       {yenimePlayer && (
-        <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/90 p-2 sm:p-5">
-          <div id="yenime-player-container" className="relative flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-violet-400/40 bg-slate-950 shadow-2xl aspect-video">
-            <div className="absolute left-2 top-2 z-10 max-w-[40%] rounded-md border border-slate-700 bg-slate-950/95 px-3 py-2 text-xs text-white"><span className="block truncate">{yenimePlayer.title} · Episode {yenimePlayer.episode} · {yenimePlayer.type.toUpperCase()}</span></div>
-            {yenimePlayer.tmdbId && (
-              <div className="absolute left-1/2 top-2 z-10 flex -translate-x-1/2 rounded-lg border border-slate-700 bg-slate-900 p-1" role="group" aria-label="Streaming provider">
-                <button type="button" onClick={() => setYenimeProvider('yenime')} className="rounded-md bg-violet-500 px-3 py-1.5 text-xs font-bold text-white" aria-current="true">Yenime</button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    closeYenime();
-                    void vm.playWithNexStream({
-                      id: yenimePlayer.tmdbId as number,
-                      title: yenimePlayer.title,
-                      date: '', overview: '', poster: null, type: 'tv', anime: true,
-                    }, yenimePlayer.season, yenimePlayer.episode);
-                  }}
-                  className="rounded-md px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-800"
-                >VidRift</button>
-              </div>
-            )}
-            <button type="button" onClick={() => {
-              const box = document.getElementById('yenime-player-container');
-              if (document.fullscreenElement) void document.exitFullscreen();
-              else if (box?.requestFullscreen) void box.requestFullscreen().catch(() => window.open(yenimePlayer.url, '_blank', 'noopener,noreferrer'));
-              else window.open(yenimePlayer.url, '_blank', 'noopener,noreferrer');
-            }} className="absolute right-12 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900/95 text-slate-200" aria-label="Fullscreen Yenime player"><Maximize2 className="h-4 w-4" /></button>
-            <button type="button" onClick={closeYenime} className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900/95 text-slate-200" aria-label="Close Yenime player"><X className="h-4 w-4" /></button>
-            {loading && <div role="status" className="absolute inset-0 z-[1] flex items-center justify-center bg-black/70 text-sm text-slate-200"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading Yenime player…</div>}
-            <iframe key={yenimePlayer.url} src={yenimePlayer.url} title={`Yenime player for ${yenimePlayer.title}`} onLoad={() => setLoading(false)} allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" className="h-full w-full border-0 bg-black" />
-          </div>
-        </div>
+        <TorrentPlayerShell
+          id="yenime-player-container"
+          title={`${yenimePlayer.title} · Episode ${yenimePlayer.episode} · ${yenimePlayer.type.toUpperCase()}`}
+          loading={loading}
+          loadingLabel="Loading Yenime player…"
+          closeLabel="Close Yenime player"
+          onClose={closeYenime}
+          providers={yenimePlayer.tmdbId ? [
+            { label: 'Yenime', active: yenimeProvider === 'yenime', onSelect: () => setYenimeProvider('yenime') },
+            { label: 'VidRift', active: yenimeProvider === 'vidrift', onSelect: () => {
+              closeYenime();
+              void vm.playWithNexStream({
+                id: yenimePlayer.tmdbId as number,
+                title: yenimePlayer.title,
+                date: '', overview: '', poster: null, type: 'tv', anime: true,
+              }, yenimePlayer.season, yenimePlayer.episode);
+            } },
+          ] : undefined}
+        >
+          <iframe key={yenimePlayer.url} src={yenimePlayer.url} title={`Yenime player for ${yenimePlayer.title}`} onLoad={() => setLoading(false)} allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" className="h-full w-full border-0 bg-black" />
+        </TorrentPlayerShell>
       )}
     </>
   );

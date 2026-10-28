@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Play, Maximize2 } from 'lucide-react';
+import { Loader2, Play } from 'lucide-react';
+import { TorrentPlayerShell } from '../TorrentPlayerShell.tsx';
 import { TvShowCard } from '../TvShowCard.tsx';
 import { imdbRatingKey } from '../grouping.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
@@ -119,64 +120,34 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
           )}
 
           {nexStreamPlayer && (
-            <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/85 p-2 sm:p-5">
-              <div className="relative flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-violet-400/40 bg-slate-950 shadow-2xl aspect-video">
-                <div className="absolute left-2 top-2 z-10 max-w-[40%] rounded-md border border-slate-700 bg-slate-950/95 px-3 py-2 text-xs text-white">
-                  <span className="block truncate">{nexStreamPlayer.title}{nexStreamPlayer.type === 'tv' && nexStreamPlayer.season && nexStreamPlayer.episode ? ` · S${nexStreamPlayer.season} E${nexStreamPlayer.episode}` : nexStreamPlayer.year ? ` (${nexStreamPlayer.year})` : ''}</span>
-                </div>
-                {nexStreamPlayer.anime && (
-                  <div className="absolute left-1/2 top-2 z-10 flex -translate-x-1/2 rounded-lg border border-slate-700 bg-slate-900 p-1" role="group" aria-label="Streaming provider">
-                    <button type="button" onClick={() => {
-                      const player = nexStreamPlayer;
-                      setNexStreamPlayer(null);
-                      switchToYenimePlayer(player.title, Number(player.year) || null, null, player.episode || 1, player.tmdbId || null, player.season || 1);
-                    }} className="rounded-md px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-800">Yenime</button>
-                    <button type="button" className="rounded-md bg-violet-500 px-3 py-1.5 text-xs font-bold text-white" aria-current="true">VidRift</button>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const box = document.getElementById('nexstream-player-container');
-                    if (document.fullscreenElement) { void document.exitFullscreen(); return; }
-                    // Fullscreen our own box: it works even when the player inside the frame cannot go fullscreen.
-                    if (box?.requestFullscreen) { void box.requestFullscreen().catch(() => window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer')); }
-                    else { window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer'); }
-                  }}
-                  className="absolute right-12 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900/95 text-slate-200 shadow-lg hover:bg-slate-700"
-                  aria-label="Full screen"
-                  title="Full screen (press Esc to leave)"
-                >
-                  <Maximize2 className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNexStreamPlayer(null)}
-                  className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900/95 text-lg font-bold text-slate-200 shadow-lg hover:bg-slate-700"
-                  aria-label="Close VidRift player"
-                  title="Close player"
-                >
-                  ×
-                </button>
-                <div
-                  id="nexstream-player-container"
-                  className="relative min-h-0 flex-1 aspect-video overflow-hidden bg-black max-sm:aspect-video max-sm:max-h-[calc(96vh-90px)]"
-                >
-                  {playerLoading && <div className="absolute inset-0 z-[1] flex items-center justify-center bg-black/70 text-sm text-slate-200" role="status"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading VidRift player…</div>}
-                  <iframe
-                    id="nexstream-player-frame"
-                    key={nexStreamPlayer.url}
-                    src={nexStreamPlayer.url}
-                    onLoad={() => setPlayerLoading(false)}
-                    title={'VidRift player for ' + nexStreamPlayer.title}
-                    allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                    allowFullScreen
-                    referrerPolicy="strict-origin-when-cross-origin"
-                    className="h-full w-full border-0"
-                  />
-                </div>
-              </div>
-            </div>
+            <TorrentPlayerShell
+              id="nexstream-player-container"
+              title={`${nexStreamPlayer.title}${nexStreamPlayer.type === 'tv' && nexStreamPlayer.season && nexStreamPlayer.episode ? ` · S${nexStreamPlayer.season} E${nexStreamPlayer.episode}` : nexStreamPlayer.year ? ` (${nexStreamPlayer.year})` : ''}`}
+              loading={playerLoading}
+              loadingLabel="Loading VidRift player…"
+              closeLabel="Close VidRift player"
+              onClose={() => setNexStreamPlayer(null)}
+              providers={nexStreamPlayer.anime ? [
+                { label: 'Yenime', active: false, onSelect: () => {
+                  const player = nexStreamPlayer;
+                  setNexStreamPlayer(null);
+                  switchToYenimePlayer(player.title, Number(player.year) || null, null, player.episode || 1, player.tmdbId || null, player.season || 1);
+                } },
+                { label: 'VidRift', active: true, onSelect: () => undefined },
+              ] : undefined}
+            >
+              <iframe
+                id="nexstream-player-frame"
+                key={nexStreamPlayer.url}
+                src={nexStreamPlayer.url}
+                onLoad={() => setPlayerLoading(false)}
+                title={'VidRift player for ' + nexStreamPlayer.title}
+                allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
+                className="h-full w-full border-0"
+              />
+            </TorrentPlayerShell>
           )}
         </section>
       )}
