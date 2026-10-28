@@ -47,31 +47,36 @@ export function TorrentPlayerShell({ id, title, loading, loadingLabel, closeLabe
       return;
     }
     if (box?.requestFullscreen) {
-      void box.requestFullscreen().catch(() => window.open((children as React.ReactElement<{ src?: string }>)?.props?.src, '_blank', 'noopener,noreferrer'));
+      void box.requestFullscreen().catch(() => {
+        const frame = box.querySelector<HTMLIFrameElement>('iframe[src]');
+        if (frame?.src) window.open(frame.src, '_blank', 'noopener,noreferrer');
+      });
       return;
     }
-    const frameSrc = (children as React.ReactElement<{ src?: string }>)?.props?.src;
-    if (frameSrc) window.open(frameSrc, '_blank', 'noopener,noreferrer');
+    const frame = box?.querySelector<HTMLIFrameElement>('iframe[src]');
+    if (frame?.src) window.open(frame.src, '_blank', 'noopener,noreferrer');
   };
 
   return (
     <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/90 p-2 sm:p-5" onMouseMove={showControlsTemporarily}>
-      <div id={id} className="relative flex aspect-video max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-violet-400/40 bg-slate-950 shadow-2xl">
-        <div className={`transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
-          <div className="absolute left-2 top-2 z-20 max-w-[40%] rounded-md border border-slate-700 bg-slate-950/95 px-3 py-2 text-xs text-white">
+      <div id={id} className="relative flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-violet-400/40 bg-slate-950 shadow-2xl">
+        <div className={`flex h-14 shrink-0 items-center border-b border-slate-700 bg-slate-950 px-3 transition-opacity duration-300 sm:px-4 ${controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
+          <div className="min-w-0 flex-1 pr-3 text-xs font-bold text-white sm:text-sm">
             <span className="block truncate">{title}</span>
           </div>
           {providers && providers.length > 1 && (
-            <div className="absolute left-1/2 top-2 z-20 flex -translate-x-1/2 rounded-lg border border-slate-700 bg-slate-900 p-1" role="group" aria-label="Streaming provider">
+            <div className="mr-2 flex shrink-0 rounded-lg border border-slate-700 bg-slate-900 p-1" role="group" aria-label="Streaming provider">
               {providers.map(provider => (
-                <button key={provider.label} type="button" onClick={provider.onSelect} aria-current={provider.active ? 'true' : undefined} className={provider.active ? 'rounded-md bg-violet-500 px-3 py-1.5 text-xs font-bold text-white' : 'rounded-md px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-800'}>{provider.label}</button>
+                <button key={provider.label} type="button" onClick={provider.onSelect} aria-current={provider.active ? 'true' : undefined} className={provider.active ? 'rounded-md bg-violet-500 px-2.5 py-1 text-xs font-bold text-white sm:px-3 sm:py-1.5' : 'rounded-md px-2.5 py-1 text-xs font-bold text-slate-300 hover:bg-slate-800 sm:px-3 sm:py-1.5'}>{provider.label}</button>
               ))}
             </div>
           )}
-          <button type="button" onClick={toggleFullscreen} className="absolute right-12 top-2 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900/95 text-slate-200 shadow-lg hover:bg-slate-700" aria-label={`Fullscreen ${title}`}><Maximize2 className="h-4 w-4" /></button>
-          <button id={id + '-close'} type="button" onClick={onClose} className="absolute right-2 top-2 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900/95 text-slate-200 shadow-lg hover:bg-slate-700" aria-label={closeLabel}><X className="h-4 w-4" /></button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button type="button" onClick={toggleFullscreen} className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900 text-slate-200 shadow-lg hover:bg-slate-700" aria-label={`Fullscreen ${title}`}><Maximize2 className="h-4 w-4" /></button>
+            <button id={id + '-close'} type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900 text-slate-200 shadow-lg hover:bg-slate-700" aria-label={closeLabel}><X className="h-4 w-4" /></button>
+          </div>
         </div>
-        <div className="relative min-h-0 flex-1 overflow-hidden bg-black aspect-video max-sm:max-h-[calc(96vh-90px)]">
+        <div className="relative min-h-0 w-full flex-1 overflow-hidden bg-black aspect-video max-sm:max-h-[calc(96vh-56px)]">
           {loading && <div role="status" className="absolute inset-0 z-[10] flex items-center justify-center bg-black/70 text-sm text-slate-200"><Loader2 className="mr-2 h-5 w-5 animate-spin" />{loadingLabel}</div>}
           {children}
         </div>
