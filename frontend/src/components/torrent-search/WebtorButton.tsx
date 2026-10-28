@@ -62,6 +62,7 @@ export function WebtorButton({ torrent }: { torrent: TorrentSearchResult }) {
   const [magnetCopied, setMagnetCopied] = useState(false);
   const [showManualMagnet, setShowManualMagnet] = useState(false);
   const playerId = `webtor-player-${useId().replace(/:/g, '')}`;
+  const embedId = mode ? `${playerId}-${mode}` : playerId;
   const embedRef = useRef<HTMLDivElement>(null);
   const magnet = String(torrent.magnetUrl || '').trim();
 
@@ -80,7 +81,7 @@ export function WebtorButton({ torrent }: { torrent: TorrentSearchResult }) {
         // The SDK intentionally exposes an array queue before/while it initializes.
         // Calling push() is the documented way to enqueue an embed config.
         sdk.push({
-          id: playerId,
+          id: embedId,
           magnet,
           title: torrent.title,
           width: '100%',
@@ -163,7 +164,8 @@ export function WebtorButton({ torrent }: { torrent: TorrentSearchResult }) {
             {error && <div role="alert" className="m-3 shrink-0 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</div>}
             {mode && !error && (
               <div
-                id={playerId}
+                key={mode}
+                id={embedId}
                 ref={embedRef}
                 className="webtor-embed-frame relative m-3 min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border border-slate-800 bg-black"
               />
