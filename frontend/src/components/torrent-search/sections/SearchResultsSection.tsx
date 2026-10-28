@@ -42,6 +42,7 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
               {marvelWebSeriesCatalogue && marvelWebSeriesCatalogue.catalogue === (classicsContentTab === 'anime' ? 'classics-anime' : 'classics-web-series') && (
                 <>
                   <div className="px-1 text-xs text-slate-400">{marvelWebSeriesCatalogue.totalResults.toLocaleString()} {classicsContentTab === 'anime' ? 'anime titles' : 'web series'} · Metadata by TMDB</div>
+                  {renderFranchisePagination(marvelWebSeriesCatalogue.results.length)}
                   <div className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
                     {[...marvelWebSeriesCatalogue.results].sort(classicsComparator(classicsSort, show => releaseDateSortValue(show), show => ratingValue(imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]), show => String(show.title || ''))).slice((franchiseGridPage - 1) * franchiseGridPageSize, franchiseGridPage * franchiseGridPageSize).map(show => (
                       <TvShowCard key={String(show.id)} show={show} imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]} onOpen={() => {
@@ -50,7 +51,6 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
                       }} />
                     ))}
                   </div>
-                  {renderFranchisePagination(marvelWebSeriesCatalogue.results.length)}
                 </>
               )}
             </section>
