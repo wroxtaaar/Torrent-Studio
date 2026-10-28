@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Clipboard, Download, Loader2, Play, X } from 'lucide-react';
 import type { TorrentSearchResult } from '../../api/types.ts';
 
@@ -127,8 +128,8 @@ export function WebtorButton({ torrent }: { torrent: TorrentSearchResult }) {
         <Play className="mr-1 inline-block h-3.5 w-3.5" />
         Test Webtor
       </button>
-      {open && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 p-2 sm:p-5">
+      {open && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 p-2 sm:p-5">
           <section role="dialog" aria-modal="true" aria-labelledby={`${playerId}-title`} className="flex h-[92vh] w-full min-w-0 max-w-5xl flex-col overflow-hidden rounded-xl border border-slate-700 bg-slate-950 shadow-2xl">
             <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
               <div className="min-w-0">
@@ -168,7 +169,8 @@ export function WebtorButton({ torrent }: { torrent: TorrentSearchResult }) {
               />
             )}
           </section>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
