@@ -169,7 +169,24 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
       {yenimePlayer && (
         <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/90 p-2 sm:p-5">
           <div id="yenime-player-container" className="relative flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-violet-400/40 bg-slate-950 shadow-2xl aspect-video">
-            <div className="absolute left-2 top-2 z-10 rounded-md border border-slate-700 bg-slate-950/95 px-3 py-2 text-xs text-white">{yenimePlayer.title} · Episode {yenimePlayer.episode} · {yenimePlayer.type.toUpperCase()}</div>
+            <div className="absolute left-2 top-2 z-10 max-w-[40%] rounded-md border border-slate-700 bg-slate-950/95 px-3 py-2 text-xs text-white"><span className="block truncate">{yenimePlayer.title} · Episode {yenimePlayer.episode} · {yenimePlayer.type.toUpperCase()}</span></div>
+            {yenimePlayer.tmdbId && (
+              <div className="absolute left-1/2 top-2 z-10 flex -translate-x-1/2 rounded-lg border border-slate-700 bg-slate-900 p-1" role="group" aria-label="Streaming provider">
+                <button type="button" onClick={() => setYenimeProvider('yenime')} className="rounded-md bg-violet-500 px-3 py-1.5 text-xs font-bold text-white" aria-current="true">Yenime</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeYenime();
+                    void vm.playWithNexStream({
+                      id: yenimePlayer.tmdbId as number,
+                      title: yenimePlayer.title,
+                      date: '', overview: '', poster: null, type: 'tv', anime: true,
+                    }, yenimePlayer.season, yenimePlayer.episode);
+                  }}
+                  className="rounded-md px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-800"
+                >VidRift</button>
+              </div>
+            )}
             <button type="button" onClick={() => {
               const box = document.getElementById('yenime-player-container');
               if (document.fullscreenElement) void document.exitFullscreen();

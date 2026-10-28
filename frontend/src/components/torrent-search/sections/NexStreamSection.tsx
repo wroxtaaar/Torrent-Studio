@@ -130,9 +130,9 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
                       <button type="button" onClick={() => {
                         const player = nexStreamPlayer;
                         setNexStreamPlayer(null);
-                        openYenimeRequest(player.title, Number(player.year) || null, null, player.episode || 1, player.tmdbId);
-                      }} className="rounded-md bg-violet-500 px-3 py-1.5 text-xs font-bold text-white">Yenime</button>
-                      <button type="button" className="rounded-md px-3 py-1.5 text-xs font-bold text-slate-300" aria-current="true">VidRift</button>
+                        openYenimeRequest(player.title, Number(player.year) || null, null, player.episode || 1, player.tmdbId, player.season || 1);
+                      }} className="rounded-md px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-800">Yenime</button>
+                      <button type="button" className="rounded-md bg-violet-500 px-3 py-1.5 text-xs font-bold text-white" aria-current="true">VidRift</button>
                     </div>
                   )}
                 </div>

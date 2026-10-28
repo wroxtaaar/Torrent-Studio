@@ -7,6 +7,8 @@ export type YenimePlayerRequest = {
   title: string;
   malId: number;
   episode: number;
+  season: number;
+  tmdbId?: number;
   type: 'sub' | 'dub';
   url: string;
 };
@@ -60,13 +62,16 @@ export function useYenimePlayer() {
     setYenimeRequest(null);
   };
 
-  const openYenimeRequest = (title: string, year?: number | null, catalogueMalId?: number | string | null, episode?: number | string | null, tmdbId?: number | string | null) => {
+  const openYenimeRequest = (title: string, year?: number | null, catalogueMalId?: number | string | null, episode?: number | string | null, tmdbId?: number | string | null, season?: number | string | null) => {
     const generation = ++generationRef.current;
     setYenimePlayer(null);
     setYenimeProvider('yenime');
     const numericTmdbId = Number(tmdbId);
     const validTmdbId = Number.isInteger(numericTmdbId) && numericTmdbId > 0 ? numericTmdbId : undefined;
+    const numericSeason = Number(season);
+    const validSeason = Number.isInteger(numericSeason) && numericSeason > 0 ? numericSeason : 1;
     const existingMalId = catalogueMalId || yenimeMalIdForTitle(title);
+    setYenimeSelectedSeason(validSeason);
     setYenimeEpisodePicker({ title, tmdbId: validTmdbId });
     setYenimeEpisodes([]);
     setYenimeSeasons([]);
@@ -79,7 +84,7 @@ export function useYenimePlayer() {
       error: '',
       resolving: !existingMalId,
     });
-    if (validTmdbId) void loadYenimeEpisodes(validTmdbId, 1);
+    if (validTmdbId) void loadYenimeEpisodes(validTmdbId, validSeason);
 
     if (existingMalId) return;
     void api.resolveYenimeMalId(title, year, null).then(result => {
@@ -117,10 +122,12 @@ export function useYenimePlayer() {
       const malId = Number(malIdText);
       const episode = Number(episodeText);
       const url = buildYenimeUrl(malId, episode, type);
+      const tmdbId = yenimeEpisodePicker?.tmdbId;
       setYenimeRequest(null);
       setYenimeEpisodePicker(null);
       setYenimeEpisodes([]);
-      setYenimePlayer({ title: yenimeRequest.title, malId, episode, type, url });
+      setYenimeProvider('yenime');
+      setYenimePlayer({ title: yenimeRequest.title, malId, episode, season: yenimeSelectedSeason, tmdbId, type, url });
     } catch (error: unknown) {
       setYenimeRequest(current => current ? { ...current, error: error instanceof Error ? error.message : 'Could not open Yenime.' } : current);
     }
