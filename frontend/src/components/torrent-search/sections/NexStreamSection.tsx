@@ -5,7 +5,7 @@ import { imdbRatingKey } from '../grouping.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 
 export function NexStreamSection({ vm }: { vm: PanelModel }) {
-  const { imdbRatingsByKey, loadNexStreamEpisodes, nexStreamEpisodePicker, nexStreamEpisodePrefetchStatus, nexStreamEpisodes, nexStreamEpisodesError, nexStreamEpisodesLoading, nexStreamError, nexStreamLoading, nexStreamPlayer, nexStreamResolvingId, nexStreamResults, nexStreamSearchMode, nexStreamSeasons, nexStreamSelectedSeason, playWithNexStream, setNexStreamEpisodePicker, setNexStreamPlayer } = vm;
+  const { imdbRatingsByKey, loadNexStreamEpisodes, nexStreamEpisodePicker, nexStreamEpisodePrefetchStatus, nexStreamEpisodes, nexStreamEpisodesError, nexStreamEpisodesLoading, nexStreamError, nexStreamLoading, nexStreamPlayer, nexStreamResolvingId, nexStreamResults, nexStreamSearchMode, nexStreamSeasons, nexStreamSelectedSeason, playWithNexStream, setNexStreamEpisodePicker, setNexStreamPlayer, openYenimeRequest } = vm;
   const [playerLoading, setPlayerLoading] = useState(false);
   useEffect(() => {
     setPlayerLoading(Boolean(nexStreamPlayer));
@@ -125,7 +125,16 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
                   <div className="min-w-0">
                     <div className="truncate text-xs font-bold text-slate-100">{nexStreamPlayer.title}{nexStreamPlayer.year ? ' (' + nexStreamPlayer.year + ')' : ''}</div>
                   </div>
-
+                  {nexStreamPlayer.anime && (
+                    <div className="flex rounded-lg border border-slate-700 bg-slate-900 p-1" role="group" aria-label="Streaming provider">
+                      <button type="button" onClick={() => {
+                        const player = nexStreamPlayer;
+                        setNexStreamPlayer(null);
+                        openYenimeRequest(player.title, Number(player.year) || null, null, player.episode || 1, player.tmdbId);
+                      }} className="rounded-md bg-violet-500 px-3 py-1.5 text-xs font-bold text-white">Yenime</button>
+                      <button type="button" className="rounded-md px-3 py-1.5 text-xs font-bold text-slate-300" aria-current="true">VidRift</button>
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"

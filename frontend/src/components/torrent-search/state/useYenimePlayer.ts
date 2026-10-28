@@ -27,6 +27,7 @@ export function useYenimePlayer() {
   const [yenimeSelectedSeason, setYenimeSelectedSeason] = useState(1);
   const [yenimeEpisodesLoading, setYenimeEpisodesLoading] = useState(false);
   const [yenimeEpisodesError, setYenimeEpisodesError] = useState('');
+  const [yenimeProvider, setYenimeProvider] = useState<'yenime' | 'vidrift'>('yenime');
   const generationRef = useRef(0);
   const episodeLoadGenerationRef = useRef(0);
 
@@ -62,6 +63,7 @@ export function useYenimePlayer() {
   const openYenimeRequest = (title: string, year?: number | null, catalogueMalId?: number | string | null, episode?: number | string | null, tmdbId?: number | string | null) => {
     const generation = ++generationRef.current;
     setYenimePlayer(null);
+    setYenimeProvider('yenime');
     const numericTmdbId = Number(tmdbId);
     const validTmdbId = Number.isInteger(numericTmdbId) && numericTmdbId > 0 ? numericTmdbId : undefined;
     const existingMalId = catalogueMalId || yenimeMalIdForTitle(title);
@@ -126,8 +128,8 @@ export function useYenimePlayer() {
 
   return {
     yenimeRequest, yenimePlayer, yenimeEpisodePicker, yenimeSeasons, yenimeEpisodes,
-    yenimeSelectedSeason, yenimeEpisodesLoading, yenimeEpisodesError,
-    setYenimePlayer, setYenimeRequest, setYenimeSelectedSeason,
+    yenimeSelectedSeason, yenimeEpisodesLoading, yenimeEpisodesError, yenimeProvider,
+    setYenimePlayer, setYenimeRequest, setYenimeSelectedSeason, setYenimeProvider,
     openYenimeRequest, closeYenime, closeYenimeEpisodePicker,
     loadYenimeEpisodes, launchYenime,
   };

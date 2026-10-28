@@ -157,6 +157,7 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
           tmdbId,
           season,
           episode,
+          anime: item.anime,
         });
       }
       setNexStreamError('');

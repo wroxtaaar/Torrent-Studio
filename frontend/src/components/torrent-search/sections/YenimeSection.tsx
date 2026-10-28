@@ -5,8 +5,8 @@ import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
   const {
     yenimeRequest, yenimePlayer, yenimeEpisodePicker, yenimeSeasons, yenimeEpisodes,
-    yenimeSelectedSeason, yenimeEpisodesLoading, yenimeEpisodesError,
-    setYenimeRequest, setYenimeSelectedSeason, closeYenime,
+    yenimeSelectedSeason, yenimeEpisodesLoading, yenimeEpisodesError, yenimeProvider,
+    setYenimeRequest, setYenimeSelectedSeason, setYenimeProvider, closeYenime,
     closeYenimeEpisodePicker, loadYenimeEpisodes, launchYenime,
   } = vm;
   const [loading, setLoading] = React.useState(true);
@@ -14,6 +14,24 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
   React.useEffect(() => {
     if (yenimePlayer) setLoading(true);
   }, [yenimePlayer?.url]);
+
+  const playEpisodeWithProvider = (episodeNumber: number | string) => {
+    if (yenimeProvider === 'vidrift') {
+      const tmdbId = Number(yenimeEpisodePicker?.tmdbId);
+      if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
+        setYenimeRequest(current => current ? { ...current, error: 'This anime has no valid TMDB ID for VidRift playback.' } : current);
+        return;
+      }
+      closeYenimeEpisodePicker();
+      void vm.playWithNexStream({
+        id: tmdbId,
+        title: yenimeEpisodePicker?.title || yenimeRequest?.title || 'Anime',
+        date: '', overview: '', poster: null, type: 'tv', anime: true,
+      }, yenimeSelectedSeason, Number(episodeNumber));
+      return;
+    }
+    if (yenimeRequest) launchYenime(yenimeRequest.malId, String(episodeNumber), yenimeRequest.type);
+  };
 
   return (
     <>
@@ -25,7 +43,13 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
                 <h3 className="text-xl font-bold text-white">Choose an episode</h3>
                 <p className="mt-1 truncate text-sm text-slate-400">{yenimeEpisodePicker.title}</p>
               </div>
-              <button type="button" onClick={closeYenimeEpisodePicker} className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800">Close</button>
+              <div className="flex items-center gap-2">
+                <div className="flex rounded-lg border border-slate-700 bg-slate-900 p-1" role="group" aria-label="Streaming provider">
+                  <button type="button" onClick={() => setYenimeProvider('yenime')} className={yenimeProvider === 'yenime' ? 'rounded-md bg-violet-500 px-3 py-1.5 text-xs font-bold text-white' : 'rounded-md px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-800'}>Yenime</button>
+                  <button type="button" onClick={() => setYenimeProvider('vidrift')} className={yenimeProvider === 'vidrift' ? 'rounded-md bg-violet-500 px-3 py-1.5 text-xs font-bold text-white' : 'rounded-md px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-800'}>VidRift</button>
+                </div>
+                <button type="button" onClick={closeYenimeEpisodePicker} className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-800">Close</button>
+              </div>
             </div>
 
             <div className="border-b border-slate-800 px-4 py-3">
@@ -79,7 +103,7 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
               ) : yenimeEpisodes.length > 0 ? (
                 <div className="space-y-2">
                   {yenimeEpisodes.map(episode => (
-                    <button key={episode.episodeNumber} type="button" onClick={() => launchYenime(yenimeRequest.malId, String(episode.episodeNumber), yenimeRequest.type)} disabled={yenimeRequest.resolving || !yenimeRequest.malId} className="flex w-full items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-2.5 text-left transition hover:border-violet-400/60 hover:bg-violet-500/10 disabled:cursor-not-allowed disabled:opacity-50 sm:p-3">
+                    <button key={episode.episodeNumber} type="button" onClick={() => playEpisodeWithProvider(episode.episodeNumber)} disabled={yenimeProvider === 'yenime' && (yenimeRequest.resolving || !yenimeRequest.malId)} className="flex w-full items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/70 p-2.5 text-left transition hover:border-violet-400/60 hover:bg-violet-500/10 disabled:cursor-not-allowed disabled:opacity-50 sm:p-3">
                       {episode.still ? (
                         <img src={episode.still} alt="" className="h-16 w-24 shrink-0 rounded-lg object-cover sm:h-20 sm:w-32" />
                       ) : (
@@ -99,7 +123,7 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
                   <label className="text-xs text-slate-400">Episode
                     <input value={yenimeRequest.episode} onChange={event => setYenimeRequest(current => current ? { ...current, episode: event.target.value, error: '' } : current)} inputMode="numeric" className="mt-1 w-24 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" />
                   </label>
-                  <button type="button" disabled={yenimeRequest.resolving || !yenimeRequest.malId} onClick={() => launchYenime(yenimeRequest.malId, yenimeRequest.episode, yenimeRequest.type)} className="mt-5 rounded-lg bg-violet-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Play episode</button>
+                  <button type="button" disabled={yenimeProvider === 'yenime' && (yenimeRequest.resolving || !yenimeRequest.malId)} onClick={() => playEpisodeWithProvider(yenimeRequest.episode)} className="mt-5 rounded-lg bg-violet-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Play episode</button>
                 </div>
               )}
             </div>
