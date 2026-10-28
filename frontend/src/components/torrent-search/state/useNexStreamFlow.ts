@@ -128,66 +128,34 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
     setNexStreamResolvingId(resolvingId);
     setNexStreamError('');
     try {
-      const resolveCacheKey = item.type + ':' + item.id + ':' + String(season ?? '') + ':' + String(episode ?? '');
-      const cachedResolve = readLocalCache<{ url: string; name: string }>(
-        NEXSTREAM_RESOLVE_CACHE_KEY,
-        resolveCacheKey,
-        NEXSTREAM_RESOLVE_CACHE_TTL_MS,
-      );
-      let source: { url: string; name?: string } | undefined;
-      if (item.type === 'movie' && item.direct && Number(item.id) > 0) {
-        // The cache build already confirmed NexStream has this title; its player link is fixed by the TMDB id.
-        source = { url: 'https://embedmaster.link/movie/' + String(Number(item.id)), name: 'NexStream' };
-      } else if (cachedResolve && /^https:\/\//i.test(cachedResolve.url)) {
-        source = cachedResolve;
-      } else {
-        const params = new URLSearchParams({ type: item.type, tmdb_id: String(item.id) });
-        if (item.type === 'tv') {
-          params.set('season', String(season));
-          params.set('episode', String(episode));
-        }
-        const response = await fetch('/api/nexstream/resolve?' + params.toString(), {
-        headers: { Accept: 'application/json' },
-        credentials: 'same-origin',
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.success || !Array.isArray(data.sources) || !data.sources.length) {
-        throw new Error(data.detail || 'NexStream could not resolve this title.');
+      // VidRift is an embed-only provider: its documented API is a TMDB-ID
+      // iframe URL, not a server-side source-resolution endpoint.
+      const tmdbId = Number(item.id);
+      if (!Number.isInteger(tmdbId) || tmdbId <= 0) {
+        throw new Error('This title has no valid TMDB ID for VidRift playback.');
       }
-        const resolvedSource = data.sources.find((candidate: any) => {
-          try {
-            const url = new URL(String(candidate?.url || ''));
-            return url.protocol === 'https:' && ['embedmaster.link', 'www.embedmaster.link'].includes(url.hostname);
-          } catch {
-            return false;
-          }
-        });
-        if (!resolvedSource) throw new Error('NexStream returned no supported player source.');
-        source = { url: String(resolvedSource.url), name: String(resolvedSource.name || 'NexStream') };
-        writeLocalCache(NEXSTREAM_RESOLVE_CACHE_KEY, resolveCacheKey, source);
-      }
-      if (!source) throw new Error('NexStream returned no supported player source.');
+      const sourceUrl = item.type === 'tv'
+        ? 'https://embed.vidrift.net/embed/tv/' + tmdbId + '/' + String(season) + '/' + String(episode)
+        : 'https://embed.vidrift.net/embed/movie/' + tmdbId;
       if (popup) {
-        popup.location.href = String(source.url);
+        popup.location.href = sourceUrl;
       } else if (openInNewWindow) {
         setNexStreamError('Your browser blocked the new window. Allow pop-ups and try again.');
       } else {
         setNexStreamPlayer({
           title: item.title,
           year: String(item.date || '').slice(0, 4),
-          sourceName: String(source.name || 'NexStream'),
-          url: String(source.url),
+          sourceName: 'VidRift',
+          url: sourceUrl,
           type: item.type,
-          tmdbId: Number(item.id) || undefined,
+          tmdbId,
           season,
           episode,
         });
       }
       setNexStreamError('');
     } catch (error: any) {
-      // NexStream itself said it cannot play this movie: tell the server so every user stops seeing Play for it.
-      if (item.type === 'movie') reportNexStreamFailure({ tmdbId: Number(item.id), title: item.title, year: String(item.date || '').slice(0, 4) }, 'resolve_failed');
-      setNexStreamError(String(error?.message || 'Could not start NexStream playback.'));
+      setNexStreamError(String(error?.message || 'Could not start VidRift playback.'));
     } finally {
       setNexStreamResolvingId(null);
     }
