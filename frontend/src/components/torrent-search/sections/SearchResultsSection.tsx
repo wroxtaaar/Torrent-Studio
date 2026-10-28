@@ -24,8 +24,6 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
               {groupedResults.length} titles · {sortedResults.length} torrent options
             </div>
           </div>
-          {!isSearching && renderFranchisePagination(Math.max(groupedResults.length, catalogueExpectedTitles))}
-
           {pendingPosterAction?.kind === 'search' && (
             <div className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-400">
               Loading the visible posters before opening this card…
@@ -44,7 +42,6 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
               {marvelWebSeriesCatalogue && marvelWebSeriesCatalogue.catalogue === (classicsContentTab === 'anime' ? 'classics-anime' : 'classics-web-series') && (
                 <>
                   <div className="px-1 text-xs text-slate-400">{marvelWebSeriesCatalogue.totalResults.toLocaleString()} {classicsContentTab === 'anime' ? 'anime titles' : 'web series'} · Metadata by TMDB</div>
-                  {renderFranchisePagination(marvelWebSeriesCatalogue.results.length)}
                   <div className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
                     {[...marvelWebSeriesCatalogue.results].sort(classicsComparator(classicsSort, show => releaseDateSortValue(show), show => ratingValue(imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]), show => String(show.title || ''))).slice((franchiseGridPage - 1) * franchiseGridPageSize, franchiseGridPage * franchiseGridPageSize).map(show => (
                       <TvShowCard key={String(show.id)} show={show} imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]} onOpen={() => {
@@ -64,28 +61,6 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
           ) : regionalWebSeriesCatalogue ? (
             <div className="space-y-3">
               <div className="px-1 text-xs text-slate-400">{regionalWebSeriesCatalogue.totalResults.toLocaleString()} web series · Page {regionalWebSeriesCatalogue.page} of {regionalWebSeriesCatalogue.totalPages.toLocaleString()} · Metadata by TMDB</div>
-              {(() => {
-                const goToRegionalPage = async (targetPage: number) => {
-                  if (regionalWebSeriesLoading || targetPage < 1 || targetPage === regionalWebSeriesCatalogue.page) return;
-                  setRegionalWebSeriesLoading(true);
-                  setRegionalWebSeriesError('');
-                  try {
-                    const nextPage = await api.getTvCatalogue(regionalWebSeriesCatalogue.catalogue, targetPage);
-                    setRegionalWebSeriesCatalogue(nextPage);
-                  } catch (error: any) {
-                    setRegionalWebSeriesError(String(error?.message || 'Could not load this page.'));
-                  } finally {
-                    setRegionalWebSeriesLoading(false);
-                  }
-                };
-                return (
-                  <div className="flex items-center justify-between gap-3">
-                    <button type="button" disabled={regionalWebSeriesLoading || regionalWebSeriesCatalogue.page <= 1} onClick={() => void goToRegionalPage(regionalWebSeriesCatalogue.page - 1)} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-500 disabled:cursor-not-allowed disabled:opacity-40">← Previous</button>
-                    <span className="text-xs text-slate-500">Page {regionalWebSeriesCatalogue.page} of {regionalWebSeriesCatalogue.totalPages}</span>
-                    <button type="button" disabled={regionalWebSeriesLoading} onClick={() => void goToRegionalPage(regionalWebSeriesCatalogue.page + 1)} className="rounded-lg border border-cyan-500/50 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40">Next →</button>
-                  </div>
-                );
-              })()}
               <div className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
                 {regionalWebSeriesCatalogue.results.map(show => (
                   <TvShowCard key={String(show.id)} show={show} imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]} onOpen={() => playCatalogueTvWithNexStream(show)} />
@@ -121,7 +96,6 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
               {dcWebSeriesCatalogue && (
                 <>
                   <div className="px-1 text-xs text-slate-400">{dcWebSeriesCatalogue.totalResults.toLocaleString()} DC web series · Page {dcWebSeriesCatalogue.page} of {dcWebSeriesCatalogue.totalPages.toLocaleString()} · Metadata by TMDB</div>
-                  {renderFranchisePagination(dcWebSeriesCatalogue.results.length)}
                   <div className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
                     {[...dcWebSeriesCatalogue.results].sort(classicsComparator(classicsSort, show => releaseDateSortValue(show), show => ratingValue(imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]), show => String(show.title || ''))).slice((franchiseGridPage - 1) * franchiseGridPageSize, franchiseGridPage * franchiseGridPageSize).map(show => (
                       <TvShowCard key={String(show.id)} show={show} imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]} onOpen={() => playCatalogueTvWithNexStream(show)} />
