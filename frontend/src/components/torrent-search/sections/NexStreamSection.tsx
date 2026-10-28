@@ -1,18 +1,23 @@
-import { reportNexStreamFailure } from '../nexstreamReports.ts';
-import { Loader2, Play, Maximize2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Loader2, Play } from 'lucide-react';
+import { TorrentPlayerShell } from '../TorrentPlayerShell.tsx';
 import { TvShowCard } from '../TvShowCard.tsx';
 import { imdbRatingKey } from '../grouping.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 
 export function NexStreamSection({ vm }: { vm: PanelModel }) {
-  const { imdbRatingsByKey, loadNexStreamEpisodes, nexStreamEpisodePicker, nexStreamEpisodePrefetchStatus, nexStreamEpisodes, nexStreamEpisodesError, nexStreamEpisodesLoading, nexStreamError, nexStreamLoading, nexStreamPlayer, nexStreamResolvingId, nexStreamResults, nexStreamSearchMode, nexStreamSeasons, nexStreamSelectedSeason, playWithNexStream, setNexStreamEpisodePicker, setNexStreamPlayer } = vm;
+  const { imdbRatingsByKey, loadNexStreamEpisodes, nexStreamEpisodePicker, nexStreamEpisodePrefetchStatus, nexStreamEpisodes, nexStreamEpisodesError, nexStreamEpisodesLoading, nexStreamError, nexStreamLoading, nexStreamPlayer, nexStreamResolvingId, nexStreamResults, nexStreamSearchMode, nexStreamSeasons, nexStreamSelectedSeason, playWithNexStream, setNexStreamEpisodePicker, setNexStreamPlayer, switchToYenimePlayer } = vm;
+  const [playerLoading, setPlayerLoading] = useState(false);
+  useEffect(() => {
+    setPlayerLoading(Boolean(nexStreamPlayer));
+  }, [nexStreamPlayer?.url]);
   return (
     <>
       {(nexStreamPlayer || nexStreamSearchMode === 'tv' || nexStreamSearchMode === 'movie') && (
         <section className="space-y-3 rounded-2xl border border-violet-500/30 bg-slate-900/70 p-3 sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h3 className="text-sm font-bold text-violet-200">{nexStreamSearchMode === 'tv' ? 'NexStream TV Search' : 'NexStream movie matches'}</h3>
+              <h3 className="text-sm font-bold text-violet-200">{nexStreamSearchMode === 'tv' ? 'VidRift TV Search' : 'VidRift movie matches'}</h3>
               <p className="mt-1 text-[11px] text-slate-400">{nexStreamSearchMode === 'tv' ? 'TV-show results are independent of torrent results. Choose a show to play an episode.' : 'Movie playback options are separate from your existing torrent and Seedr results.'}</p>
             </div>
             {nexStreamLoading && <span className="inline-flex items-center gap-1.5 text-xs text-violet-200"><Loader2 className="h-3.5 w-3.5 animate-spin" />Searching titles…</span>}
@@ -46,8 +51,8 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
                     >
                       {nexStreamResolvingId === 'tv:' + item.id ? <><Loader2 className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />Resolving…</>
                         : nexStreamEpisodePrefetchStatus[String(item.id)] === 'loading' ? <><Loader2 className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />Preparing episodes…</>
-                        : nexStreamEpisodePrefetchStatus[String(item.id)] === 'ready' ? <><Play className="mr-1.5 inline h-3.5 w-3.5" />Choose episode</>
-                        : <><Play className="mr-1.5 inline h-3.5 w-3.5" />{nexStreamEpisodePrefetchStatus[String(item.id)] === 'error' ? 'Retry episode data' : 'Choose episode'}</>}
+                          : nexStreamEpisodePrefetchStatus[String(item.id)] === 'ready' ? <><Play className="mr-1.5 inline h-3.5 w-3.5" />Choose episode</>
+                            : <><Play className="mr-1.5 inline h-3.5 w-3.5" />{nexStreamEpisodePrefetchStatus[String(item.id)] === 'error' ? 'Retry episode data' : 'Choose episode'}</>}
                     </button>
                   }
                 />
@@ -115,64 +120,34 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
           )}
 
           {nexStreamPlayer && (
-            <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/85 p-2 sm:p-5">
-              <div className="relative flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-violet-400/40 bg-slate-950 shadow-2xl">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3 pr-24">
-                <div className="min-w-0">
-                  <div className="truncate text-xs font-bold text-slate-100">{nexStreamPlayer.title}{nexStreamPlayer.year ? ' (' + nexStreamPlayer.year + ')' : ''}</div>
-                </div>
-                {nexStreamPlayer.type === 'movie' && nexStreamPlayer.tmdbId && (
-                  <button
-                    type="button"
-                    onClick={() => { reportNexStreamFailure({ tmdbId: nexStreamPlayer.tmdbId as number, title: nexStreamPlayer.title, year: nexStreamPlayer.year }, 'player_not_working'); setNexStreamPlayer(null); }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/40 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-500/15"
-                    title="Tell us this title does not play; Play is hidden for it from now on"
-                  >
-                    Not playing? Report
-                  </button>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  const box = document.getElementById('nexstream-player-container');
-                  if (document.fullscreenElement) { void document.exitFullscreen(); return; }
-                  // Fullscreen our own box: it works even when the player inside the frame cannot go fullscreen.
-                  if (box?.requestFullscreen) { void box.requestFullscreen().catch(() => window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer')); }
-                  else { window.open(nexStreamPlayer.url, '_blank', 'noopener,noreferrer'); }
-                }}
-                className="absolute right-12 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900/95 text-slate-200 shadow-lg hover:bg-slate-700"
-                aria-label="Full screen"
-                title="Full screen (press Esc to leave)"
-              >
-                <Maximize2 className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setNexStreamPlayer(null)}
-                className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-slate-600 bg-slate-900/95 text-lg font-bold text-slate-200 shadow-lg hover:bg-slate-700"
-                aria-label="Close NexStream player"
-                title="Close player"
-              >
-                ×
-              </button>
-              <div
-                id="nexstream-player-container"
-                className="min-h-0 flex-1 aspect-video overflow-hidden bg-black max-sm:aspect-video max-sm:max-h-[calc(96vh-90px)]"
-              >
-                <iframe
-                  id="nexstream-player-frame"
-                  key={nexStreamPlayer.url}
-                  src={nexStreamPlayer.url}
-                  title={'NexStream player for ' + nexStreamPlayer.title}
-                  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                  allowFullScreen
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  className="h-full w-full border-0"
-                />
-              </div>
-              </div>
-            </div>
+            <TorrentPlayerShell
+              id="nexstream-player-container"
+              title={`${nexStreamPlayer.title}${nexStreamPlayer.type === 'tv' && nexStreamPlayer.season && nexStreamPlayer.episode ? ` · S${nexStreamPlayer.season} E${nexStreamPlayer.episode}` : nexStreamPlayer.year ? ` (${nexStreamPlayer.year})` : ''}`}
+              loading={playerLoading}
+              loadingLabel="Loading VidRift player…"
+              closeLabel="Close VidRift player"
+              onClose={() => setNexStreamPlayer(null)}
+              providers={nexStreamPlayer.anime ? [
+                { label: 'Yenime', active: false, onSelect: () => {
+                  const player = nexStreamPlayer;
+                  setNexStreamPlayer(null);
+                  switchToYenimePlayer(player.title, Number(player.year) || null, null, player.episode || 1, player.tmdbId || null, player.season || 1);
+                } },
+                { label: 'VidRift', active: true, onSelect: () => undefined },
+              ] : undefined}
+            >
+              <iframe
+                id="nexstream-player-frame"
+                key={nexStreamPlayer.url}
+                src={nexStreamPlayer.url}
+                onLoad={() => setPlayerLoading(false)}
+                title={'VidRift player for ' + nexStreamPlayer.title}
+                allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
+                className="h-full w-full border-0"
+              />
+            </TorrentPlayerShell>
           )}
         </section>
       )}

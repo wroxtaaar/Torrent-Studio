@@ -39,7 +39,6 @@ from core.cache_diagnostics import (
     _upstream_provider_name,
     _upstream_endpoint_group,
 )
-from integrations.nexstream import nexstream_api_key_configured, resolve_nexstream_movie
 
 from core.settings import (
     REGIONAL_MOVIE_PREBUILT_CACHE_PATH,
@@ -167,6 +166,10 @@ from metadata.tmdb import (
 from metadata.imdb import _get_imdb_rating_record, router as imdb_router
 
 from routes.feedback import router as feedback_router
+from integrations.nexstream import router as nexstream_router
+from integrations.nexstream_reports import router as nexstream_reports_router
+from integrations.vidrift import router as vidrift_router
+from integrations.yenime import router as yenime_router
 
 from seedr.seedr_session import (
     _clear_seedr_session_token,
@@ -443,3 +446,7 @@ app.include_router(torrent_metadata_router)
 from routes.compat_routes import router as compat_routes_router
 app.include_router(compat_routes_router)
 app.include_router(feedback_router)
+app.include_router(nexstream_router)
+app.include_router(nexstream_reports_router)
+app.include_router(vidrift_router)
+app.include_router(yenime_router)

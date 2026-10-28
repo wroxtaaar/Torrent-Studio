@@ -35,7 +35,6 @@ from core.http_cache import (
     _prebuilt_catalogue_page,
 )
 from metadata.imdb import _get_imdb_rating_record
-from integrations.nexstream import nexstream_api_key_configured, resolve_nexstream_movie
 from integrations.mdblist import BOLLYWOOD_TRENDING_LIST, mdblist_list_items
 from core.json_cache import read_json_cached
 from core.settings import (
@@ -607,7 +606,7 @@ def _regional_movie_trending_archive_page(catalogue_key: str, page: int) -> dict
         "totalResults": total_results,
         "pageSize": page_size,
         "results": rows[start:start + page_size],
-        "releaseEligibility": "torrent-or-nexstream",
+        "releaseEligibility": "torrent-or-unverified-direct-stream",
         "attribution": "This product uses the TMDB API but is not endorsed or certified by TMDB.",
     }
     _tmdb_movie_catalogue_cache[cache_key] = (time.monotonic(), response)
@@ -685,20 +684,18 @@ def _prebuilt_final_page(catalogue_key: str, page: int) -> dict[str, Any] | None
         "totalResults": len(rows),
         "pageSize": page_size,
         "results": rows[start:start + page_size],
-        "releaseEligibility": "torrent-or-nexstream",
+        "releaseEligibility": "torrent-or-unverified-direct-stream",
         "attribution": "This product uses the TMDB API but is not endorsed or certified by TMDB.",
     }
 
 
 def _regional_entry_has_source(entry: dict[str, Any], row: dict[str, Any]) -> bool:
-    """Cached titles must be watchable: at least one torrent, or playable on NexStream.
+    """Cached titles need a torrent; constructible VidRift URLs are not verification.
 
     Entries whose torrent scan never ran (no torrentDetails at all) are kept, so an unscanned
     seed does not become an empty catalogue.
     """
     if not REGIONAL_CACHE_REQUIRE_SOURCE:
-        return True
-    if row.get("nexStreamPlayable") is True:
         return True
     details = entry.get("torrentDetails")
     if not isinstance(details, dict) or details.get("status") == "unavailable":
@@ -748,8 +745,13 @@ def _cache_only_regional_movie_catalogue(catalogue_key: str, page: int) -> dict[
             row = dict(movie)
             if not _regional_entry_has_source(entry, row):
                 continue
-            if catalogue_key == "latest-bollywood" and row.get("nexStreamPlayable") is not True:
-                continue
+            if catalogue_key == "latest-bollywood":
+                try:
+                    tmdb_id = int(row.get("tmdbId") or row.get("id") or 0)
+                except (TypeError, ValueError):
+                    tmdb_id = 0
+                if tmdb_id <= 0:
+                    continue
             if catalogue_key == "latest-bollywood" and _is_bollywood_comedy_special(row):
                 continue
             release_date = str(row.get("releaseDate") or row.get("release_date") or "").strip()
@@ -816,7 +818,7 @@ def _cache_only_regional_movie_catalogue(catalogue_key: str, page: int) -> dict[
         "totalResults": total_results,
         "pageSize": page_size,
         "results": rows[start:start + page_size],
-        "releaseEligibility": "torrent-or-nexstream",
+        "releaseEligibility": "torrent-or-unverified-direct-stream",
         "attribution": "This product uses the TMDB API but is not endorsed or certified by TMDB.",
     }
 
@@ -952,7 +954,7 @@ async def _fetch_paginated_regional_movie_catalogue(
         ),
         "pageSize": page_size,
         "results": page_rows,
-        "releaseEligibility": "torrent-or-nexstream",
+        "releaseEligibility": "torrent-or-unverified-direct-stream",
         "attribution": "This product uses the TMDB API but is not endorsed or certified by TMDB.",
     }
 
@@ -1030,84 +1032,40 @@ async def _enrich_regional_movie_catalogue_metadata(
 async def _filter_nexstream_playable_movies(
     rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    if not nexstream_api_key_configured():
-        raise HTTPException(
-            status_code=503,
-            detail="NEXSTREAM_API_KEY is required to build the playable Bollywood Latest catalogue.",
-        )
-    if not rows:
-        return []
-
-    semaphore = asyncio.Semaphore(4)
-
-    async def check(row: dict[str, Any]) -> dict[str, Any]:
+    """Legacy name: VidRift has no per-title availability API, so keep source candidates."""
+    eligible = []
+    for row in rows:
         try:
             movie_id = int(row.get("tmdbId") or row.get("id") or 0)
         except (TypeError, ValueError):
             movie_id = 0
         if movie_id <= 0:
-            return {"success": False, "sources": []}
-        async with semaphore:
-            return await resolve_nexstream_movie(movie_id)
-
-    checks = await asyncio.gather(
-        *(check(row) for row in rows),
-        return_exceptions=True,
-    )
-    playable_rows = []
-    transient_failures = 0
-    for row, result in zip(rows, checks):
-        if isinstance(result, BaseException):
-            if not isinstance(result, Exception):
-                raise result
-            transient_failures += 1
-            logger.info(
-                "NexStream playback check failed for %s (%s): %s",
-                row.get("title"), row.get("id"), type(result).__name__,
-            )
             continue
-        sources = result.get("sources")
-        if result.get("success") and isinstance(sources, list) and sources:
-            row["nexStreamPlayable"] = True
-            row["nexStreamCheckedAt"] = datetime.now(timezone.utc).isoformat()
-            playable_rows.append(row)
-
-    if not playable_rows and transient_failures:
-        raise HTTPException(
-            status_code=503,
-            detail="NexStream checks failed before any playable Bollywood Latest title could be verified.",
-        )
-    if transient_failures:
-        logger.warning(
-            "Publishing %s verified NexStream titles; %s movie checks failed.",
-            len(playable_rows), transient_failures,
-        )
-    return playable_rows
+        row["nexStreamPlayable"] = False
+        row["nexStreamVerified"] = False
+        row["directStreamAvailability"] = {
+            "provider": "VidRift",
+            "verified": False,
+            "status": "unverified",
+        }
+        eligible.append(row)
+    return eligible
 
 
 async def _annotate_nexstream_playable(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Mark titles that NexStream can play, without dropping the others (no key: unchanged)."""
-    if not rows or not nexstream_api_key_configured():
-        return rows
-    semaphore = asyncio.Semaphore(4)
-
-    async def check(row: dict[str, Any]) -> bool:
+    """Add provider-neutral unverified state; never infer VidRift playability from a URL."""
+    for row in rows:
         try:
             movie_id = int(row.get("tmdbId") or row.get("id") or 0)
         except (TypeError, ValueError):
-            return False
-        if movie_id <= 0:
-            return False
-        async with semaphore:
-            result = await resolve_nexstream_movie(movie_id)
-        sources = result.get("sources")
-        return bool(result.get("success") and isinstance(sources, list) and sources)
-
-    checks = await asyncio.gather(*(check(row) for row in rows), return_exceptions=True)
-    for row, playable in zip(rows, checks):
-        if playable is True:
-            row["nexStreamPlayable"] = True
-            row["nexStreamCheckedAt"] = datetime.now(timezone.utc).isoformat()
+            movie_id = 0
+        row["nexStreamPlayable"] = False
+        row["nexStreamVerified"] = False
+        row["directStreamAvailability"] = {
+            "provider": "VidRift",
+            "verified": False,
+            "status": "unverified" if movie_id > 0 else "missing-tmdb-id",
+        }
     return rows
 
 
