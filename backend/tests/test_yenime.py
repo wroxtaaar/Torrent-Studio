@@ -44,3 +44,40 @@ def test_resolver_reports_availability_unverified():
     yenime = _load_yenime_module()
     result = yenime.build_yenime_url(5114, 1, "sub")
     assert result.startswith("https://megaplay.buzz/stream/mal/")
+
+
+def test_existing_catalogue_mal_id_is_used_directly():
+    yenime = _load_yenime_module()
+    assert yenime.normalize_anime_title("Fullmetal Alchemist: Brotherhood") == "fullmetal alchemist brotherhood"
+    assert yenime.KNOWN_MAL_IDS[yenime.normalize_anime_title("Fullmetal Alchemist: Brotherhood")] == 5114
+
+
+def test_successful_resolution_matches_title_alternate_title_and_year():
+    yenime = _load_yenime_module()
+    candidates = [{"idMal": 16498, "title": {"romaji": "Shingeki no Kyojin", "english": "Attack on Titan", "native": "進撃の巨人"}, "synonyms": ["AoT"], "startDate": {"year": 2013}}]
+    result = yenime.resolve_mal_from_anilist_candidates("Attack on Titan", 2013, candidates)
+    assert result["status"] == "resolved"
+    assert result["malId"] == 16498
+
+
+def test_ambiguous_resolution_is_not_selected():
+    yenime = _load_yenime_module()
+    candidates = [
+        {"idMal": 100, "title": {"romaji": "Example", "english": "Example", "native": ""}, "synonyms": [], "startDate": {"year": 2020}},
+        {"idMal": 101, "title": {"romaji": "Example", "english": "Example", "native": ""}, "synonyms": [], "startDate": {"year": 2021}},
+    ]
+    result = yenime.resolve_mal_from_anilist_candidates("Example", None, candidates)
+    assert result["status"] == "ambiguous"
+    assert result["malId"] is None
+
+
+def test_missing_resolution_requires_manual_mal_id():
+    yenime = _load_yenime_module()
+    result = yenime.resolve_mal_from_anilist_candidates("Unknown Anime", 2024, [])
+    assert result["status"] == "missing"
+    assert result["malId"] is None
+
+
+def test_episode_selection_is_preserved_in_url():
+    yenime = _load_yenime_module()
+    assert yenime.build_yenime_url(16498, 12, "sub").endswith("/12/sub")

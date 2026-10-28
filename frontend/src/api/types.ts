@@ -62,6 +62,7 @@ export interface TvCatalogueItem {
   }>;
   providerLink?: string;
   source?: string;
+  malId?: number | string | null;
 }
 
 export interface TvCataloguePage {

@@ -28,6 +28,7 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
               </div>
               <button type="button" onClick={closeYenime} className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Close Yenime"><X className="h-5 w-5" /></button>
             </div>
+            {yenimeRequest.resolving && <div role="status" className="mt-3 text-xs text-violet-200">Resolving MAL ID automatically…</div>}
             <div className="mt-4 grid grid-cols-2 gap-3">
               <label className="text-xs text-slate-400">MAL ID
                 <input value={yenimeRequest.malId} onChange={event => setYenimeRequest(current => current ? { ...current, malId: event.target.value, error: '' } : current)} inputMode="numeric" min="1" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" />
@@ -42,7 +43,7 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
               ))}
             </div>
             {yenimeRequest.error && <div role="alert" className="mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{yenimeRequest.error}</div>}
-            <button type="submit" className="mt-4 w-full rounded-lg bg-violet-500 px-4 py-2 text-sm font-bold text-white hover:bg-violet-400">Open Yenime player</button>
+            <button type="submit" disabled={yenimeRequest.resolving} className="mt-4 w-full rounded-lg bg-violet-500 px-4 py-2 text-sm font-bold text-white hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50">Open Yenime player</button>
           </form>
         </div>
       )}

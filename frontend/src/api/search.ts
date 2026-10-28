@@ -127,6 +127,26 @@ export const searchApi = {
     return data as MarvelCatalogueResponse;
   },
 
+  async resolveYenimeMalId(title: string, year?: number | null, malId?: number | string | null): Promise<{
+    status: 'resolved' | 'ambiguous' | 'missing' | 'unavailable';
+    malId?: number | null;
+    source?: string;
+    title?: string;
+    message?: string;
+    matches?: Array<{ malId: number; title?: string | null; year?: number | null }>;
+  }> {
+    const params = new URLSearchParams({ title: String(title || '').trim() });
+    if (year) params.set('year', String(year));
+    const numericMalId = Number(malId || 0);
+    if (Number.isInteger(numericMalId) && numericMalId > 0) params.set('malId', String(numericMalId));
+    const res = await fetch(API_BASE + '/api/yenime/resolve-mal?' + params.toString(), { credentials: 'include', cache: 'no-store' });
+    const body = await res.text();
+    let data: any = null;
+    try { data = body ? JSON.parse(body) : null; } catch {}
+    if (!res.ok) throw new Error(data?.detail || body || 'Yenime MAL ID lookup failed');
+    return data;
+  },
+
   async getTvCatalogue(key: string, page = 1, signal?: AbortSignal): Promise<TvCataloguePage> {
     const params = new URLSearchParams({ page: String(Math.min(Math.max(page, 1), 500)) });
     const res = await fetch(API_BASE + '/api/tv/catalogue/' + encodeURIComponent(key) + '?' + params.toString(), {
