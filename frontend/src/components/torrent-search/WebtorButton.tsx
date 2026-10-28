@@ -24,10 +24,14 @@ declare global {
 let webtorSdkPromise: Promise<void> | null = null;
 
 function loadWebtorSdk(): Promise<void> {
-  if (window.webtor && !Array.isArray(window.webtor)) return Promise.resolve();
   if (webtorSdkPromise) return webtorSdkPromise;
   webtorSdkPromise = new Promise((resolve, reject) => {
     let script = document.querySelector<HTMLScriptElement>(`script[src="${WEBTOR_SDK_URL}"]`);
+    if (script?.dataset.loaded === 'true' || (window.webtor && !Array.isArray(window.webtor))) {
+      resolve();
+      return;
+    }
+
     const shouldAppend = !script;
     if (!script) {
       script = document.createElement('script');
@@ -72,9 +76,8 @@ export function WebtorButton({ torrent }: { torrent: TorrentSearchResult }) {
       .then(() => {
         if (cancelled || !embedRef.current) return;
         const sdk = window.webtor;
-        if (!sdk || Array.isArray(sdk)) {
-          throw new Error('Webtor initialized without its embed API. Reload the player and try again.');
-        }
+        // The SDK intentionally exposes an array queue before/while it initializes.
+        // Calling push() is the documented way to enqueue an embed config.
         sdk.push({
           id: playerId,
           magnet,
@@ -84,15 +87,8 @@ export function WebtorButton({ torrent }: { torrent: TorrentSearchResult }) {
           controls: true,
           baseUrl: WEBTOR_HOSTED_BASE_URL,
         });
-        const iframe = embedRef.current.querySelector('iframe');
-        if (!iframe) {
-          throw new Error('Webtor did not create the embed. Try selecting Play or Download again.');
-        }
-        iframe.style.position = 'absolute';
-        iframe.style.inset = '0';
-        iframe.style.width = '100%';
-        iframe.style.height = '100%';
-        iframe.style.maxWidth = '100%';
+        // Webtor creates its iframe asynchronously after push(); checking for it
+        // synchronously incorrectly reports a failure before the embed can render.
         setLoading(false);
       })
       .catch(loadError => {
