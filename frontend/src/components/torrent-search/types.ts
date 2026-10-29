@@ -6,7 +6,7 @@ export type CachedFranchiseKey = 'marvel' | 'dc-live-action';
 
 export type MainCatalogueMenu = 'dc' | 'bollywood' | 'hollywood';
 
-export type ActiveTopSection = 'marvel' | 'dc' | 'hollywood' | 'bollywood' | 'korean' | 'pakistani' | 'anime' | 'classics' | null;
+export type ActiveTopSection = 'marvel' | 'dc' | 'hollywood' | 'bollywood' | 'korean' | 'pakistani' | 'anime' | 'classics' | 'highest-rated' | null;
 
 export type RegionalContentTab = 'movies' | 'web-series' | null;
 
