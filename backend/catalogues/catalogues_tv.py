@@ -627,7 +627,7 @@ _INDIAN_LINEAR_TV_NETWORKS = {
 async def api_tmdb_regional_tv_catalogue(
     catalogue_key: str,
     page: int = Query(1, ge=1, le=500),
-    refresh: bool = Query(False),
+    refresh: bool = False,
 ):
     """Return Hindi Indian OTT web-series, excluding non-Hindi and non-scripted TV formats."""
     configs = {
