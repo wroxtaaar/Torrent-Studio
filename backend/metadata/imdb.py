@@ -242,6 +242,14 @@ async def _fetch_imdb_rating_omdb(
         if not _provider_key_available(provider, key):
             continue
 
+        # Prefer the exact IMDb ID attached to this TMDB record before any
+        # title search. This avoids ambiguous matches for titles shared by
+        # multiple films/series or translated titles.
+        direct_match = await lookup_by_tmdb_imdb_id(key)
+        if direct_match and direct_match.get("imdbRating") is not None:
+            _provider_key_success(provider, key)
+            return direct_match
+
         params: dict[str, Any] = {"t": title, "type": omdb_type}
         if 1870 <= year <= 2100:
             params["y"] = year
@@ -394,9 +402,16 @@ async def _get_imdb_rating_record(
             "reason": "Not in bundled cache",
         }
     if cached and CACHE_FIRST:
-        # Cache-first: any stored record is final. Only titles with no record are looked up.
-        _record_cache_event("imdb_rating", "hit")
-        return cached
+        # Keep successful ratings cache-first, but re-check old misses/partial
+        # records when the lookup strategy version changes.
+        try:
+            cached_version = int(cached.get("lookupVersion") or 0)
+        except (TypeError, ValueError):
+            cached_version = 0
+        cached_has_rating = cached.get("status") == "found" and cached.get("imdbRating") is not None
+        if cached_has_rating or cached_version >= IMDB_RATING_LOOKUP_VERSION:
+            _record_cache_event("imdb_rating", "hit")
+            return cached
     # A miss recorded before a TMDB id was available deserves one retry with the id.
     if (
         cached
