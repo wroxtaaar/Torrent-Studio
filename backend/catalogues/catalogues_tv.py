@@ -1178,7 +1178,8 @@ async def api_tmdb_regional_tv_catalogue(
     if catalogue_key not in configs:
         raise HTTPException(status_code=404, detail="Unknown TV catalogue.")
     if catalogue_key.startswith("pakistani-"):
-        return await _pakistani_drama_catalogue_page(catalogue_key, page)
+        payload = await _pakistani_drama_catalogue_page(catalogue_key, page)
+        return await _enrich_regional_tv_imdb_ratings(payload)
     if catalogue_key == "anime-popular":
         return await _anime_popular_curated_page(page)
     if catalogue_key == "korean-popular":
