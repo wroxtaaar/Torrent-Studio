@@ -686,6 +686,27 @@
     ],
     "/api/vidrift/resolve",
     "resolve_vidrift"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/yenime/resolve-mal",
+    "resolve_mal_id"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/yenime/resolve",
+    "resolve_yenime"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/nuvio/movies/{nuvio_id}",
+    "get_nuvio_movie_streams"
    ]
   ],
   "middleware": [
@@ -1402,6 +1423,27 @@
     ],
     "/api/vidrift/resolve",
     "resolve_vidrift"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/yenime/resolve-mal",
+    "resolve_mal_id"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/yenime/resolve",
+    "resolve_yenime"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/nuvio/movies/{nuvio_id}",
+    "get_nuvio_movie_streams"
    ],
    [
     [

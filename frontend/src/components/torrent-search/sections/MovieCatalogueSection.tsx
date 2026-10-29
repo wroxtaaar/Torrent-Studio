@@ -2,6 +2,7 @@ import { Loader2 } from 'lucide-react';
 import { API_BASE } from '../../../api/client.ts';
 import { formatBytes } from '../../../utils/formatters.ts';
 import { MovieCompactCard, MoviePrepareCard, imdbTitleLink } from '../../MovieCards.tsx';
+import { NuvioButton } from '../NuvioButton.tsx';
 import { imdbRatingKey, torrentQualityDetails, torrentResultKey } from '../grouping.ts';
 import { toCardProviders, uniqueOttProviders } from '../ottProviders.ts';
 import { cataloguePosterOverride, cataloguePosterSource, imdbFallbackForCatalogueMovie, imdbRatingForCatalogueMovie, isTheCrow2024 } from '../cataloguePosters.ts';
@@ -192,6 +193,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                         });
                       },
                     }}
+                    nuvioAction={<NuvioButton nuvioId={movieImdb?.imdbId || `tmdb:${Number(movie.tmdbId || movie.id)}`} title={movie.title} />}
                     prepare={!result ? undefined : {
                       isPreparing: prepareState.isPreparing,
                       disabled: !prepareState.source || prepareState.isPreparing,

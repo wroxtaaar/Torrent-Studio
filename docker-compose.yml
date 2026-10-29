@@ -11,6 +11,7 @@ services:
     environment:
       PORT: "10000"
       CACHE_ONLY_MODE: "${CACHE_ONLY_MODE:-true}"
+      NUVIO_BASE_URL: "${NUVIO_BASE_URL:-}"
       SEEDR_SESSION_SECRET: "${SEEDR_SESSION_SECRET:?Set SEEDR_SESSION_SECRET in .env}"
       CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:10000}"
     volumes:

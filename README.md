@@ -45,11 +45,11 @@ docker compose up --build -d
 
 Open [http://localhost:10000](http://localhost:10000). Health check: [http://localhost:10000/api/health](http://localhost:10000/api/health).
 
-### Webtor torrent streaming experiment
+### Experimental Nuvio Streams lookup
 
-Torrent-result cards include **Test Webtor**, which embeds the official [Webtor Embed SDK](https://github.com/webtor-io/embed-sdk-js) using the hosted `https://webtor.io` service. Choose **Play** to open its embedded video mode or **Download** to open the SDK's embedded download mode. Select a file in that interface to start its download. Webtor retrieves the torrent and serves media/download bytes directly to the browser; Torrent Studio does not proxy media data. **Copy magnet** remains available as a fallback. No Webtor credentials or additional service are required.
+Movie prepare cards show **Nuvio** beside the existing **Play** action. It requests sources only when clicked through the FastAPI backend using Nuvio's Stremio endpoint `GET /stream/movie/{id}.json`. IMDb IDs are preferred; otherwise the backend sends the manifest-supported `tmdb:{id}` form. The source URLs are handed to the browser's video player directly; returned sources are not guaranteed to play.
 
-The optional [self-hosted Webtor image](https://github.com/webtor-io/self-hosted) can also be integrated with the SDK's `baseUrl`, but it must be deployed and secured separately. When hosted on the same VPS, torrent traffic and file delivery use that VPS and do not provide the bandwidth savings of the hosted service.
+Set `NUVIO_BASE_URL` to an address reachable from the Torrent Studio container. For the existing VPS Nuvio container attached to `torrent-studio_default`, use `http://nuvio:7000`. Nuvio must remain a separately configured service; its TMDB credentials stay in Nuvio's private environment file.
 
 ## Tech stack
 

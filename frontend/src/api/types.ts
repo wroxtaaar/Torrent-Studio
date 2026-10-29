@@ -26,6 +26,18 @@ export interface TorrentSearchResult {
   id?: number | string | null;
 }
 
+export interface NuvioStream {
+  name: string;
+  title: string;
+  url: string;
+}
+
+export interface NuvioMovieStreams {
+  id: string;
+  streams: NuvioStream[];
+  durationMs: number;
+}
+
 
 export interface MarvelCatalogueResponse {
   status: 'idle' | 'building' | 'ready' | 'failed';

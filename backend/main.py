@@ -170,6 +170,7 @@ from integrations.nexstream import router as nexstream_router
 from integrations.nexstream_reports import router as nexstream_reports_router
 from integrations.vidrift import router as vidrift_router
 from integrations.yenime import router as yenime_router
+from integrations.nuvio import router as nuvio_router
 
 from seedr.seedr_session import (
     _clear_seedr_session_token,
@@ -450,3 +451,4 @@ app.include_router(nexstream_router)
 app.include_router(nexstream_reports_router)
 app.include_router(vidrift_router)
 app.include_router(yenime_router)
+app.include_router(nuvio_router)

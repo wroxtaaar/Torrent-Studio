@@ -1,7 +1,20 @@
-import type { TorrentSearchResult, MarvelCatalogueResponse, TvCataloguePage, MovieCatalogueKey, SearchMediaMetadata, SearchMediaMetadataResponse, ImdbRatingResult, MovieCataloguePage, MovieOttAvailability } from './types.ts';
+import type { TorrentSearchResult, MarvelCatalogueResponse, TvCataloguePage, MovieCatalogueKey, SearchMediaMetadata, SearchMediaMetadataResponse, ImdbRatingResult, MovieCataloguePage, MovieOttAvailability, NuvioMovieStreams } from './types.ts';
 import { API_BASE, apiFetch } from './http.ts';
 
 export const searchApi = {
+  async getNuvioMovieStreams(nuvioId: string, signal?: AbortSignal): Promise<NuvioMovieStreams> {
+    const res = await fetch(API_BASE + '/api/nuvio/movies/' + encodeURIComponent(nuvioId), {
+      signal,
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    const body = await res.text();
+    let data: any = null;
+    try { data = body ? JSON.parse(body) : null; } catch {}
+    if (!res.ok) throw new Error(data?.detail || body || ('Nuvio source lookup failed (HTTP ' + res.status + ')'));
+    return data as NuvioMovieStreams;
+  },
+
   async searchMediaMetadata(query: string, signal?: AbortSignal): Promise<SearchMediaMetadataResponse> {
     const params = new URLSearchParams({ q: query });
     const res = await fetch(API_BASE + '/api/search/metadata?' + params.toString(), {
