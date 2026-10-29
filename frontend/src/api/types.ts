@@ -54,6 +54,7 @@ export interface TvCatalogueItem {
   imdbRating?: number | null;
   imdbVotes?: string | number | null;
   imdbId?: string | null;
+  imdbListRank?: number;
   imdbUrl?: string | null;
   imdbRatingStatus?: ImdbRatingResult['status'];
   originCountry?: string[];
@@ -79,6 +80,7 @@ export interface TvCataloguePage {
   totalResults: number;
   provider: string;
   results: TvCatalogueItem[];
+  curatedOrder?: boolean;
 }
 
 export type MovieCatalogueKey =
