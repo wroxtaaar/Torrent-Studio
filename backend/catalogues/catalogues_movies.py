@@ -202,6 +202,15 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
         "popular-hollywood": ("en", "popular"),
         "trending-hollywood": ("en", "trending"),
         "latest-hollywood": ("en", "latest"),
+        "popular-korean": ("ko", "popular"),
+        "trending-korean": ("ko", "trending"),
+        "latest-korean": ("ko", "latest"),
+        "popular-pakistani": ("ur", "popular"),
+        "trending-pakistani": ("ur", "trending"),
+        "latest-pakistani": ("ur", "latest"),
+        "popular-anime": ("ja", "popular"),
+        "trending-anime": ("ja", "trending"),
+        "latest-anime": ("ja", "latest"),
     }
     if catalogue_key in {"marvel", "dc-live-action", "dc-animated"}:
         franchise = "marvel" if catalogue_key == "marvel" else "dc"
@@ -214,6 +223,12 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
         payload = await _tmdb_get_json("discover/movie", params)
     elif catalogue_key in regional_modes:
         language_code, mode = regional_modes[catalogue_key]
+        regional_country = {"korean": "KR", "pakistani": "PK", "anime": "JP"}.get(catalogue_key.rsplit("-", 1)[-1])
+        # Pakistan is country-of-origin based (not language-only); anime is Japanese animation.
+        if regional_country:
+            params["with_origin_country"] = regional_country
+        if catalogue_key.endswith("-anime"):
+            params["with_genres"] = "16"
         if mode == "trending":
             # TMDB's trending feed uses a different ranking signal from Popular.
             # Filter the feed by original language so the two menus stay distinct.
@@ -231,7 +246,12 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
                 "results": [
                     row for row in (payload.get("results") or [])
                     if isinstance(row, dict)
-                    and str(row.get("original_language") or "").lower() == language_code
+                    and (
+                        (regional_country and str(row.get("origin_country") or "").upper() == regional_country)
+                        or (not regional_country and str(row.get("original_language") or "").lower() == language_code)
+                        or (catalogue_key.endswith("-pakistani") and str(row.get("original_language") or "").lower() in {"ur", "pa", "en"})
+                    )
+                    and (not catalogue_key.endswith("-anime") or 16 in (row.get("genre_ids") or []))
                 ],
             }
             if page == 1:
@@ -239,7 +259,8 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
                 listed_items = await _listed_trending_tmdb_items(language_code)
                 payload = {**payload, "results": _interleave_unique(payload.get("results") or [], listed_items)}
         else:
-            params["with_original_language"] = language_code
+            if not catalogue_key.endswith("-pakistani"):
+                params["with_original_language"] = language_code
             params["sort_by"] = (
                 "popularity.desc" if mode == "popular"
                 else "release_date.desc" if mode == "latest"
