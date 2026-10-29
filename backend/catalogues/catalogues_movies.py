@@ -206,12 +206,18 @@ def _is_bollywood_comedy_special(row: dict[str, Any]) -> bool:
 
 
 def _highest_rated_manifest() -> dict[str, Any]:
-    path = _CACHE_SEED_DIR / "highest_rated_catalogues.json"
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        return payload if isinstance(payload, dict) else {}
-    except (OSError, ValueError, TypeError):
-        return {}
+    paths = (
+        _CACHE_SEED_DIR / "highest_rated_catalogues.json",
+        Path(__file__).resolve().parents[1] / "cache-seed" / "highest_rated_catalogues.json",
+    )
+    for path in paths:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                return payload
+        except (OSError, ValueError, TypeError):
+            continue
+    return {}
 
 
 async def _highest_rated_movie_curated_page(catalogue_key: str, page: int) -> dict[str, Any]:
