@@ -380,6 +380,11 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
                   onSelectVariant={key => setSelectedQualityByGroup(previous => ({ ...previous, [group.key]: key }))}
                   variantsAriaLabel={`Choose quality for ${group.title}`}
                   prepared={prepareState.primaryFile ? preparedActionsFor(prepareState.torrentKey, prepareState.primaryFile) : null}
+                  prepare={{
+                    isPreparing: prepareState.isPreparing,
+                    disabled: !prepareState.source || prepareState.isPreparing,
+                    onClick: () => void prepareMovieTorrent(result),
+                  }}
                   directStream={{
                     disabled: nexStreamResolvingId !== null || (nexStreamLoading && normalizeGroupTitle(nexStreamLoadingTitle) === normalizeGroupTitle(mediaDisplayTitle || group.title)),
                     label: nexStreamResolvingId !== null
