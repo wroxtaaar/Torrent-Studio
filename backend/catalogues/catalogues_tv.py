@@ -695,6 +695,62 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
     async def filter_cached_networks(result: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(result, dict):
             return result
+        if catalogue_key.startswith("korean-"):
+            # Older persistent caches can predate the current eligibility rules.
+            # Re-check Korean rows against canonical TMDB metadata and confirmed
+            # India subscription/free/ad availability before showing them.
+            rows = result.get("results")
+            if not isinstance(rows, list):
+                return result
+            today_date = datetime.now(timezone.utc).date()
+            verified: list[dict[str, Any]] = []
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                try:
+                    tmdb_id = int(row.get("id") or row.get("tmdbId") or 0)
+                    if tmdb_id <= 0:
+                        continue
+                    details = await _tmdb_get_json(f"tv/{tmdb_id}", {})
+                    air_date = str(details.get("first_air_date") or row.get("releaseDate") or "").strip()
+                    parsed_date = datetime.strptime(air_date[:10], "%Y-%m-%d").date()
+                    if parsed_date < datetime(2015, 1, 1).date() or parsed_date > today_date:
+                        continue
+                    if "KR" not in (details.get("origin_country") or row.get("originCountry") or []):
+                        continue
+                    if str(details.get("original_language") or row.get("originalLanguage") or "").casefold() != "ko":
+                        continue
+                    if str(details.get("type") or row.get("seriesType") or "").casefold() not in {"scripted", "miniseries"}:
+                        continue
+                    genres = details.get("genres") if isinstance(details.get("genres"), list) else row.get("genres") or []
+                    if has_soap_genre(genres):
+                        continue
+                    providers = await _tv_streaming_providers(tmdb_id)
+                    providers = [
+                        provider for provider in providers
+                        if str(provider.get("type") or "").casefold() in {"subscription", "free", "ads"}
+                    ]
+                    if not providers:
+                        continue
+                    verified.append({
+                        **row,
+                        "id": tmdb_id,
+                        "title": str(details.get("name") or row.get("title") or row.get("name") or "").strip(),
+                        "year": parsed_date.year,
+                        "releaseDate": air_date,
+                        "streamingProviders": providers,
+                        "originalLanguage": "ko",
+                        "originCountry": ["KR"],
+                        "seriesType": str(details.get("type") or row.get("seriesType") or "").casefold(),
+                        "genres": genres,
+                    })
+                except Exception as exc:
+                    logger.info("Skipping cached Korean TV item %s because eligibility could not be verified: %s", row.get("id"), type(exc).__name__)
+            updated = dict(result)
+            updated["results"] = _dedupe_regional_tv_rows(verified)[:18]
+            updated["totalResults"] = len(updated["results"])
+            updated["pageSize"] = 18
+            return updated
         if not exclude_indian_broadcast_networks:
             rows = result.get("results")
             if isinstance(rows, list):
@@ -769,6 +825,8 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
     prebuilt = _read_regional_tv_prebuilt_page(catalogue_key, page)
     if prebuilt is not None:
         _record_cache_event("regional_tv_catalogue", "prebuilt_hit")
+        if catalogue_key.startswith("korean-"):
+            prebuilt = await filter_cached_networks(prebuilt)
         return await _enrich_regional_tv_imdb_ratings(prebuilt)
     _record_cache_event("regional_tv_catalogue", "prebuilt_miss")
 
