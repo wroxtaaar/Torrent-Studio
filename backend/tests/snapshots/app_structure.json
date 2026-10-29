@@ -686,6 +686,20 @@
     ],
     "/api/vidrift/resolve",
     "resolve_vidrift"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/yenime/resolve-mal",
+    "resolve_mal_id"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/yenime/resolve",
+    "resolve_yenime"
    ]
   ],
   "middleware": [
@@ -1402,6 +1416,20 @@
     ],
     "/api/vidrift/resolve",
     "resolve_vidrift"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/yenime/resolve-mal",
+    "resolve_mal_id"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/yenime/resolve",
+    "resolve_yenime"
    ],
    [
     [
