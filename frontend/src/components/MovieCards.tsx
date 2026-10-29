@@ -267,6 +267,8 @@ export interface MoviePrepareCardProps {
   directStream?: { label: string; disabled: boolean; onClick: () => void };
   /** Omitted when the title has no torrent (no button is shown). */
   prepare?: { isPreparing: boolean; disabled: boolean; onClick: () => void };
+  /** Optional third-party torrent playback action. */
+  webtorAction?: React.ReactNode;
   className?: string;
 }
 
@@ -292,6 +294,7 @@ export const MoviePrepareCard: React.FC<MoviePrepareCardProps> = ({
   prepared,
   directStream,
   prepare,
+  webtorAction,
   className = '',
 }) => {
   const showImdb = hasImdbRating(imdb);
@@ -506,11 +509,12 @@ export const MoviePrepareCard: React.FC<MoviePrepareCardProps> = ({
                         type="button"
                         disabled={directStream.disabled}
                         onClick={directStream.onClick}
-                        className={(prepare ? 'min-w-0 flex-1' : 'w-full') + ' whitespace-nowrap rounded-lg border border-violet-400/40 bg-violet-500/15 px-1.5 py-1.5 text-[10px] font-bold text-violet-200 hover:bg-violet-500/25 disabled:opacity-60'}
+                        className={(prepare || webtorAction ? 'min-w-0 flex-1' : 'w-full') + ' whitespace-nowrap rounded-lg border border-violet-400/40 bg-violet-500/15 px-1.5 py-1.5 text-[10px] font-bold text-violet-200 hover:bg-violet-500/25 disabled:opacity-60'}
                       >
                         {directStream.label === 'Resolving…' ? <><Loader2 className="inline-block w-3.5 h-3.5 mr-1 animate-spin" />Resolving…</> : <><Play className="inline-block w-3.5 h-3.5 mr-1 fill-current" />Play</>}
                       </button>
                       )}
+                      {webtorAction}
                       {prepare && (
                       <div className="shrink-0">
                         <button

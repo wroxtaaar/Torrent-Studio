@@ -5,8 +5,9 @@ import { EmptyResultsNotice } from './torrent-search/sections/EmptyResultsNotice
 import { SearchResultsSection } from './torrent-search/sections/SearchResultsSection.tsx';
 import { MovieTorrentPickerSection } from './torrent-search/sections/MovieTorrentPickerSection.tsx';
 import { MovieCatalogueSection } from './torrent-search/sections/MovieCatalogueSection.tsx';
-import { NexStreamLoadingNotice } from './torrent-search/sections/NexStreamLoadingNotice.tsx';
+import { VidRiftLoadingNotice } from './torrent-search/sections/NexStreamLoadingNotice.tsx';
 import { NexStreamSection } from './torrent-search/sections/NexStreamSection.tsx';
+import { YenimeSection } from './torrent-search/sections/YenimeSection.tsx';
 import { ErrorBanner } from './torrent-search/sections/ErrorBanner.tsx';
 import { PrepareWaitModal } from './torrent-search/sections/PrepareWaitModal.tsx';
 import { PrepareErrorBanner } from './torrent-search/sections/PrepareErrorBanner.tsx';
@@ -32,7 +33,8 @@ export const TorrentSearchPanel: React.FC<TorrentSearchPanelProps> = (props) => 
       <PrepareWaitModal vm={vm} />
       <ErrorBanner vm={vm} />
       <NexStreamSection vm={vm} />
-      <NexStreamLoadingNotice vm={vm} />
+      <YenimeSection vm={vm} />
+      <VidRiftLoadingNotice vm={vm} />
       <MovieCatalogueSection vm={vm} />
       <MovieTorrentPickerSection vm={vm} />
       <SearchResultsSection vm={vm} />
