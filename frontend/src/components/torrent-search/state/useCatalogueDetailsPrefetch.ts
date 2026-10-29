@@ -6,7 +6,7 @@ import { useCatalogueNavigationState } from './useCatalogueNavigationState.ts';
 import { useGroupedResults } from './useGroupedResults.ts';
 import { useVisibleMovieCatalogue } from './useVisibleMovieCatalogue.ts';
 
-export function useCatalogueDetailsPrefetch({ franchiseGridPage, franchiseGridPageSize, movieCatalogue, groupedResults, searchMetadata, imdbRatingsByKey, imdbRatingRequestedRef, imdbRetryCountRef, setImdbRetryTick, imdbInFlightRef, setImdbRatingsByKey, imdbRetryTick, visibleMovieCatalogueItems, tvItems, rateAllGroups }: { rateAllGroups: boolean; tvItems: Array<{ title: string; year?: number | string | null; tmdbId?: number }> } & Pick<ReturnType<typeof useCatalogueNavigationState>, 'franchiseGridPage' | 'franchiseGridPageSize' | 'movieCatalogue'> & Pick<ReturnType<typeof useGroupedResults>, 'groupedResults'> & Pick<ReturnType<typeof useSearchMetadataState>, 'searchMetadata' | 'imdbRatingsByKey' | 'imdbRatingRequestedRef' | 'imdbRetryCountRef' | 'setImdbRetryTick' | 'imdbInFlightRef' | 'setImdbRatingsByKey' | 'imdbRetryTick'> & Pick<ReturnType<typeof useVisibleMovieCatalogue>, 'visibleMovieCatalogueItems'>) {
+export function useCatalogueDetailsPrefetch({ franchiseGridPage, franchiseGridPageSize, movieCatalogue, groupedResults, searchMetadata, imdbRatingsByKey, imdbRatingRequestedRef, imdbRetryCountRef, setImdbRetryTick, imdbInFlightRef, setImdbRatingsByKey, imdbRetryTick, visibleMovieCatalogueItems, tvItems, rateAllGroups }: { rateAllGroups: boolean; tvItems: Array<{ title: string; year?: number | string | null; tmdbId?: number; imdbRating?: number | null; imdbRatingStatus?: string }> } & Pick<ReturnType<typeof useCatalogueNavigationState>, 'franchiseGridPage' | 'franchiseGridPageSize' | 'movieCatalogue'> & Pick<ReturnType<typeof useGroupedResults>, 'groupedResults'> & Pick<ReturnType<typeof useSearchMetadataState>, 'searchMetadata' | 'imdbRatingsByKey' | 'imdbRatingRequestedRef' | 'imdbRetryCountRef' | 'setImdbRetryTick' | 'imdbInFlightRef' | 'setImdbRatingsByKey' | 'imdbRetryTick'> & Pick<ReturnType<typeof useVisibleMovieCatalogue>, 'visibleMovieCatalogueItems'>) {
   // IMDb ratings are fetched independently after cards have rendered.
   // Movies use OMDb's movie type; show metadata uses OMDb's series type.
   useEffect(() => {
@@ -22,11 +22,14 @@ export function useCatalogueDetailsPrefetch({ franchiseGridPage, franchiseGridPa
       (franchiseGridPage - 1) * franchiseGridPageSize,
       franchiseGridPage * franchiseGridPageSize,
     );
-    const cachedCatalogueRatingKeys = new Set(
-      visibleCatalogueItems
-        .filter(item => item.imdbRatingStatus === 'found' || item.imdbRatingStatus === 'not_found')
+    const cachedCatalogueRatingKeys = new Set([
+      ...visibleCatalogueItems
+        .filter(item => item.imdbRatingStatus === 'found' && Number(item.imdbRating) > 0)
         .map(item => imdbRatingKey(item.title, item.year)),
-    );
+      ...tvItems
+        .filter(item => item.imdbRatingStatus === 'found' && Number(item.imdbRating) > 0)
+        .map(item => imdbRatingKey(item.title, item.year, 'tv')),
+    ]);
     const candidates = [
       ...visibleCatalogueItems.flatMap(item => {
         const candidate = {
@@ -79,10 +82,11 @@ export function useCatalogueDetailsPrefetch({ franchiseGridPage, franchiseGridPa
         imdbRatingRequestedRef.current.add(key);
         continue;
       }
-      if (cachedRating && ['found', 'not_found'].includes(cachedRating.status)) {
+      if (cachedRating?.status === 'found' && Number(cachedRating.imdbRating) > 0) {
         imdbRatingRequestedRef.current.add(key);
         continue;
       }
+      if (imdbRatingRequestedRef.current.has(key)) continue;
       if (!key.startsWith('movie||') && !key.startsWith('tv||') && !imdbRatingRequestedRef.current.has(key)) {
         pending.set(key, {
           title: imdbRatingQueryTitle(item.title, item.year),

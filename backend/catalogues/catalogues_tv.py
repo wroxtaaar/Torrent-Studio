@@ -26,6 +26,7 @@ from core.settings import (
     logger,
     stored_ttl,
 )
+from metadata.imdb import _get_imdb_rating_record
 from metadata.tmdb import _tmdb_get_json
 
 router = APIRouter()
@@ -462,6 +463,25 @@ def _read_regional_tv_prebuilt_page(catalogue_key: str, page: int) -> dict[str, 
         )
         if not is_verified:
             return None
+        if catalogue_key.startswith("pakistani-"):
+            all_rows = [
+                row
+                for entry in pages
+                if isinstance(entry, dict)
+                for row in (entry.get("results") or [])
+                if isinstance(row, dict) and _is_pakistani_tv_row(row)
+            ]
+            start = (page - 1) * 18
+            return {
+                "catalogue": catalogue_key,
+                "page": page,
+                "totalPages": max(1, (len(all_rows) + 17) // 18),
+                "totalResults": len(all_rows),
+                "provider": "Persistent TMDB + verified India OTT availability",
+                "results": all_rows[start:start + 18],
+                "pageSize": 18,
+                "prebuilt": True,
+            }
         for entry in pages:
             if int(entry.get("page") or 0) == page:
                 rows = [row for row in (entry.get("results") or []) if isinstance(row, dict)]
@@ -483,6 +503,49 @@ def _read_regional_tv_prebuilt_page(catalogue_key: str, page: int) -> dict[str, 
     except Exception as exc:
         logger.warning("Could not read regional TV prebuilt cache for %s page %s: %s", catalogue_key, page, exc)
     return None
+
+
+def _is_pakistani_tv_row(row: dict[str, Any]) -> bool:
+    countries = row.get("originCountry") or row.get("origin_country") or []
+    if not isinstance(countries, list):
+        countries = [str(countries)]
+    normalized_countries = {str(country).strip().upper() for country in countries}
+    if normalized_countries:
+        return "PK" in normalized_countries and "IN" not in normalized_countries
+    return str(row.get("originalLanguage") or row.get("original_language") or "").casefold() in {"ur", "pa"}
+
+
+async def _enrich_regional_tv_imdb_ratings(payload: dict[str, Any]) -> dict[str, Any]:
+    rows = payload.get("results")
+    if not isinstance(rows, list):
+        return payload
+    semaphore = asyncio.Semaphore(4)
+
+    async def enrich(row: Any) -> None:
+        if not isinstance(row, dict):
+            return
+        title = str(row.get("title") or "").strip()
+        try:
+            year = int(row.get("year") or 0)
+            tmdb_id = int(row.get("id") or 0)
+        except (TypeError, ValueError):
+            year = tmdb_id = 0
+        if not title or tmdb_id <= 0:
+            return
+        async with semaphore:
+            try:
+                rating = await _get_imdb_rating_record(title, year, "tv", tmdb_id)
+            except Exception:
+                logger.warning("IMDb enrichment failed for regional TV %s (%s)", title, tmdb_id, exc_info=True)
+                row["imdbRatingStatus"] = "unavailable"
+                return
+        row["imdbRatingStatus"] = str(rating.get("status") or "unavailable")
+        for field in ("imdbRating", "imdbVotes", "imdbId", "imdbUrl"):
+            if rating.get(field) is not None:
+                row[field] = rating[field]
+
+    await asyncio.gather(*(enrich(row) for row in rows))
+    return payload
 
 
 def _save_regional_tv_prebuilt_pages(catalogue_key: str, rows: list[dict[str, Any]]) -> None:
@@ -614,8 +677,13 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
                     except (TypeError, ValueError):
                         continue
                 updated = dict(result)
-                updated["results"] = filtered_by_year[:18]
-                updated["totalResults"] = len(filtered_by_year)
+                updated["results"] = [
+                    row for row in filtered_by_year
+                    if not catalogue_key.startswith("pakistani-") or (
+                        isinstance(row, dict) and _is_pakistani_tv_row(row)
+                    )
+                ][:18]
+                updated["totalResults"] = len(updated["results"])
                 updated["pageSize"] = 18
                 return updated
             return result
@@ -660,7 +728,10 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
                 continue
             filtered.append(row)
         result = dict(result)
-        result["results"] = filtered
+        result["results"] = [
+            row for row in filtered
+            if not catalogue_key.startswith("pakistani-") or _is_pakistani_tv_row(row)
+        ]
         result["totalResults"] = len(filtered)
         return result
 
@@ -668,7 +739,7 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
     prebuilt = _read_regional_tv_prebuilt_page(catalogue_key, page)
     if prebuilt is not None:
         _record_cache_event("regional_tv_catalogue", "prebuilt_hit")
-        return prebuilt
+        return await _enrich_regional_tv_imdb_ratings(prebuilt)
     _record_cache_event("regional_tv_catalogue", "prebuilt_miss")
 
     country, language, sort_by = configs[catalogue_key]
@@ -677,7 +748,7 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
     cache_ttl = stored_ttl(900 if catalogue_key.endswith("-trending") else 21600)
     if cached and time.monotonic() - cached[0] < cache_ttl and not exclude_indian_broadcast_networks:
         _record_cache_event("regional_tv_catalogue", "memory_hit")
-        return await filter_cached_networks(cached[1])
+        return await _enrich_regional_tv_imdb_ratings(await filter_cached_networks(cached[1]))
     _record_cache_event("regional_tv_catalogue", "discovery_miss")
     if not (TMDB_READ_ACCESS_TOKENS or TMDB_API_KEYS):
         raise HTTPException(status_code=503, detail="TMDB credentials are not configured.")
@@ -831,4 +902,4 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
         "results": results,
     }
     _REGIONAL_TV_DISCOVERY_CACHE[cache_key] = (time.monotonic(), result)
-    return result
+    return await _enrich_regional_tv_imdb_ratings(result)

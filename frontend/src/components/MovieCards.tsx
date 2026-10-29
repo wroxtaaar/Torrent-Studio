@@ -56,6 +56,8 @@ export interface MovieCompactCardProps {
   imdb?: MovieCardImdb;
   /** Shown only when there is no IMDb rating. */
   tmdbRating?: number | null;
+  /** Do not label a TMDB score as the requested IMDb score when IMDb is missing. */
+  preferImdb?: boolean;
   trendWeekLabel?: string;
   overview: string;
   posterSrc: string;
@@ -77,6 +79,7 @@ export const MovieCompactCard: React.FC<MovieCompactCardProps> = ({
   year,
   imdb,
   tmdbRating,
+  preferImdb = false,
   trendWeekLabel,
   overview,
   posterSrc,
@@ -90,7 +93,7 @@ export const MovieCompactCard: React.FC<MovieCompactCardProps> = ({
   footer,
 }) => {
   const showImdb = hasImdbRating(imdb);
-  const showTmdb = !showImdb && tmdbRating != null && tmdbRating > 0;
+  const showTmdb = !preferImdb && !showImdb && tmdbRating != null && tmdbRating > 0;
   return (
     <MovieCatalogueCard
       onClick={event => {

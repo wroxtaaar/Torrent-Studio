@@ -455,7 +455,13 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
   const tvItemsForImdb = useMemo(() => {
     const fromCatalogue = [regionalWebSeriesCatalogue, dcWebSeriesCatalogue, marvelWebSeriesCatalogue]
       .flatMap(catalogue => catalogue?.results || [])
-      .map(show => ({ title: show.title, year: show.year, tmdbId: Number(show.id) || undefined }));
+      .map(show => ({
+        title: show.title,
+        year: show.year,
+        tmdbId: Number(show.id) || undefined,
+        imdbRating: show.imdbRating,
+        imdbRatingStatus: show.imdbRatingStatus,
+      }));
     const fromNexStream = (nexStreamResults || [])
       .map((item: any) => ({ title: item.title, year: item.date ? String(item.date).slice(0, 4) : null }));
     return [...fromCatalogue, ...fromNexStream].filter(item => item.title);

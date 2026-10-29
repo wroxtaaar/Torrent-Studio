@@ -590,7 +590,7 @@ def _write_regional_movie_trending_archive(payload: dict[str, Any]) -> bool:
 
 
 def _regional_movie_trending_archive_page(catalogue_key: str, page: int) -> dict[str, Any] | None:
-    cache_key = (catalogue_key + "|weekly-archive-v1", page)
+    cache_key = (catalogue_key + "|weekly-archive-v2", page)
     cached = _tmdb_movie_catalogue_cache.get(cache_key)
     if cached:
         return cached[1]
@@ -616,6 +616,8 @@ def _regional_movie_trending_archive_page(catalogue_key: str, page: int) -> dict
             row = dict(source_row)
             title = str(row.get("title") or row.get("name") or "").strip()
             if not title:
+                continue
+            if catalogue_key.endswith("-pakistani") and not _is_pakistani_movie_row(row):
                 continue
             identity = str(row.get("tmdbId") or row.get("id") or "").strip()
             if not identity:
@@ -690,7 +692,10 @@ def _save_regional_movie_trending_week(
     if not _write_regional_movie_trending_archive(archive):
         return False
     for key in ("trending-hollywood", "trending-bollywood"):
-        for cache_key in [item for item in _tmdb_movie_catalogue_cache if item[0] == key + "|weekly-archive-v1"]:
+        for cache_key in [
+            item for item in _tmdb_movie_catalogue_cache
+            if item[0].startswith(key + "|weekly-archive-v")
+        ]:
             _tmdb_movie_catalogue_cache.pop(cache_key, None)
     return True
 

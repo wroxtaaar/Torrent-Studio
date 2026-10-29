@@ -4,7 +4,7 @@ import { MovieCompactCard, imdbTitleLink, type MovieCardImdb } from '../MovieCar
 import { toCardProviders, uniqueOttProviders } from './ottProviders.ts';
 import { lowQualityPosterUrl } from './posterUrls.ts';
 
-type TvShowCardShow = Pick<TvCatalogueItem, 'id' | 'title' | 'year' | 'posterUrl' | 'overview' | 'rating' | 'streamingProviders'>;
+type TvShowCardShow = Pick<TvCatalogueItem, 'id' | 'title' | 'year' | 'posterUrl' | 'overview' | 'rating' | 'streamingProviders' | 'imdbRating' | 'imdbVotes' | 'imdbId' | 'imdbUrl'>;
 
 /**
  * The initial card for every TV / web-series section. It is the same MovieCompactCard the
@@ -14,20 +14,28 @@ type TvShowCardShow = Pick<TvCatalogueItem, 'id' | 'title' | 'year' | 'posterUrl
 export const TvShowCard: React.FC<{
   show: TvShowCardShow;
   imdb?: MovieCardImdb;
+  preferImdb?: boolean;
   onOpen: () => void;
   /** Optional action area at the bottom of the card. */
   footer?: React.ReactNode;
-}> = ({ show, imdb, onOpen, footer }) => {
+}> = ({ show, imdb, preferImdb = false, onOpen, footer }) => {
+  const rating = imdb ?? (show.imdbRating != null && show.imdbRating > 0 ? {
+    imdbRating: show.imdbRating,
+    imdbVotes: show.imdbVotes == null ? undefined : String(show.imdbVotes),
+    imdbId: show.imdbId ?? undefined,
+    imdbUrl: show.imdbUrl ?? undefined,
+  } : undefined);
   const providers = uniqueOttProviders(
     (show.streamingProviders || []).filter(provider => ['subscription', 'free', 'ads'].includes(provider.type)),
   );
   return (
     <MovieCompactCard
       title={show.title}
-      titleHref={imdbTitleLink(imdb, show.title, show.year)}
+      titleHref={imdbTitleLink(rating, show.title, show.year)}
       year={show.year}
-      imdb={imdb}
+      imdb={rating}
       tmdbRating={show.rating}
+      preferImdb={preferImdb}
       overview={show.overview || ''}
       posterSrc={show.posterUrl ? lowQualityPosterUrl(show.posterUrl) : ''}
       posterAlt={show.title}

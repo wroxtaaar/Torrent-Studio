@@ -51,6 +51,13 @@ export interface TvCatalogueItem {
   posterUrl?: string;
   backdropUrl?: string;
   rating?: number;
+  imdbRating?: number | null;
+  imdbVotes?: string | number | null;
+  imdbId?: string | null;
+  imdbUrl?: string | null;
+  imdbRatingStatus?: ImdbRatingResult['status'];
+  originCountry?: string[];
+  originalLanguage?: string;
   tmdbUrl?: string;
   streamingProviders?: Array<{
     providerId?: number | null;

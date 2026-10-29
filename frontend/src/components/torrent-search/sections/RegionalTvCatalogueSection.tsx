@@ -72,6 +72,7 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
                 key={String(show.id)}
                 show={show}
                 imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]}
+                preferImdb
                 onOpen={() => {
                   setNexStreamError('');
                   playCatalogueTvWithNexStream(show);
