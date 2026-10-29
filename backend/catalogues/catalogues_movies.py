@@ -1266,6 +1266,94 @@ async def _korean_movie_curated_page(page: int, basic: bool = False) -> dict[str
     }
 
 
+PAKISTANI_MOVIE_POPULARITY_ORDER: tuple[str, ...] = (
+    "Joyland",
+    "Jawani Phir Nahi Ani",
+    "The Legend of Maula Jatt",
+    "Quaid-e-Azam Zindabad",
+    "Teefa in Trouble",
+    "Waar",
+    "Bol",
+    "Na Maloom Afraad",
+    "O21",
+    "Moor",
+    "Kambakht",
+    "Saya-e-Khuda-e-Zuljalal",
+    "Zinda Bhaag",
+    "Tamanna",
+    "Josh",
+    "Dukhtar",
+    "Main Hoon Shahid Afridi",
+    "Hijrat",
+    "Swaarangi",
+    "Khuda Kay Liye",
+    "Jinnah",
+    "Azaad",
+    "Zille Shah",
+    "Ishq Khuda",
+    "The System",
+)
+
+
+async def _pakistani_movie_curated_page(page: int, basic: bool = False) -> dict[str, Any]:
+    """Resolve the user's fixed 25-film Pakistani movie list in its agreed order."""
+    page_size = 18
+    total_results = len(PAKISTANI_MOVIE_POPULARITY_ORDER)
+    selected = PAKISTANI_MOVIE_POPULARITY_ORDER[(page - 1) * page_size:page * page_size]
+    semaphore = asyncio.Semaphore(6)
+
+    async def resolve(title: str) -> dict[str, Any]:
+        async with semaphore:
+            item: dict[str, Any] | None = None
+            try:
+                payload = await _tmdb_get_json("search/movie", {
+                    "query": title, "include_adult": "false", "language": "en-US", "page": 1,
+                })
+                candidates = [row for row in (payload.get("results") or []) if isinstance(row, dict)]
+                target = re.sub(r"[^a-z0-9]+", "", title.casefold())
+                exact = [
+                    row for row in candidates
+                    if re.sub(r"[^a-z0-9]+", "", str(row.get("title") or row.get("original_title") or "").casefold()) == target
+                ]
+                item = (exact or candidates or [None])[0]
+            except Exception as exc:
+                logger.info("TMDB lookup failed for Pakistani movie %s: %s", title, type(exc).__name__)
+            if not isinstance(item, dict):
+                return {
+                    "id": "pakistani-movie:" + re.sub(r"[^a-z0-9]+", "-", title.casefold()).strip("-"),
+                    "title": title, "year": None, "releaseDate": "", "overview": "",
+                    "posterUrl": "", "backdropUrl": "", "rating": 0, "genres": [],
+                    "source": "Curated Pakistani movie list",
+                }
+            release_date = str(item.get("release_date") or "").strip()
+            year_match = re.match(r"^(\\d{4})", release_date)
+            poster_path = str(item.get("poster_path") or "").strip()
+            backdrop_path = str(item.get("backdrop_path") or "").strip()
+            return {
+                "id": item.get("id") or ("pakistani-movie:" + re.sub(r"[^a-z0-9]+", "-", title.casefold()).strip("-")),
+                "tmdbId": item.get("id"),
+                "title": title,
+                "year": int(year_match.group(1)) if year_match else None,
+                "releaseDate": release_date,
+                "overview": str(item.get("overview") or "").strip(),
+                "posterUrl": TMDB_IMAGE_BASE + poster_path if poster_path else "",
+                "backdropUrl": "https://image.tmdb.org/t/p/w780" + backdrop_path if backdrop_path else "",
+                "rating": float(item.get("vote_average") or 0),
+                "genres": [int(genre) for genre in (item.get("genre_ids") or []) if str(genre).isdigit()],
+                "source": "TMDB + curated Pakistani movie list",
+            }
+
+    rows = await asyncio.gather(*(resolve(title) for title in selected))
+    return {
+        "catalogue": "popular-pakistani", "releasedOnly": False,
+        "provider": "Curated Pakistani movie list + TMDB metadata",
+        "page": page, "totalPages": max(1, (total_results + page_size - 1) // page_size),
+        "totalResults": total_results, "pageSize": page_size, "results": rows,
+        "basic": basic, "curatedOrder": True,
+        "attribution": "Curated Pakistani movie list; metadata from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.",
+    }
+
+
 async def _api_tmdb_movie_catalogue(
     catalogue_key: str,
     page: int,
@@ -1273,6 +1361,15 @@ async def _api_tmdb_movie_catalogue(
     max_size_gb: int,
     basic: bool,
 ):
+    if catalogue_key == "popular-pakistani":
+        cache_key = ("popular-pakistani|curated-25-v1", page)
+        cached = _tmdb_movie_catalogue_cache.get(cache_key)
+        if cached and time.monotonic() - cached[0] < TMDB_CATALOGUE_CACHE_SECONDS:
+            return {**cached[1], "basic": basic}
+        curated = await _pakistani_movie_curated_page(page, basic=basic)
+        _tmdb_movie_catalogue_cache[cache_key] = (time.monotonic(), curated)
+        return curated
+
     if catalogue_key == "popular-korean" and released_only:
         cache_key = ("popular-korean|curated-imdb-v1", page)
         cached = _tmdb_movie_catalogue_cache.get(cache_key)
