@@ -247,9 +247,11 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
                     row for row in (payload.get("results") or [])
                     if isinstance(row, dict)
                     and (
-                        (regional_country and str(row.get("origin_country") or "").upper() == regional_country)
-                        or str(row.get("original_language") or "").lower() == language_code
-                        or (catalogue_key.endswith("-pakistani") and str(row.get("original_language") or "").lower() in {"ur", "pa", "en"})
+                        (regional_country and (
+                            regional_country in (row.get("origin_country") if isinstance(row.get("origin_country"), list) else [str(row.get("origin_country") or "").upper()])
+                        ))
+                        or (not catalogue_key.endswith("-pakistani") and str(row.get("original_language") or "").lower() == language_code)
+                        or (catalogue_key.endswith("-pakistani") and str(row.get("original_language") or "").lower() in {"ur", "pa"})
                     )
                     and (not catalogue_key.endswith("-anime") or 16 in (row.get("genre_ids") or []))
                 ],
