@@ -85,6 +85,7 @@ export type MovieCatalogueKey =
   | 'marvel'
   | 'dc-live-action'
   | 'dc-animated'
+  | 'highest-rated-hollywood' | 'highest-rated-bollywood'
   | 'latest-hollywood'
   | 'latest-bollywood'
   | 'popular-hollywood'
