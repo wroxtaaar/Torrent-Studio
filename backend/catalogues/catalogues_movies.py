@@ -1326,7 +1326,7 @@ async def _pakistani_movie_curated_page(page: int, basic: bool = False) -> dict[
                     "source": "Curated Pakistani movie list",
                 }
             release_date = str(item.get("release_date") or "").strip()
-            year_match = re.match(r"^(\\d{4})", release_date)
+            year_match = re.match(r"^(\d{4})", release_date)
             poster_path = str(item.get("poster_path") or "").strip()
             backdrop_path = str(item.get("backdrop_path") or "").strip()
             return {
