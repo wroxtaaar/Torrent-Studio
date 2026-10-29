@@ -150,17 +150,13 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     void openMovieCatalogue(key, label, 1);
   };
   const selectHighestRatedSection = () => {
-    searchGenerationRef.current += 1;
-    searchRequestRef.current?.abort();
     setActiveTopSection('highest-rated');
-    setRegionalWebSeriesCatalogue(null);
-    setRegionalWebSeriesError('');
-    setRegionalWebSeriesLoading(false);
-    setShowMarvelWebSeries(false);
-    setShowDcWebSeries(false);
-    setMovieCatalogue(null);
-    setResults([]);
-    setSearched(false);
+    setFranchiseGridPage(1);
+    setCatalogueSort('popularity');
+    // Load the curated TV catalogue immediately so Highest Rated is never an
+    // empty panel after the top-level section is selected. The Hollywood and
+    // Bollywood buttons remain available to switch to their movie catalogues.
+    void openRegionalTvCatalogue('highest-rated', 'popular', 1);
   };
   const tmdbFranchiseLabels: Record<FranchiseTmdbKey, string> = {
     marvel: 'Marvel',
