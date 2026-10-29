@@ -479,7 +479,7 @@ def _read_regional_tv_prebuilt_page(catalogue_key: str, page: int) -> dict[str, 
                 "totalPages": max(1, (len(all_rows) + 17) // 18),
                 "totalResults": len(all_rows),
                 "provider": "Persistent TMDB + verified India OTT availability",
-                "results": all_rows[start:start + 18],
+                "results": _dedupe_regional_tv_rows(all_rows)[start:start + 18],
                 "pageSize": 18,
                 "prebuilt": True,
             }
@@ -498,12 +498,37 @@ def _read_regional_tv_prebuilt_page(catalogue_key: str, page: int) -> dict[str, 
                     "totalPages": max(1, len(pages)),
                     "totalResults": int(catalogue.get("totalResults") or catalogue.get("seriesCount") or 0),
                     "provider": "Persistent TMDB + verified India OTT availability",
-                    "results": rows,
+                    "results": _dedupe_regional_tv_rows(rows),
                     "prebuilt": True,
                 }
     except Exception as exc:
         logger.warning("Could not read regional TV prebuilt cache for %s page %s: %s", catalogue_key, page, exc)
     return None
+
+
+def _dedupe_regional_tv_rows(rows: Any) -> list[dict[str, Any]]:
+    """Keep the first occurrence of each series across cached and live TV results."""
+    if not isinstance(rows, list):
+        return []
+    unique: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    seen_titles: set[tuple[str, str]] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        raw_id = row.get("id") or row.get("tmdbId")
+        identity = str(raw_id).strip() if raw_id is not None else ""
+        title = re.sub(r"[^a-z0-9]+", " ", str(row.get("title") or row.get("name") or "").casefold()).strip()
+        year = str(row.get("year") or str(row.get("releaseDate") or row.get("first_air_date") or "")[:4]).strip()
+        title_identity = (title, year)
+        if (identity and identity in seen_ids) or (title and title_identity in seen_titles):
+            continue
+        if identity:
+            seen_ids.add(identity)
+        if title:
+            seen_titles.add(title_identity)
+        unique.append(row)
+    return unique
 
 
 def _is_pakistani_tv_row(row: dict[str, Any]) -> bool:
@@ -682,12 +707,12 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
                     except (TypeError, ValueError):
                         continue
                 updated = dict(result)
-                updated["results"] = [
+                updated["results"] = _dedupe_regional_tv_rows([
                     row for row in filtered_by_year
                     if not catalogue_key.startswith("pakistani-") or (
                         isinstance(row, dict) and _is_pakistani_tv_row(row)
                     )
-                ][:18]
+                ])[:18]
                 updated["totalResults"] = len(updated["results"])
                 updated["pageSize"] = 18
                 return updated
@@ -885,15 +910,17 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
                 return_exceptions=True,
             )
             for row in verified_rows:
-                if isinstance(row, dict) and row.get("id") not in seen_ids:
+                if isinstance(row, dict):
                     eligible_rows.append(row)
-                    seen_ids.add(int(row["id"]))
+            eligible_rows = _dedupe_regional_tv_rows(eligible_rows)
+            seen_ids = {int(row["id"]) for row in eligible_rows if str(row.get("id") or "").isdigit()}
             source_page += 1
     except HTTPException:
         raise
 
     _save_regional_tv_prebuilt_pages(catalogue_key, eligible_rows)
     start_index = (page - 1) * 18
+    eligible_rows = _dedupe_regional_tv_rows(eligible_rows)
     results = eligible_rows[start_index:start_index + 18]
     # UI pages are 18 filtered titles each. Estimate the number of pages from
     # TMDB's candidate count; the last page may be shorter after verification.
