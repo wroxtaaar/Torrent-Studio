@@ -51,7 +51,7 @@ export function imdbRatingForCatalogueMovie(movie: MovieCatalogueItem): ImdbRati
     title: movie.title,
     year: movie.year,
     mediaType: 'movie',
-    status: hasRating ? 'found' : movie.imdbRatingStatus,
+    status: hasRating || movie.imdbRatingStatus !== 'not_found' ? 'found' : 'not_found',
     imdbRating: hasRating ? rating : movie.imdbRating,
     imdbVotes: movie.imdbVotes,
     imdbId: movie.imdbId,
