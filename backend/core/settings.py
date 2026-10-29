@@ -116,6 +116,8 @@ REGIONAL_MOVIE_TRENDING_ARCHIVE_FILE = Path(os.getenv(
 ))
 REGIONAL_MOVIE_TRENDING_ARCHIVE_WEEKS = 52
 REGIONAL_MOVIE_CATALOGUE_KEYS = (
+    "highest-rated-hollywood",
+    "highest-rated-bollywood",
     "popular-hollywood",
     "trending-hollywood",
     "latest-hollywood",
