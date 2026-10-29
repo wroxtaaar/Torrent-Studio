@@ -36,8 +36,20 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
   const showSortButtons = true;
   const sortedShows = (() => {
     const rows = catalogue?.results ?? [];
-    if (!showSortButtons || sortBy === 'popularity') return rows;
-    return [...rows].sort((a, b) => {
+    // Some curated anime feeds can contain the same series more than once
+    // under different source IDs. Keep the first occurrence to preserve the
+    // source's popularity order, and don't render duplicate cards.
+    const seen = new Set<string>();
+    const uniqueRows = rows.filter(show => {
+      const titleKey = String(show.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+      const yearKey = Number(show.year) || 0;
+      const key = `${titleKey}:${yearKey}`;
+      if (!titleKey || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (!showSortButtons || sortBy === 'popularity') return uniqueRows;
+    return [...uniqueRows].sort((a, b) => {
       if (sortBy === 'rating') return (Number(b.rating) || 0) - (Number(a.rating) || 0);
       return (Number(b.year) || 0) - (Number(a.year) || 0);
     });
