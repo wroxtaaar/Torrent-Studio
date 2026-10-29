@@ -76,10 +76,15 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                 movieTorrentPreviewCatalogueId === catalogueMovieIdentity(movie, movieCatalogue.catalogue);
               const previewGroup = previewMatchesMovie ? movieTorrentPreviewGroup : null;
               const isPunisherSpecial = /punisher.*one last kill|one last kill.*punisher/i.test(String(movie.title || ''));
-              const movieImdb = imdbRatingsByKey[imdbRatingKey(movie.title, movie.year)] ||
-                (isPunisherSpecial ? imdbRatingsByKey[imdbRatingKey(movie.title, movie.year, 'tv')] : undefined) ||
-                imdbRatingForCatalogueMovie(movie) ||
-                imdbFallbackForCatalogueMovie(movie);
+              const cachedMovieImdb = imdbRatingsByKey[imdbRatingKey(movie.title, movie.year)];
+              const cachedTvImdb = isPunisherSpecial ? imdbRatingsByKey[imdbRatingKey(movie.title, movie.year, 'tv')] : undefined;
+              const catalogueImdb = imdbRatingForCatalogueMovie(movie);
+              const fallbackImdb = imdbFallbackForCatalogueMovie(movie);
+              // A cached "not_found"/"unavailable" result must never shadow a real
+              // score embedded in the catalogue row or a known fallback rating.
+              const movieImdb = [cachedMovieImdb, cachedTvImdb, catalogueImdb, fallbackImdb]
+                .find(candidate => Number(candidate?.imdbRating) > 0) ||
+                cachedMovieImdb || cachedTvImdb || catalogueImdb || fallbackImdb;
               const movieTitleHref = imdbTitleLink(movieImdb, movie.title, movie.year);
 
               if (previewGroup) {
