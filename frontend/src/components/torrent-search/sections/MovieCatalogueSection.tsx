@@ -109,6 +109,8 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
               // catalogue item the user clicked. Never reuse it by title alone.
               // A title match alone can leak an old Prepare card into another section
               // where the same title appears under a different catalogue record.
+              const releaseDateYear = String(movie.releaseDate || '').match(/^(\d{4})/);
+              const displayYear = movie.year || (releaseDateYear ? Number(releaseDateYear[1]) : undefined);
               const previewMatchesMovie =
                 movieTorrentPreviewCatalogueId !== null &&
                 movieTorrentPreviewCatalogueId === catalogueMovieIdentity(movie, movieCatalogue.catalogue);
@@ -256,7 +258,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                   key={String(movie.id)}
                   title={movie.title}
                   titleHref={movieTitleHref}
-                  year={movie.year}
+                  year={displayYear}
                   imdb={movieImdb}
                   tmdbRating={movie.rating}
                   trendWeekLabel={movieCatalogue.catalogue.startsWith('trending-') && movie.trendingWeek
