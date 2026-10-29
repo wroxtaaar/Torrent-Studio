@@ -33,7 +33,7 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
   const page = catalogue?.page || 1;
   const totalPages = Math.max(1, catalogue?.totalPages || 1);
   const canNavigate = Boolean(group && mode);
-  const showSortButtons = activeRegionalSection === 'korean' || activeRegionalSection === 'pakistani' || activeRegionalSection === 'anime';
+  const showSortButtons = true;
   const sortedShows = (() => {
     const rows = catalogue?.results ?? [];
     if (!showSortButtons || sortBy === 'popularity') return rows;
@@ -75,27 +75,31 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
         </div>
       )}
 
-      {showSortButtons && (
-        <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort catalogue">
-          {(['popularity', 'rating', 'year'] as const).map(option => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={sortBy === option}
-              onClick={() => setSortBy(option)}
-              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
-                sortBy === option
-                  ? 'border-cyan-400 bg-cyan-500 text-slate-950'
-                  : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-cyan-500/60'
-              }`}
-            >
-              {option}
-            </button>
-          ))}
+      {catalogue && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
+          <button
+            type="button"
+            disabled={regionalWebSeriesLoading || page <= 1 || !canNavigate}
+            onClick={() => navigate(page - 1)}
+            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-300 disabled:opacity-40"
+          >
+            Previous
+          </button>
+          <span className="text-xs text-slate-500">Page {page} of {totalPages.toLocaleString()}</span>
+          <button
+            type="button"
+            disabled={regionalWebSeriesLoading || page >= totalPages || !canNavigate}
+            onClick={() => navigate(page + 1)}
+            className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-40"
+          >
+            Next
+          </button>
         </div>
       )}
 
-      {catalogue && sortedShows.length > 0 && (
+
+
+      {catalogue && sortedShows.length > 0 && !regionalWebSeriesLoading && (
         <>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
             {sortedShows.map(show => (
@@ -134,6 +138,28 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
             Next
           </button>
         </div>
+      )}
+
+      {catalogue && sortedShows.length > 0 && !regionalWebSeriesLoading && (
+        {showSortButtons && (
+          <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort catalogue">
+            {(['popularity', 'rating', 'year'] as const).map(option => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={sortBy === option}
+                onClick={() => setSortBy(option)}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
+                  sortBy === option
+                    ? 'border-cyan-400 bg-cyan-500 text-slate-950'
+                    : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-cyan-500/60'
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        )}
       )}
 
       {catalogue && catalogue.results.length === 0 && !regionalWebSeriesLoading && (
