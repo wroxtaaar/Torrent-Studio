@@ -351,8 +351,11 @@ def build_movies(old):
             final = sorted(final, key=lambda m: (m.get("detailScore", 0), str(m.get("releaseDate") or "")), reverse=True)[:FINAL_PER_CATALOGUE]
         if cat in IMDB_ORDER_RANK:
             ranks = IMDB_ORDER_RANK[cat]
-            # Put IMDb-listed titles in their exact source order. Retain unmatched rows
-            # afterward so incomplete metadata or test/API fixtures do not empty a page.
+            # Highest Rated Hollywood is a curated IMDb Top 250 list, not a general
+            # TMDB-rated feed. Keep only titles that exist in the supplied IMDb order
+            # and preserve that order; unrelated or unmatched titles must not leak in.
+            if cat == "highest-rated-hollywood":
+                final = [m for m in final if norm(m.get("title")) in ranks]
             final.sort(key=lambda m: (ranks.get(norm(m.get("title")), 10**9), norm(m.get("title"))))
         candidates_by_cat[cat] = collected
         if cat in failures and not final:
