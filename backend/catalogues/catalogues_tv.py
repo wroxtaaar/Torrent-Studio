@@ -1417,11 +1417,18 @@ async def api_tmdb_regional_tv_catalogue(
 
     if catalogue_key == "highest-rated-popular":
         # This order is copied from the user's saved IMDb list, not TMDB popularity.
-        manifest_path = _CACHE_SEED_DIR / "highest_rated_catalogues.json"
-        try:
-            manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError, TypeError):
-            manifest_payload = {}
+        manifest_paths = (
+            _CACHE_SEED_DIR / "highest_rated_catalogues.json",
+            Path(__file__).resolve().parents[1] / "cache-seed" / "highest_rated_catalogues.json",
+        )
+        manifest_payload = {}
+        for manifest_path in manifest_paths:
+            try:
+                manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+                if isinstance(manifest_payload, dict):
+                    break
+            except (OSError, ValueError, TypeError):
+                continue
         tv_manifest = ((manifest_payload.get("catalogues") or {}).get("highest-rated-tv") or {})
         imdb_rows = []
         for entry in tv_manifest.get("titles", []) if isinstance(tv_manifest, dict) else []:
@@ -1468,7 +1475,12 @@ async def api_tmdb_regional_tv_catalogue(
                 }
             except Exception as exc:
                 logger.info("IMDb TV list resolution failed for %s: %s", imdb_id, type(exc).__name__)
-                return None
+                return {
+                    "id": "imdb:" + imdb_id, "title": source_title,
+                    "year": None, "releaseDate": "", "posterUrl": "", "overview": "",
+                    "rating": imdb_rating, "imdbRating": imdb_rating, "imdbId": imdb_id,
+                    "imdbListRank": imdb_rows.index(item) + 1, "directStreamBroken": True,
+                }
 
         resolved = await asyncio.gather(*(resolve_imdb_tv(item) for item in selected))
         rows = [row for row in resolved if row and row.get("id") and row.get("title")]
