@@ -63,3 +63,61 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build image
         run: docker build -t torrent-studio:ci .
+
+  deploy-vps:
+    name: Deploy to Oracle VPS
+    runs-on: ubuntu-latest
+    needs: [backend, frontend, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          set -eu
+          test -n "$VPS_HOST" || { echo "::error::VPS_HOST secret is empty"; exit 1; }
+          test -n "$VPS_SSH_KEY" || { echo "::error::VPS_SSH_KEY secret is empty"; exit 1; }
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          port="${VPS_SSH_PORT:-22}"
+          ssh-keyscan -p "$port" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 600 ~/.ssh/known_hosts
+      - name: Pull and deploy on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+        run: |
+          set -eu
+          test -n "$VPS_USER" || { echo "::error::VPS_USER secret is empty"; exit 1; }
+          port="${VPS_SSH_PORT:-22}"
+          ssh -i ~/.ssh/id_ed25519 -p "$port" \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          APP_DIR="$HOME/Torrent-Studio"
+          if [ ! -d "$APP_DIR/.git" ]; then
+            echo "Expected Git checkout not found at $APP_DIR"
+            echo "Update APP_DIR in .github/workflows/ci.yml to the actual Torrent-Studio checkout path."
+            exit 1
+          fi
+          cd "$APP_DIR"
+          git fetch origin main
+          git pull --ff-only origin main
+          docker compose up -d --build torrent-studio
+          for attempt in $(seq 1 24); do
+            if curl -fsS http://127.0.0.1:${HOST_PORT:-3000}/api/health >/dev/null; then
+              echo "Torrent Studio health check passed."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Deployment started, but the health check did not pass within 120 seconds."
+          docker compose ps
+          docker compose logs --tail=100 torrent-studio
+          exit 1
+          REMOTE
