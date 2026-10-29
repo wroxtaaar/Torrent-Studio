@@ -10,7 +10,6 @@ import { extractedQuality } from '../helpers.ts';
 import { classicsComparator, ratingValue } from '../classicsSort.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 import { isAnimeCatalogue } from '../yenime.ts';
-import { WebtorButton } from '../WebtorButton.tsx';
 
 export function SearchResultsSection({ vm }: { vm: PanelModel }) {
   const { activeTopSection, catalogueExpectedTitles, classicsContentTab, classicsSort, dcWebSeriesCatalogue, dcWebSeriesError, dcWebSeriesLoading, error, expandedSearchGroupKey, franchiseGridPage, franchiseGridPageSize, groupedResults, imdbRatingsByKey, isSearching, marvelWebSeriesCatalogue, marvelWebSeriesError, marvelWebSeriesLoading, metadataPosterFailed, movieCatalogue, movieTorrentPreviewGroup, nexStreamLoading, nexStreamLoadingTitle, nexStreamResolvingId, nexStreamResults, onPlaySeedrFile, openYenimeRequest, pendingPosterAction, playCatalogueTvWithNexStream, playWithNexStream, playingTorrentKey, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, prepareMovieTorrent, prepareStateFor, preparedActionsFor, preparedForResult, preparingTorrentKey, regionalWebSeriesCatalogue, regionalWebSeriesError, regionalWebSeriesLoading, renderFranchisePagination, results, searchAvailabilityByGroup, searchMetadata, searchMetadataStatus, searchNexStreamTitles, searchPosterUrlsRef, selectedMovieTorrentQualityByGroup, selectedQualityByGroup, setDcWebSeriesCatalogue, setDcWebSeriesError, setDcWebSeriesLoading, setExpandedSearchGroupKey, setMarvelWebSeriesCatalogue, setMarvelWebSeriesError, setMarvelWebSeriesLoading, setMetadataPosterFailed, setMovieTorrentPreviewCatalogueId, setMovieTorrentPreviewGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setPlayingTorrentKey, setRegionalWebSeriesCatalogue, setRegionalWebSeriesError, setRegionalWebSeriesLoading, setSelectedMovieTorrentQualityByGroup, setSelectedQualityByGroup, showDcWebSeries, showMarvelWebSeries, sortedResults, startPosterBackgroundWorkers } = vm;
@@ -412,7 +411,6 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
                       }
                     },
                   }}
-                  webtorAction={<WebtorButton torrent={result} />}
                 />
               );
             })}
