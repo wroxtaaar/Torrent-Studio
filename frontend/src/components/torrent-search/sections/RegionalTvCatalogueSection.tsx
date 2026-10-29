@@ -22,14 +22,17 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
   } = vm;
 
   const activeRegionalSection = REGIONAL_SECTIONS.find(section => section === activeTopSection);
-  if (!activeRegionalSection || regionalContentTabs[activeRegionalSection] !== 'web-series') {
+  const isHighestRatedTv = activeTopSection === 'highest-rated';
+  if (isHighestRatedTv) {
+    // Highest Rated has its own IMDb-ordered TV list and does not use regional tabs.
+  } else if (!activeRegionalSection || regionalContentTabs[activeRegionalSection] !== 'web-series') {
     return null;
   }
 
   const catalogue = regionalWebSeriesCatalogue;
-  const [groupText, ...modeParts] = catalogue?.catalogue.split('-') || [];
-  const group = groupText as RegionalTvGroup | undefined;
-  const mode = modeParts.join('-') as RegionalTvMode | undefined;
+  const catalogueKey = catalogue?.catalogue || '';
+  const group = (catalogueKey.startsWith('highest-rated-') ? 'highest-rated' : catalogueKey.split('-')[0]) as RegionalTvGroup | undefined;
+  const mode = (catalogueKey.startsWith('highest-rated-') ? catalogueKey.slice('highest-rated-'.length) : catalogueKey.split('-').slice(1).join('-')) as RegionalTvMode | undefined;
   const page = catalogue?.page || 1;
   const totalPages = Math.max(1, catalogue?.totalPages || 1);
   const canNavigate = Boolean(group && mode);
@@ -48,7 +51,7 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
       seen.add(key);
       return true;
     });
-    if (!showSortButtons || sortBy === 'popularity') return uniqueRows;
+    if (catalogue?.curatedOrder || !showSortButtons || sortBy === 'popularity') return uniqueRows;
     return [...uniqueRows].sort((a, b) => {
       if (sortBy === 'rating') return (Number(b.rating) || 0) - (Number(a.rating) || 0);
       return (Number(b.year) || 0) - (Number(a.year) || 0);
@@ -58,6 +61,7 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
     if (group && mode) void openRegionalTvCatalogue(group, mode, nextPage);
   };
   const title = ({
+    'highest-rated': 'Highest Rated TV Shows',
     hollywood: 'Hollywood Web Series',
     bollywood: 'Indian Web Series',
     korean: 'Korean Dramas',
