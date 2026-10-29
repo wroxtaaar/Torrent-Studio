@@ -10,22 +10,25 @@ import { catalogueMovieIdentity, extractedQuality } from '../helpers.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 
 export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
-  const { cataloguePosterUrlsRef, closeMoviePrepareCard, imdbRatingsByKey, isSearching, movieCatalogue, movieCatalogueSearchText, movieTorrentPreviewCatalogueId, movieTorrentPreviewGroup, movieTorrentPreviewPosterUrl, movieTorrentSearchError, movieTorrentSearchLoading, movieTorrentSearchTitle, nexStreamResolvingId, openMovieCatalogue, setPakistaniMovieSort, ottAvailabilityForMovie, ottPendingCount, pendingPosterAction, playWithNexStream, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, posterUrlFor, prepareBuildPendingRef, prepareClickIntentRef, prepareMovieTorrent, prepareStateFor, prepareTraceIdRef, preparedActionsFor, searchMovieTorrents, selectedMovieTorrentQualityByGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setSelectedMovieTorrentQualityByGroup, startPosterBackgroundWorkers, streamingOnly, visibleMovieCatalogueItems } = vm;
-  const pakistaniPopularityOrder = ["joyland","jawaniphirnhiani","thelegendofmaulajatt","quaid-e-azamzindabad","teefaintrouble","waar","bol","namaloomafraad","o21","moor","kambakht","sayaekhudaezuljalal","zindabhaag","tamanna","josh","dukhtar","mainhoonshahidafridi","hijrat","swaarangi","khudakayliye","jinnah","azaad","zilleshah","ishqkhuda","thesystem"];
-  const pakistaniTitleKey = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '');
-  const pakistaniMovieCatalogue = movieCatalogue?.catalogue.endsWith('-pakistani') === true;
-  const pakistaniMovieSort = vm.pakistaniMovieSort || 'popularity';
-  const isHighestRatedCatalogue = movieCatalogue?.catalogue === 'highest-rated-hollywood' || movieCatalogue?.catalogue === 'highest-rated-bollywood';
-  const sortedVisibleMovieCatalogueItems = !isHighestRatedCatalogue && (pakistaniMovieCatalogue || pakistaniMovieSort !== 'popularity')
-    ? [...visibleMovieCatalogueItems].sort((a, b) => {
-        if (pakistaniMovieSort === 'year') return (Number(b.year) || 0) - (Number(a.year) || 0);
-        if (pakistaniMovieSort === 'rating') return (Number(b.imdbRating ?? b.rating) || 0) - (Number(a.imdbRating ?? a.rating) || 0);
-        if (!pakistaniMovieCatalogue) return 0;
-        const ai = pakistaniPopularityOrder.indexOf(pakistaniTitleKey(a.title));
-        const bi = pakistaniPopularityOrder.indexOf(pakistaniTitleKey(b.title));
-        return (ai < 0 ? Number.MAX_SAFE_INTEGER : ai) - (bi < 0 ? Number.MAX_SAFE_INTEGER : bi);
+  const { cataloguePosterUrlsRef, catalogueSort, closeMoviePrepareCard, imdbRatingsByKey, isSearching, movieCatalogue, movieCatalogueSearchText, movieTorrentPreviewCatalogueId, movieTorrentPreviewGroup, movieTorrentPreviewPosterUrl, movieTorrentSearchError, movieTorrentSearchLoading, movieTorrentSearchTitle, nexStreamResolvingId, openMovieCatalogue, setCatalogueSort, ottAvailabilityForMovie, ottPendingCount, pendingPosterAction, playWithNexStream, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, posterUrlFor, prepareBuildPendingRef, prepareClickIntentRef, prepareMovieTorrent, prepareStateFor, prepareTraceIdRef, preparedActionsFor, searchMovieTorrents, selectedMovieTorrentQualityByGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setSelectedMovieTorrentQualityByGroup, startPosterBackgroundWorkers, streamingOnly, visibleMovieCatalogueItems } = vm;
+  const sortedVisibleMovieCatalogueItems = catalogueSort === 'popularity'
+    ? visibleMovieCatalogueItems
+    : visibleMovieCatalogueItems
+      .map((movie, index) => ({ movie, index }))
+      .sort((a, b) => {
+        if (catalogueSort === 'year') {
+          const yearOf = (movie: typeof a.movie) =>
+            Number(movie.year) || Number(String(movie.releaseDate || '').match(/^(\d{4})/)?.[1]) || 0;
+          return yearOf(b.movie) - yearOf(a.movie) || a.index - b.index;
+        }
+        const ratingOf = (movie: typeof a.movie) =>
+          Number(movie.imdbRating) ||
+          Number(imdbRatingsByKey[imdbRatingKey(movie.title, movie.year)]?.imdbRating) ||
+          Number(imdbFallbackForCatalogueMovie(movie)?.imdbRating) ||
+          0;
+        return ratingOf(b.movie) - ratingOf(a.movie) || a.index - b.index;
       })
-    : visibleMovieCatalogueItems;
+      .map(({ movie }) => movie);
   return (
     <>
       {movieCatalogue && (
@@ -42,7 +45,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
 
 
 
-          {movieCatalogue && visibleMovieCatalogueItems.length > 0 && !isSearching && !isHighestRatedCatalogue && (
+          {movieCatalogue && visibleMovieCatalogueItems.length > 0 && !isSearching && (
             <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort movies">
               <span className="mr-1 text-xs text-slate-400">Sort by</span>
               {([
@@ -53,10 +56,10 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                 <button
                   key={sort}
                   type="button"
-                  aria-pressed={pakistaniMovieSort === sort}
-                  onClick={() => setPakistaniMovieSort(sort)}
+                  aria-pressed={catalogueSort === sort}
+                  onClick={() => setCatalogueSort(sort)}
                   className={'rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ' + (
-                    pakistaniMovieSort === sort
+                    catalogueSort === sort
                       ? 'border-cyan-400 bg-cyan-500 text-slate-950'
                       : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-cyan-500/60'
                   )}

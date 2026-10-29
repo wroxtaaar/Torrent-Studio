@@ -44,7 +44,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
   const { searchMetadata, setSearchMetadata, searchMetadataStatus, setSearchMetadataStatus, imdbRatingsByKey, setImdbRatingsByKey, imdbRatingRequestedRef, imdbRetryTick, setImdbRetryTick, imdbInFlightRef, imdbRetryCountRef, tvMetadataRequestedRef, searchAvailabilityByGroup, setSearchAvailabilityByGroup, selectedQualityByGroup, setSelectedQualityByGroup } = useSearchMetadataState();
   const { expandedSearchGroupKey, setExpandedSearchGroupKey, movieTorrentPreviewGroup, setMovieTorrentPreviewGroup, movieTorrentPreviewCatalogueId, setMovieTorrentPreviewCatalogueId, pendingPosterAction, setPendingPosterAction, movieTorrentPreviewPosterUrl, setMovieTorrentPreviewPosterUrl, cataloguePosterUrlsRef, searchPosterUrlsRef, movieTorrentPickerGroups, setMovieTorrentPickerGroups, movieTorrentSearchLoading, setMovieTorrentSearchLoading, movieTorrentSearchTitle, setMovieTorrentSearchTitle, movieTorrentSearchError, setMovieTorrentSearchError, selectedMovieTorrentQualityByGroup, setSelectedMovieTorrentQualityByGroup, movieTorrentSearchControllerRef, movieTorrentSearchGenerationRef, prepareClickIntentRef, prepareTraceIdRef, movieTorrentDetailsCacheRef } = useMoviePreviewState();
   const { persistMovieTorrentCache } = useMovieTorrentCache({ movieTorrentDetailsCacheRef });
-  const { isSearching, setIsSearching, isPresetCatalogueAction, setIsPresetCatalogueAction, searched, setSearched, error, setError, catalogueBuildProgress, setCatalogueBuildProgress, movieCatalogue, setMovieCatalogue, movieCatalogueSearchText, setMovieCatalogueSearchText, releasedOnly, tmdbFranchiseKey, setTmdbFranchiseKey, openCachedLanguageMenu, setOpenCachedLanguageMenu, activeTopSection, setActiveTopSection, dcContentTab, setDcContentTab, regionalContentTabs, setRegionalContentTabs, marvelContentTab, setMarvelContentTab, classicsContentTab, setClassicsContentTab, classicsSort, setClassicsSort, pakistaniMovieSort, setPakistaniMovieSort, activeFranchiseSearchMode, setActiveFranchiseSearchMode, franchisePageRequestRef, franchisePageGenerationRef, franchiseLoadedPagesRef, franchiseGridPage, setFranchiseGridPage, prepareBuildPendingRef, previousPosterPageRef, posterFirstPageReady, setPosterFirstPageReady, posterFirstPageReadyRef, catalogueExpectedTitles, setCatalogueExpectedTitles, franchiseGridPageSize, openRegionalCatalogueMenu, setOpenRegionalCatalogueMenu, regionalCatalogueModes, setRegionalCatalogueModes, openRegionalTvMenu, setOpenRegionalTvMenu, regionalTvModes, setRegionalTvModes, isClearingTmdbCache, setIsClearingTmdbCache, tmdbCacheMessage, setTmdbCacheMessage, streamingOnly, ottAvailability, setOttAvailability, ottAvailabilityRef, ottQueueRef, ottQueuedIdsRef, ottLookupGenerationRef, ottLiveCheckedRef, ottRetryAttemptsRef, queueOttLookups, ottAvailabilityForMovie, marvelFilmFilter, setMarvelFilmFilter, isMarvelEnglishResults, setIsMarvelEnglishResults, showMarvelWebSeries, setShowMarvelWebSeries, isDcLiveActionEnglishResults, setIsDcLiveActionEnglishResults } = useCatalogueNavigationState();
+  const { isSearching, setIsSearching, isPresetCatalogueAction, setIsPresetCatalogueAction, searched, setSearched, error, setError, catalogueBuildProgress, setCatalogueBuildProgress, movieCatalogue, setMovieCatalogue, movieCatalogueSearchText, setMovieCatalogueSearchText, releasedOnly, tmdbFranchiseKey, setTmdbFranchiseKey, openCachedLanguageMenu, setOpenCachedLanguageMenu, activeTopSection, setActiveTopSection, dcContentTab, setDcContentTab, regionalContentTabs, setRegionalContentTabs, marvelContentTab, setMarvelContentTab, classicsContentTab, setClassicsContentTab, classicsSort, setClassicsSort, catalogueSort, setCatalogueSort, activeFranchiseSearchMode, setActiveFranchiseSearchMode, franchisePageRequestRef, franchisePageGenerationRef, franchiseLoadedPagesRef, franchiseGridPage, setFranchiseGridPage, prepareBuildPendingRef, previousPosterPageRef, posterFirstPageReady, setPosterFirstPageReady, posterFirstPageReadyRef, catalogueExpectedTitles, setCatalogueExpectedTitles, franchiseGridPageSize, openRegionalCatalogueMenu, setOpenRegionalCatalogueMenu, regionalCatalogueModes, setRegionalCatalogueModes, openRegionalTvMenu, setOpenRegionalTvMenu, regionalTvModes, setRegionalTvModes, isClearingTmdbCache, setIsClearingTmdbCache, tmdbCacheMessage, setTmdbCacheMessage, streamingOnly, ottAvailability, setOttAvailability, ottAvailabilityRef, ottQueueRef, ottQueuedIdsRef, ottLookupGenerationRef, ottLiveCheckedRef, ottRetryAttemptsRef, queueOttLookups, ottAvailabilityForMovie, marvelFilmFilter, setMarvelFilmFilter, isMarvelEnglishResults, setIsMarvelEnglishResults, showMarvelWebSeries, setShowMarvelWebSeries, isDcLiveActionEnglishResults, setIsDcLiveActionEnglishResults } = useCatalogueNavigationState();
   useEffect(() => persistSearchMetadata(searchMetadata), [searchMetadata]);
   useEffect(() => persistSearchAvailability(searchAvailabilityByGroup), [searchAvailabilityByGroup]);
   useEffect(() => persistImdbRatings(imdbRatingsByKey), [imdbRatingsByKey]);
@@ -106,8 +106,9 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       document.removeEventListener('keydown', handleEscape);
     };
   }, [openRegionalTvMenu]);
-  const openRegionalTvCatalogue = async (group: RegionalTvGroup, mode: RegionalTvMode, page = 1) => {
+  const openRegionalTvCatalogue = async (group: RegionalTvGroup, mode: RegionalTvMode, page = 1, resetSort = true) => {
     const key = group + '-' + mode;
+    if (resetSort) setCatalogueSort('popularity');
     setRegionalTvModes(previous => ({ ...previous, [group]: mode }));
     setOpenRegionalTvMenu(null);
     setShowMarvelWebSeries(false);
@@ -133,6 +134,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     }
   };
   const openRegionalCatalogue = (group: RegionalCatalogueGroup, mode: RegionalCatalogueMode) => {
+    setCatalogueSort('popularity');
     setRegionalWebSeriesCatalogue(null);
     setRegionalWebSeriesError('');
     setRegionalWebSeriesLoading(false);
@@ -146,6 +148,19 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     setSizeSort(null);
     setTimeSort(null);
     void openMovieCatalogue(key, label, 1);
+  };
+  const selectHighestRatedSection = () => {
+    searchGenerationRef.current += 1;
+    searchRequestRef.current?.abort();
+    setActiveTopSection('highest-rated');
+    setRegionalWebSeriesCatalogue(null);
+    setRegionalWebSeriesError('');
+    setRegionalWebSeriesLoading(false);
+    setShowMarvelWebSeries(false);
+    setShowDcWebSeries(false);
+    setMovieCatalogue(null);
+    setResults([]);
+    setSearched(false);
   };
   const tmdbFranchiseLabels: Record<FranchiseTmdbKey, string> = {
     marvel: 'Marvel',
@@ -215,6 +230,9 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     page = 1,
     onlyReleased = releasedOnly,
   ) => {
+    setRegionalWebSeriesCatalogue(null);
+    setRegionalWebSeriesError('');
+    setRegionalWebSeriesLoading(false);
     setHighQualityPostersReady(false);
     setFranchiseGridPage(1);
     setActiveFranchiseSearchMode(null);
@@ -616,8 +634,8 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     setClassicsContentTab,
     classicsSort,
     setClassicsSort,
-    pakistaniMovieSort,
-    setPakistaniMovieSort,
+    catalogueSort,
+    setCatalogueSort,
     franchiseGridPage,
     setFranchiseGridPage,
     prepareBuildPendingRef,
@@ -657,6 +675,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     setMarvelWebSeriesError,
     openRegionalTvCatalogue,
     openRegionalCatalogue,
+    selectHighestRatedSection,
     tmdbFranchiseLabels,
     visibleMovieCatalogueItems,
     ottPendingCount,

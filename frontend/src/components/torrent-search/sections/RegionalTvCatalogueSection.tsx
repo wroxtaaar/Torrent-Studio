@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { RegionalTvGroup, RegionalTvMode } from '../types.ts';
 import { imdbRatingKey } from '../grouping.ts';
@@ -8,9 +7,9 @@ import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 const REGIONAL_SECTIONS = ['hollywood', 'bollywood', 'korean', 'pakistani', 'anime'] as const;
 
 export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
-  const [sortBy, setSortBy] = useState<'popularity' | 'rating' | 'year'>('popularity');
   const {
     activeTopSection,
+    catalogueSort,
     imdbRatingsByKey,
     openRegionalTvCatalogue,
     playCatalogueTvWithNexStream,
@@ -23,13 +22,12 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
 
   const activeRegionalSection = REGIONAL_SECTIONS.find(section => section === activeTopSection);
   const isHighestRatedTv = activeTopSection === 'highest-rated';
-  if (isHighestRatedTv) {
-    // Highest Rated has its own IMDb-ordered TV list and does not use regional tabs.
-  } else if (!activeRegionalSection || regionalContentTabs[activeRegionalSection] !== 'web-series') {
+  if (!isHighestRatedTv && (!activeRegionalSection || regionalContentTabs[activeRegionalSection] !== 'web-series')) {
     return null;
   }
 
   const catalogue = regionalWebSeriesCatalogue;
+  if (isHighestRatedTv && !catalogue?.catalogue.startsWith('highest-rated-')) return null;
   const catalogueKey = catalogue?.catalogue || '';
   const group = (catalogueKey.startsWith('highest-rated-') ? 'highest-rated' : catalogueKey.split('-')[0]) as RegionalTvGroup | undefined;
   const mode = (catalogueKey.startsWith('highest-rated-') ? catalogueKey.slice('highest-rated-'.length) : catalogueKey.split('-').slice(1).join('-')) as RegionalTvMode | undefined;
@@ -51,14 +49,25 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
       seen.add(key);
       return true;
     });
-    if (catalogue?.curatedOrder || !showSortButtons || sortBy === 'popularity') return uniqueRows;
-    return [...uniqueRows].sort((a, b) => {
-      if (sortBy === 'rating') return (Number(b.rating) || 0) - (Number(a.rating) || 0);
-      return (Number(b.year) || 0) - (Number(a.year) || 0);
-    });
+    if (!showSortButtons || catalogueSort === 'popularity') return uniqueRows;
+    return uniqueRows
+      .map((show, index) => ({ show, index }))
+      .sort((a, b) => {
+        if (catalogueSort === 'rating') {
+          const ratingOf = (show: typeof a.show) =>
+            Number(show.imdbRating) ||
+            Number(imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]?.imdbRating) ||
+            0;
+          return ratingOf(b.show) - ratingOf(a.show) || a.index - b.index;
+        }
+        const yearOf = (show: typeof a.show) =>
+          Number(show.year) || Number(String(show.releaseDate || '').match(/^(\d{4})/)?.[1]) || 0;
+        return yearOf(b.show) - yearOf(a.show) || a.index - b.index;
+      })
+      .map(({ show }) => show);
   })();
   const navigate = (nextPage: number) => {
-    if (group && mode) void openRegionalTvCatalogue(group, mode, nextPage);
+    if (group && mode) void openRegionalTvCatalogue(group, mode, nextPage, false);
   };
   const title = ({
     'highest-rated': 'Highest Rated TV Shows',
@@ -121,10 +130,10 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
             <button
               key={option}
               type="button"
-              aria-pressed={sortBy === option}
-              onClick={() => setSortBy(option)}
+              aria-pressed={catalogueSort === option}
+              onClick={() => vm.setCatalogueSort(option)}
               className={`rounded-lg border px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
-                sortBy === option
+                catalogueSort === option
                   ? 'border-cyan-400 bg-cyan-500 text-slate-950'
                   : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-cyan-500/60'
               }`}
