@@ -325,13 +325,7 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
         "latest-hollywood": ("en", "latest"),
         "popular-korean": ("ko", "popular"),
         "popular-pakistani": ("ur", "popular"),
-        "trending-pakistani": ("ur", "trending"),
-        "latest-pakistani": ("ur", "latest"),
-        "trending-korean": ("ko", "trending"),
-        "latest-korean": ("ko", "latest"),
         "popular-anime": ("ja", "popular"),
-        "trending-anime": ("ja", "trending"),
-        "latest-anime": ("ja", "latest"),
     }
     if catalogue_key in {"marvel", "dc-live-action", "dc-animated"}:
         franchise = "marvel" if catalogue_key == "marvel" else "dc"
@@ -1275,12 +1269,19 @@ async def api_tmdb_movie_catalogue(
     basic: bool = Query(False),
     live: bool = Query(False),
 ):
+    if catalogue_key in {"highest-rated-hollywood", "highest-rated-bollywood"}:
+        return await _highest_rated_movie_curated_page(catalogue_key, page)
     if live and catalogue_key in REGIONAL_MOVIE_CATALOGUE_KEYS:
         # Candidate list for the cache builder: fresh source pages, no cache or paging offsets,
         # NexStream playback marked on each title instead of being used to drop titles.
         return await _live_regional_candidates(catalogue_key, page)
     payload = await _api_tmdb_movie_catalogue(catalogue_key, page, released_only, max_size_gb, basic)
-    if released_only and catalogue_key in REGIONAL_MOVIE_CATALOGUE_KEYS and (not basic or payload.get("prebuilt")):
+    if (
+        released_only
+        and catalogue_key in REGIONAL_MOVIE_CATALOGUE_KEYS
+        and catalogue_key not in {"highest-rated-hollywood", "highest-rated-bollywood"}
+        and (not basic or payload.get("prebuilt"))
+    ):
         return _with_more_pages(payload, page)
     return payload
 
@@ -1467,6 +1468,9 @@ async def _api_tmdb_movie_catalogue(
     max_size_gb: int,
     basic: bool,
 ):
+    if catalogue_key in {"highest-rated-hollywood", "highest-rated-bollywood"}:
+        return await _highest_rated_movie_curated_page(catalogue_key, page)
+
     if catalogue_key == "popular-pakistani":
         cache_key = ("popular-pakistani|curated-25-v1", page)
         cached = _tmdb_movie_catalogue_cache.get(cache_key)
@@ -1493,9 +1497,9 @@ async def _api_tmdb_movie_catalogue(
         "marvel", "dc-live-action", "dc-animated",
         "popular-bollywood", "trending-bollywood", "latest-bollywood",
         "popular-hollywood", "trending-hollywood", "latest-hollywood",
-        "popular-korean", "trending-korean", "latest-korean",
-        "popular-pakistani", "trending-pakistani", "latest-pakistani",
-        "popular-anime", "trending-anime", "latest-anime",
+        "popular-korean",
+        "popular-pakistani",
+        "popular-anime",
         "highest-rated-hollywood", "highest-rated-bollywood",
     }
     if catalogue_key not in allowed:

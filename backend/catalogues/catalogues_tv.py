@@ -1205,8 +1205,6 @@ async def api_tmdb_regional_tv_catalogue(
         "pakistani-trending": ("PK", "ur", "popularity.desc"),
         "pakistani-latest": ("PK", "ur", "first_air_date.desc"),
         "anime-popular": ("JP", "ja", "popularity.desc"),
-        "anime-trending": ("JP", "ja", "popularity.desc"),
-        "anime-latest": ("JP", "ja", "first_air_date.desc"),
         "highest-rated-popular": ("US", "en", "popularity.desc"),
     }
     if catalogue_key not in configs:

@@ -124,8 +124,8 @@ REGIONAL_MOVIE_CATALOGUE_KEYS = (
     "popular-bollywood",
     "trending-bollywood",
     "latest-bollywood",
-    "popular-korean", "trending-korean", "latest-korean",
-    "popular-pakistani", "trending-pakistani", "latest-pakistani",
+    "popular-korean",
+    "popular-pakistani",
     "popular-anime", "trending-anime", "latest-anime",
 )
 TMDB_COMPANY_CACHE_SECONDS = stored_ttl(max(3600, int(os.getenv("TMDB_COMPANY_CACHE_SECONDS", str(24 * 60 * 60)))))

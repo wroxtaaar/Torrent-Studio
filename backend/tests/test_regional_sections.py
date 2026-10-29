@@ -1,8 +1,12 @@
 import asyncio
 import json
 
+import pytest
+from fastapi import HTTPException
+
 from catalogues import catalogues_movies as movies
 from catalogues import catalogues_tv as tv
+from core.settings import REGIONAL_MOVIE_CATALOGUE_KEYS
 
 
 def test_new_regional_movie_catalogue_pages_contain_18_entries(monkeypatch):
@@ -38,6 +42,97 @@ def test_new_regional_movie_catalogue_pages_contain_18_entries(monkeypatch):
 
     assert result["pageSize"] == 18
     assert len(result["results"]) == 18
+
+
+def test_highest_rated_movie_catalogue_bypasses_stale_regional_cache(monkeypatch):
+    expected = {
+        "catalogue": "highest-rated-hollywood",
+        "page": 1,
+        "totalResults": 250,
+        "results": [
+            {"title": "The Shawshank Redemption", "imdbListRank": 1},
+            {"title": "The Godfather", "imdbListRank": 2},
+        ],
+    }
+
+    async def curated_page(catalogue_key, page):
+        assert catalogue_key == "highest-rated-hollywood"
+        assert page == 1
+        return expected
+
+    monkeypatch.setattr(movies, "_highest_rated_movie_curated_page", curated_page)
+    monkeypatch.setattr(movies, "_tmdb_movie_catalogue_cache", {
+        ("highest-rated-hollywood|eligible-v8", 1): (
+            0,
+            {"provider": "stale regional cache", "results": [{"title": "Avatar Aang"}]},
+        ),
+    })
+    monkeypatch.setattr(movies, "_prebuilt_final_page", lambda *args: {
+        "provider": "stale prebuilt", "results": [{"title": "Swapped"}],
+    })
+
+    result = asyncio.run(
+        movies._api_tmdb_movie_catalogue("highest-rated-hollywood", 1, True, 5, False)
+    )
+
+    assert result is expected
+    assert [row["title"] for row in result["results"]] == [
+        "The Shawshank Redemption",
+        "The Godfather",
+    ]
+
+
+def test_highest_rated_movie_route_keeps_manifest_page_count(monkeypatch):
+    expected = {
+        "catalogue": "highest-rated-hollywood",
+        "page": 1,
+        "totalPages": 14,
+        "totalResults": 250,
+        "results": [{"title": "The Shawshank Redemption", "imdbListRank": 1}],
+    }
+
+    async def curated_page(catalogue_key, page):
+        return expected
+
+    async def regional_cache_path(*args):
+        raise AssertionError("Highest Rated must not use the regional cache builder")
+
+    monkeypatch.setattr(movies, "_highest_rated_movie_curated_page", curated_page)
+    monkeypatch.setattr(movies, "_live_regional_candidates", regional_cache_path)
+
+    result = asyncio.run(movies.api_tmdb_movie_catalogue(
+        "highest-rated-hollywood",
+        page=1,
+        released_only=True,
+        max_size_gb=5,
+        basic=False,
+        live=True,
+    ))
+
+    assert result is expected
+    assert result["totalPages"] == 14
+    assert result["totalResults"] == 250
+
+
+def test_removed_regional_movie_catalogues_are_not_served():
+    removed = (
+        "trending-korean",
+        "latest-korean",
+        "trending-pakistani",
+        "latest-pakistani",
+    )
+    assert not set(removed).intersection(REGIONAL_MOVIE_CATALOGUE_KEYS)
+    for catalogue_key in removed:
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(movies._api_tmdb_movie_catalogue(catalogue_key, 1, True, 5, False))
+        assert exc.value.status_code == 404
+
+
+def test_removed_anime_tv_modes_are_not_served():
+    for catalogue_key in ("anime-trending", "anime-latest"):
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(tv.api_tmdb_regional_tv_catalogue(catalogue_key, page=1))
+        assert exc.value.status_code == 404
 
 
 def test_pakistani_movies_reject_indian_origin_and_keep_pakistani_english_titles(monkeypatch):

@@ -20,9 +20,9 @@ CATALOGUES = (
     "highest-rated-hollywood", "highest-rated-bollywood",
     "popular-bollywood", "trending-bollywood", "latest-bollywood",
     "popular-hollywood", "trending-hollywood", "latest-hollywood",
-    "popular-korean", "trending-korean", "latest-korean",
-    "popular-pakistani", "trending-pakistani", "latest-pakistani",
-    "popular-anime", "trending-anime", "latest-anime",
+    "popular-korean",
+    "popular-pakistani",
+    "popular-anime",
 )
 # Target for the TV catalogues. Movie catalogues use FINAL_PER_CATALOGUE below.
 TARGET_PER_CATALOGUE = int(os.getenv("REGIONAL_CACHE_MOVIES_PER_CATALOGUE", "50"))
@@ -64,8 +64,7 @@ MAX_CANDIDATES = int(os.getenv("REGIONAL_CACHE_MAX_CANDIDATES", "450"))
 ARCHIVE = BASE / "regional_movie_trending_archive.json"
 ORDER = ("highest-rated-hollywood", "highest-rated-bollywood",
           "popular-bollywood", "popular-hollywood", "latest-bollywood", "latest-hollywood",
-          "trending-bollywood", "trending-hollywood", "popular-korean", "popular-pakistani", "popular-anime",
-          "latest-korean", "latest-pakistani", "latest-anime", "trending-korean", "trending-pakistani", "trending-anime")
+          "trending-bollywood", "trending-hollywood", "popular-korean", "popular-pakistani", "popular-anime")
 
 # Ordered IMDb source lists are kept in the same manifest consumed by the API.
 MANIFEST_PATH = Path(__file__).resolve().parents[1] / "backend" / "cache-seed" / "highest_rated_catalogues.json"
@@ -402,21 +401,25 @@ def main():
                 tv_old = candidate
         except Exception:
             tv_old = {}
-    tv_cache = {
-        "version": 3,
-        "builtAt": tv_old.get("builtAt"),
-        "catalogues": tv_old.get("catalogues", {}),
-        "targetPerCatalogue": TARGET_PER_CATALOGUE,
-        "status": "building",
-    }
     tv_catalogues = (
         "indian-popular", "indian-trending", "indian-latest",
         "hollywood-popular", "hollywood-trending", "hollywood-latest",
         "korean-popular", "korean-trending", "korean-latest",
         "pakistani-popular", "pakistani-trending", "pakistani-latest",
-        "anime-popular", "anime-trending", "anime-latest",
+        "anime-popular",
         "highest-rated-popular",
     )
+    tv_cache = {
+        "version": 3,
+        "builtAt": tv_old.get("builtAt"),
+        "catalogues": {
+            key: value
+            for key, value in tv_old.get("catalogues", {}).items()
+            if key in tv_catalogues
+        },
+        "targetPerCatalogue": TARGET_PER_CATALOGUE,
+        "status": "building",
+    }
     failed_tv_catalogues = []
     for cat in tv_catalogues:
         target_series = 100 if cat == "highest-rated-popular" else TARGET_PER_CATALOGUE

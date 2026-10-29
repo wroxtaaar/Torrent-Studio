@@ -46,10 +46,12 @@ export function useVisibleMovieCatalogue({ movieCatalogue, isMarvelEnglishResult
     if (isDcLiveActionEnglishResults) {
       movies = movies.filter(movie => !/batman\s*:\s*mask of the phantasm/i.test(String(movie.title || '')));
     }
-    // Regional catalogues arrive pre-sorted by popularity, release date, or
-    // weekly trend history; re-sorting them by release date would discard that ranking.
-    const isRegionalMovieCatalogue = /^(popular|trending|latest)-(bollywood|hollywood|korean|pakistani|anime)$/.test(
-      String(movieCatalogue?.catalogue || ''),
+    // These catalogues already carry their intended source ordering; re-sorting
+    // them by release date would discard it.
+    const catalogueKey = String(movieCatalogue?.catalogue || '');
+    const isRegionalMovieCatalogue = catalogueKey.startsWith('highest-rated-') ||
+      /^(popular|trending|latest)-(bollywood|hollywood|korean|pakistani|anime)$/.test(
+      catalogueKey,
     );
     if (!isRegionalMovieCatalogue) {
       movies = [...movies].sort(compareReleaseDateDescending);
