@@ -134,7 +134,24 @@ def test_pakistani_prebuilt_movies_filter_indian_entries(monkeypatch, tmp_path):
 
 def test_pakistani_tv_catalogue_uses_fixed_curated_drama_order(monkeypatch, tmp_path):
     async def get_json(path, params):
-        return {"page": 1, "total_pages": 1, "total_results": 0, "results": []}
+        # Model successful exact-title TMDB matches so this test exercises
+        # curated ordering without relying on synthetic, non-playable IDs.
+        if path == "search/tv":
+            title = params["query"]
+            return {
+                "page": 1,
+                "total_pages": 1,
+                "total_results": 1,
+                "results": [{
+                    "id": 1000 + len(title),
+                    "name": title,
+                    "original_name": title,
+                    "origin_country": ["PK"],
+                    "first_air_date": "2010-01-01",
+                    "original_language": "ur",
+                }],
+            }
+        return {}
 
     async def streaming_providers(tmdb_id):
         return []
