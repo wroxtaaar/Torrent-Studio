@@ -12,6 +12,7 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
     imdbRatingsByKey,
     openRegionalTvCatalogue,
     playCatalogueTvWithNexStream,
+    openYenimeRequest,
     regionalContentTabs,
     regionalWebSeriesCatalogue,
     regionalWebSeriesError,
