@@ -988,11 +988,20 @@ async def _pakistani_drama_catalogue_page(catalogue_key: str, page: int) -> dict
         return fallback
 
     rows = await asyncio.gather(*(resolve(title) for title in titles))
+    # Never expose synthetic fallback IDs: the player requires a real TMDB TV ID.
+    # Also omit entries without a poster so this curated catalogue contains usable cards.
+    playable_rows = [
+        row for row in rows
+        if isinstance(row.get("id"), int)
+        and int(row["id"]) > 0
+        and bool(str(row.get("posterUrl") or "").strip())
+    ]
     return {
-        "catalogue": catalogue_key, "page": page, "totalPages": max(1, (len(PAKISTANI_DRAMA_POPULARITY_ORDER) + page_size - 1) // page_size),
+        "catalogue": catalogue_key, "page": page,
+        "totalPages": max(1, (len(PAKISTANI_DRAMA_POPULARITY_ORDER) + page_size - 1) // page_size),
         "totalResults": len(PAKISTANI_DRAMA_POPULARITY_ORDER),
-        "provider": "TMDB + fixed Pakistani drama popularity order",
-        "results": rows, "pageSize": page_size, "curatedOrder": True,
+        "provider": "TMDB + fixed Pakistani drama popularity order (playable entries only)",
+        "results": playable_rows, "pageSize": page_size, "curatedOrder": True,
     }
 
 
