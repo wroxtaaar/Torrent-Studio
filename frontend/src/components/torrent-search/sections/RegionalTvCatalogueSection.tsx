@@ -73,14 +73,11 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
                 show={show}
                 imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]}
                 preferImdb
-                onOpen={() => {
-                  setNexStreamError('');
-                  playCatalogueTvWithNexStream(show);
-                }}
+                onOpen={() => {}}
                 footer={activeRegionalSection === 'korean' || activeRegionalSection === 'anime' ? undefined : (
                   <button type="button" onClick={() => playCatalogueTvWithNexStream(show)} className="w-full rounded-lg bg-violet-500 px-3 py-2 text-xs font-bold text-white hover:bg-violet-400">Choose episode</button>
                 )}
-  />
+              />
             ))}
           </div>
 
