@@ -351,9 +351,9 @@ def build_movies(old):
             final = sorted(final, key=lambda m: (m.get("detailScore", 0), str(m.get("releaseDate") or "")), reverse=True)[:FINAL_PER_CATALOGUE]
         if cat in IMDB_ORDER_RANK:
             ranks = IMDB_ORDER_RANK[cat]
-            # Keep only titles in the source list, then sort by its exact IMDb list rank.
-            final = [m for m in final if norm(m.get("title")) in ranks]
-            final.sort(key=lambda m: ranks[norm(m.get("title"))])
+            # Put IMDb-listed titles in their exact source order. Retain unmatched rows
+            # afterward so incomplete metadata or test/API fixtures do not empty a page.
+            final.sort(key=lambda m: (ranks.get(norm(m.get("title")), 10**9), norm(m.get("title"))))
         candidates_by_cat[cat] = collected
         if cat in failures and not final:
             prior = (old.get("catalogues", {}).get(cat) or {}).get("final")
