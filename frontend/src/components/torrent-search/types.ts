@@ -16,7 +16,7 @@ export type RegionalCatalogueGroup = 'bollywood' | 'hollywood' | 'korean' | 'pak
 
 export type RegionalCatalogueMode = 'popular' | 'trending' | 'latest';
 
-export type RegionalTvGroup = 'indian' | 'hollywood' | 'korean' | 'pakistani' | 'anime';
+export type RegionalTvGroup = 'indian' | 'hollywood' | 'korean' | 'pakistani' | 'anime' | 'highest-rated';
 
 export type RegionalTvMode = 'popular' | 'trending' | 'latest';
 
