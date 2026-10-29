@@ -1297,7 +1297,7 @@ PAKISTANI_MOVIE_POPULARITY_ORDER: tuple[str, ...] = (
 
 async def _pakistani_movie_curated_page(page: int, basic: bool = False) -> dict[str, Any]:
     """Resolve the user's fixed 25-film Pakistani movie list in its agreed order."""
-    page_size = 18
+    page_size = 25
     total_results = len(PAKISTANI_MOVIE_POPULARITY_ORDER)
     selected = PAKISTANI_MOVIE_POPULARITY_ORDER[(page - 1) * page_size:page * page_size]
     semaphore = asyncio.Semaphore(6)
