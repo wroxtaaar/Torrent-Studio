@@ -13,7 +13,7 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
   }, [nexStreamPlayer?.url]);
   return (
     <>
-      {nexStreamPlayer && (
+      {(nexStreamPlayer || nexStreamEpisodePicker) && (
         <section className="space-y-3 rounded-2xl border border-violet-500/30 bg-slate-900/70 p-3 sm:p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
