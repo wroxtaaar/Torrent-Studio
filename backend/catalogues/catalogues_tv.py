@@ -624,7 +624,11 @@ _INDIAN_LINEAR_TV_NETWORKS = {
 
 
 @router.get("/api/tv/catalogue/{catalogue_key}")
-async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1, ge=1, le=500)):
+async def api_tmdb_regional_tv_catalogue(
+    catalogue_key: str,
+    page: int = Query(1, ge=1, le=500),
+    refresh: bool = False,
+):
     """Return Hindi Indian OTT web-series, excluding non-Hindi and non-scripted TV formats."""
     configs = {
         "indian-popular": ("IN", "hi", "popularity.desc"),
@@ -822,7 +826,7 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
         return result
 
     # Use only pages explicitly marked as verified by this endpoint.
-    prebuilt = _read_regional_tv_prebuilt_page(catalogue_key, page)
+    prebuilt = None if refresh else _read_regional_tv_prebuilt_page(catalogue_key, page)
     if prebuilt is not None:
         _record_cache_event("regional_tv_catalogue", "prebuilt_hit")
         if catalogue_key.startswith("korean-"):
@@ -834,7 +838,7 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
     cache_key = (catalogue_key, page)
     cached = _REGIONAL_TV_DISCOVERY_CACHE.get(cache_key)
     cache_ttl = stored_ttl(900 if catalogue_key.endswith("-trending") else 21600)
-    if cached and time.monotonic() - cached[0] < cache_ttl and not exclude_indian_broadcast_networks:
+    if not refresh and cached and time.monotonic() - cached[0] < cache_ttl and not exclude_indian_broadcast_networks:
         _record_cache_event("regional_tv_catalogue", "memory_hit")
         return await _enrich_regional_tv_imdb_ratings(await filter_cached_networks(cached[1]))
     _record_cache_event("regional_tv_catalogue", "discovery_miss")
@@ -855,20 +859,29 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
         required_count = max(54, page * 18)
 
         while source_page <= source_total_pages and len(eligible_rows) < required_count:
-            payload = await _tmdb_get_json("discover/tv", {
-                "include_adult": "false",
-                "language": "en-US",
-                "sort_by": sort_by,
-                "with_origin_country": country,
-                **({} if catalogue_key.startswith("pakistani-") else {"with_original_language": language}),
-                "with_type": "2|4",
-                **({"with_genres": "16"} if catalogue_key.startswith("anime-") else {}),
-                "watch_region": "IN",
-                "with_watch_monetization_types": "flatrate|free|ads",
-                "first_air_date.gte": "2015-01-01",
-                "first_air_date.lte": today,
-                "page": source_page,
-            })
+            if catalogue_key.endswith("-trending"):
+                # Popular is popularity-ranked Discover; Trending must use TMDB's
+                # independent weekly trend ranking or it duplicates Popular.
+                payload = await _tmdb_get_json("trending/tv/week", {
+                    "language": "en-US",
+                    "include_adult": "false",
+                    "page": source_page,
+                })
+            else:
+                payload = await _tmdb_get_json("discover/tv", {
+                    "include_adult": "false",
+                    "language": "en-US",
+                    "sort_by": sort_by,
+                    "with_origin_country": country,
+                    **({} if catalogue_key.startswith("pakistani-") else {"with_original_language": language}),
+                    "with_type": "2|4",
+                    **({"with_genres": "16"} if catalogue_key.startswith("anime-") else {}),
+                    "watch_region": "IN",
+                    "with_watch_monetization_types": "flatrate|free|ads",
+                    "first_air_date.gte": "2015-01-01",
+                    "first_air_date.lte": today,
+                    "page": source_page,
+                })
             source_total_pages = max(1, min(int(payload.get("total_pages") or 1), 500))
 
             # Resolve independent series concurrently. The old sequential loop
