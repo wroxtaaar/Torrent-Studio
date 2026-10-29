@@ -1158,19 +1158,29 @@ async def _pakistani_drama_catalogue_page(catalogue_key: str, page: int) -> dict
         _PAKISTANI_DRAMA_ROWS[_pakistani_drama_title_key(title)] = fallback
         return fallback
 
-    rows = await asyncio.gather(*(resolve(title) for title in titles))
-    # The player requires a real TMDB TV-series ID. Never expose synthetic
-    # fallback IDs such as "pakistani-drama:dure-shahwar" as playable entries.
-    playable_rows = [
-        row for row in rows
-        if isinstance(row.get("id"), int) and row["id"] > 0
-    ]
+    # Fill pages with playable TMDB series rather than slicing the curated
+    # title list first. Unresolved titles are skipped, and later titles backfill
+    # the page so each page contains up to 18 playable entries.
+    target_count = min(page * page_size, len(PAKISTANI_DRAMA_POPULARITY_ORDER))
+    playable_rows: list[dict[str, Any]] = []
+    for offset in range(0, len(PAKISTANI_DRAMA_POPULARITY_ORDER), page_size):
+        batch_titles = PAKISTANI_DRAMA_POPULARITY_ORDER[offset:offset + page_size]
+        batch_rows = await asyncio.gather(*(resolve(title) for title in batch_titles))
+        playable_rows.extend(
+            row for row in batch_rows
+            if isinstance(row.get("id"), int) and row["id"] > 0
+        )
+        if len(playable_rows) >= target_count:
+            break
+
+    total_pages = max(1, (len(PAKISTANI_DRAMA_POPULARITY_ORDER) + page_size - 1) // page_size)
+    start = (page - 1) * page_size
     return {
         "catalogue": catalogue_key, "page": page,
-        "totalPages": max(1, (len(PAKISTANI_DRAMA_POPULARITY_ORDER) + page_size - 1) // page_size),
+        "totalPages": total_pages,
         "totalResults": len(PAKISTANI_DRAMA_POPULARITY_ORDER),
         "provider": "TMDB + fixed Pakistani drama popularity order (playable entries only)",
-        "results": playable_rows, "pageSize": page_size, "curatedOrder": True,
+        "results": playable_rows[start:start + page_size], "pageSize": page_size, "curatedOrder": True,
     }
 
 
