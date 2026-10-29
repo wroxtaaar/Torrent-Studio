@@ -12,14 +12,11 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
     imdbRatingsByKey,
     openRegionalTvCatalogue,
     playCatalogueTvWithNexStream,
-    playWithNexStream,
-    searchNexStreamTitles,
     openYenimeRequest,
     regionalContentTabs,
     regionalWebSeriesCatalogue,
     regionalWebSeriesError,
     regionalWebSeriesLoading,
-    setNexStreamError,
   } = vm;
 
   const activeRegionalSection = REGIONAL_SECTIONS.find(section => section === activeTopSection);
@@ -80,33 +77,10 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
                   setNexStreamError('');
                   playCatalogueTvWithNexStream(show);
                 }}
-                footer={(['korean', 'anime'] as string[]).includes(activeRegionalSection) ? (
-                  <div className={activeRegionalSection === 'anime' ? 'grid grid-cols-3 gap-1' : 'grid grid-cols-2 gap-1'}>
-                    {activeRegionalSection === 'anime' && (
-                      <button type="button" onClick={() => openYenimeRequest(show.title, show.year, undefined, 1, show.id)} className="rounded-lg border border-fuchsia-500/50 bg-slate-950 px-1.5 py-2 text-[10px] font-bold text-fuchsia-200 hover:bg-fuchsia-500/10">Yenime</button>
-                    )}
-                    <button type="button" onClick={() => {
-                      setNexStreamError('');
-                      void playWithNexStream({ id: Number(show.id), title: show.title, date: show.year ? String(show.year) : '', overview: show.overview || '', poster: show.posterUrl || null, type: 'tv', anime: activeRegionalSection === 'anime' });
-                    }} className="rounded-lg bg-violet-500 px-1.5 py-2 text-[10px] font-bold text-white hover:bg-violet-400">VidRift</button>
-                    <button type="button" onClick={() => {
-                      setNexStreamError('');
-                      void searchNexStreamTitles(show.title, 'tv');
-                    }} className="rounded-lg border border-cyan-500/50 bg-slate-950 px-1.5 py-2 text-[10px] font-bold text-cyan-200 hover:bg-cyan-500/10">NexStream</button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNexStreamError('');
-                      playCatalogueTvWithNexStream(show);
-                    }}
-                    className="w-full rounded-lg bg-violet-500 px-3 py-2 text-xs font-bold text-white hover:bg-violet-400"
-                  >
-                    Choose episode
-                  </button>
+                footer={activeRegionalSection === 'korean' || activeRegionalSection === 'anime' ? undefined : (
+                  <button type="button" onClick={() => playCatalogueTvWithNexStream(show)} className="w-full rounded-lg bg-violet-500 px-3 py-2 text-xs font-bold text-white hover:bg-violet-400">Choose episode</button>
                 )}
-              />
+  />
             ))}
           </div>
 
