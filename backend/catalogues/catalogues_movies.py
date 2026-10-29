@@ -721,7 +721,7 @@ def _prebuilt_final_rows(catalogue_key: str) -> list[dict[str, Any]] | None:
         except (OSError, ValueError, TypeError):
             continue
         final = ((payload.get("catalogues") or {}).get(catalogue_key) or {}).get("final") if isinstance(payload, dict) else None
-        if isinstance(final, list) and final:
+        if isinstance(final, list):
             if catalogue_key.endswith("-pakistani"):
                 final = [row for row in final if isinstance(row, dict) and _is_pakistani_movie_row(row)]
             elif catalogue_key.endswith("-korean"):
@@ -814,6 +814,12 @@ def _cache_only_regional_movie_catalogue(catalogue_key: str, page: int) -> dict[
             if not isinstance(movie, dict):
                 continue
             row = dict(movie)
+            if catalogue_key.endswith("-korean"):
+                today = datetime.now(timezone.utc).date().isoformat()
+                if not _is_korean_movie_row(row) or not _tmdb_release_date_is_released(
+                    row.get("releaseDate") or row.get("release_date"), today
+                ):
+                    continue
             if not _regional_entry_has_source(entry, row):
                 continue
             if catalogue_key == "latest-bollywood":
