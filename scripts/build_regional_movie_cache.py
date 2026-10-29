@@ -274,7 +274,9 @@ def build_movies(old):
     old_movies = old.get("movies", {})
     movies, catalogues, failures, candidates_by_cat = {}, {}, [], {}
     for cat in ORDER:
-        region = "bollywood" if cat.endswith("bollywood") else "hollywood"
+        # Resolve the catalogue family from its suffix so Korean/Pakistani/anime
+        # Trending fallbacks use their own Popular titles, never Hollywood rows.
+        region = cat.rsplit("-", 1)[-1]
         if cat.startswith("trending-"):
             generator = trending_candidates(cat, candidates_by_cat.get("popular-" + region, []), failures)
         else:
