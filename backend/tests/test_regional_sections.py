@@ -225,7 +225,7 @@ def test_regional_tv_rows_deduplicate_same_series_by_id_and_title_year():
 
 
 
-def test_korean_tv_prebuilt_results_apply_release_type_origin_and_ott_filters(monkeypatch):
+def test_korean_tv_trending_prebuilt_results_apply_release_type_origin_and_ott_filters(monkeypatch):
     async def get_json(path, params):
         tmdb_id = int(path.split("/")[-1])
         return {
@@ -258,7 +258,7 @@ def test_korean_tv_prebuilt_results_apply_release_type_origin_and_ott_filters(mo
         return payload
 
     monkeypatch.setattr(tv, "_read_regional_tv_prebuilt_page", lambda *args: {
-        "catalogue": "korean-popular",
+        "catalogue": "korean-trending",
         "page": 1,
         "totalPages": 1,
         "totalResults": 4,
@@ -273,7 +273,7 @@ def test_korean_tv_prebuilt_results_apply_release_type_origin_and_ott_filters(mo
     monkeypatch.setattr(tv, "_tv_streaming_providers", streaming_providers)
     monkeypatch.setattr(tv, "_enrich_regional_tv_imdb_ratings", enrich)
 
-    result = asyncio.run(tv.api_tmdb_regional_tv_catalogue("korean-popular", page=1))
+    result = asyncio.run(tv.api_tmdb_regional_tv_catalogue("korean-trending", page=1))
 
     assert [row["title"] for row in result["results"]] == ["Eligible Korean Drama"]
 
