@@ -43,7 +43,6 @@ export function useCatalogueNavigationState() {
     korean: 'popular',
     pakistani: 'popular',
     anime: 'popular',
-    'highest-rated': 'popular',
   });
   const [openRegionalTvMenu, setOpenRegionalTvMenu] = useState<RegionalTvGroup | null>(null);
   const [regionalTvModes, setRegionalTvModes] = useState<Record<RegionalTvGroup, RegionalTvMode>>({
@@ -52,6 +51,7 @@ export function useCatalogueNavigationState() {
     korean: 'popular',
     pakistani: 'popular',
     anime: 'popular',
+    'highest-rated': 'popular',
   });
   const [isClearingTmdbCache, setIsClearingTmdbCache] = useState(false);
   const [tmdbCacheMessage, setTmdbCacheMessage] = useState('');
