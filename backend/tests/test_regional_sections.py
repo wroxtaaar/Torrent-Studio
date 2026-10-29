@@ -227,3 +227,16 @@ def test_regional_tv_response_is_enriched_with_imdb_rating(monkeypatch):
     assert result["results"][0]["imdbRating"] == 8.2
     assert result["results"][0]["imdbId"] == "tt0000012"
     assert result["results"][0]["imdbRatingStatus"] == "found"
+
+
+def test_regional_tv_rows_deduplicate_same_series_by_id_and_title_year():
+    rows = [
+        {"id": 101, "title": "Example Drama", "year": 2022},
+        {"id": 101, "title": "Example Drama", "year": 2022},
+        {"id": 202, "title": " Example Drama! ", "year": 2022},
+        {"id": 303, "title": "Another Drama", "year": 2022},
+    ]
+
+    result = tv._dedupe_regional_tv_rows(rows)
+
+    assert [row["id"] for row in result] == [101, 303]
