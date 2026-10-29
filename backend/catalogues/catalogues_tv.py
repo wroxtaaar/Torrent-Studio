@@ -1375,6 +1375,18 @@ async def api_tmdb_regional_tv_catalogue(
         _record_cache_event("regional_tv_catalogue", "prebuilt_hit")
         if catalogue_key.startswith("korean-"):
             prebuilt = await filter_cached_networks(prebuilt)
+        if catalogue_key.startswith("pakistani-"):
+            # Cached snapshots can contain synthetic/non-playable rows too.
+            prebuilt = {
+                **prebuilt,
+                "results": [
+                    row for row in (prebuilt.get("results") or [])
+                    if isinstance(row, dict)
+                    and str(row.get("id") or row.get("tmdbId") or "").isdigit()
+                    and int(row.get("id") or row.get("tmdbId") or 0) > 0
+                    and bool(str(row.get("posterUrl") or row.get("poster_path") or "").strip())
+                ],
+            }
         return await _enrich_regional_tv_imdb_ratings(prebuilt)
     _record_cache_event("regional_tv_catalogue", "prebuilt_miss")
 
