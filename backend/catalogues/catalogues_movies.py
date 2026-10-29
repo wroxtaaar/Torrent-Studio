@@ -1398,6 +1398,7 @@ async def _api_tmdb_movie_catalogue(
         "popular-korean", "trending-korean", "latest-korean",
         "popular-pakistani", "trending-pakistani", "latest-pakistani",
         "popular-anime", "trending-anime", "latest-anime",
+        "highest-rated-hollywood", "highest-rated-bollywood",
     }
     if catalogue_key not in allowed:
         raise HTTPException(status_code=404, detail="Unknown movie catalogue.")
