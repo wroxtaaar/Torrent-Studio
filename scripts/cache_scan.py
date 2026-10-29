@@ -64,6 +64,22 @@ def merge_missing(old: dict[str, Any], fresh: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
+def catalogue_rows(path: Path, key: str, media: str) -> list[dict[str, Any]]:
+    try:
+        cache = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return []
+    catalogue = (cache.get("catalogues") or {}).get(key) or {}
+    rows: list[dict[str, Any]] = []
+    if media == "movie":
+        rows = [row for row in catalogue.get("final", []) if isinstance(row, dict)]
+    else:
+        for page in catalogue.get("pages") or []:
+            if isinstance(page, dict):
+                rows.extend(row for row in page.get("results") or [] if isinstance(row, dict))
+    return rows
+
+
 def rows_from_movie_cache(path: Path) -> dict[str, dict[str, Any]]:
     try:
         cache = json.loads(path.read_text(encoding="utf-8"))
@@ -100,6 +116,12 @@ def rows_from_tv_cache(path: Path) -> dict[str, dict[str, Any]]:
     return rows
 
 
+def needs_backfill(row: dict[str, Any]) -> bool:
+    # These are stable card fields; absence of optional provider data alone does not
+    # make every catalogue entry a miss.
+    return any(missing(row.get(field)) for field in ("posterUrl", "overview", "imdbRating", "imdbId"))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("missing", "deep"), help="missing preserves populated fields; deep rewrites from current API data")
@@ -115,8 +137,25 @@ def main() -> int:
         original_fetch = builder.fetch_pages
 
         def fetch_pages_missing(endpoint: str, key: str, target: int | None):
+            is_movie = endpoint.endswith("/movies/catalogue")
+            cache_path = movie_path if is_movie else tv_path
+            existing_rows = catalogue_rows(cache_path, key, "movie" if is_movie else "tv")
+            # If the cached catalogue is present and its cards already have the core
+            # details, skip the network request entirely in missing-only mode.
+            if existing_rows and not any(needs_backfill(row) for row in existing_rows):
+                print(json.dumps({
+                    "event": "catalogue_skipped",
+                    "mode": "missing",
+                    "catalogue": key,
+                    "reason": "no_missing_core_fields",
+                    "rows": len(existing_rows),
+                }), flush=True)
+                return existing_rows[:target] if target is not None else existing_rows, {
+                    "totalResults": len(existing_rows), "totalPages": max(1, (len(existing_rows) + builder.PAGE_SIZE - 1) // builder.PAGE_SIZE)
+                }
+
             fresh_rows, metadata = original_fetch(endpoint, key, target)
-            old_index = old_movies if endpoint.endswith("/movies/catalogue") else old_tv
+            old_index = old_movies if is_movie else old_tv
             merged_rows = []
             for row in fresh_rows:
                 previous = old_index.get(identity(row))
