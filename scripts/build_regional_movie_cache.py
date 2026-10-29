@@ -69,7 +69,10 @@ ORDER = ("highest-rated-hollywood", "highest-rated-bollywood",
 
 # Ordered IMDb source lists are kept in the same manifest consumed by the API.
 MANIFEST_PATH = Path(__file__).resolve().parents[1] / "backend" / "cache-seed" / "highest_rated_catalogues.json"
-MANIFEST = read_json(MANIFEST_PATH, {"catalogues": {}})
+try:
+    MANIFEST = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+except (OSError, ValueError, TypeError):
+    MANIFEST = {"catalogues": {}}
 IMDB_ORDERED_TITLES = {
     "highest-rated-hollywood": [
         str(row.get("title") or "") for row in
