@@ -81,12 +81,15 @@ def test_three_full_pages_of_watchable_titles_with_trending_history():
 
     for cat, body in cache["catalogues"].items():
         final = body["final"]
-        assert len(final) == 54, (cat, len(final))
+        assert len(final) == body["targetMovies"], (cat, len(final), body["targetMovies"])
         for row in final:  # no recorded stream failures: titles without a torrent stay, Play is not hidden
             assert "directStreamBroken" not in row
             assert "nexStreamPlayable" not in row
         with_torrent = [row for row in final if cache["movies"][re.sub(r"[^a-z0-9]+", "", row["title"].casefold()) + "|" + str(row["year"])]["torrentDetails"]["results"]]
         assert 0 < len(with_torrent) < len(final)
+
+    assert len(cache["catalogues"]["highest-rated-hollywood"]["final"]) == 250
+    assert len(cache["catalogues"]["highest-rated-bollywood"]["final"]) == 100
 
     trending = cache["catalogues"]["trending-bollywood"]["final"]
     weeks_shown = {row.get("trendingWeek") for row in trending if not row.get("trendingFill")}
