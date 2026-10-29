@@ -15,10 +15,11 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
   const pakistaniTitleKey = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '');
   const pakistaniMovieCatalogue = movieCatalogue?.catalogue.endsWith('-pakistani') === true;
   const pakistaniMovieSort = vm.pakistaniMovieSort || 'popularity';
-  const sortedVisibleMovieCatalogueItems = pakistaniMovieCatalogue
+  const sortedVisibleMovieCatalogueItems = pakistaniMovieCatalogue || pakistaniMovieSort !== 'popularity'
     ? [...visibleMovieCatalogueItems].sort((a, b) => {
         if (pakistaniMovieSort === 'year') return (Number(b.year) || 0) - (Number(a.year) || 0);
         if (pakistaniMovieSort === 'rating') return (Number(b.imdbRating ?? b.rating) || 0) - (Number(a.imdbRating ?? a.rating) || 0);
+        if (!pakistaniMovieCatalogue) return 0;
         const ai = pakistaniPopularityOrder.indexOf(pakistaniTitleKey(a.title));
         const bi = pakistaniPopularityOrder.indexOf(pakistaniTitleKey(b.title));
         return (ai < 0 ? Number.MAX_SAFE_INTEGER : ai) - (bi < 0 ? Number.MAX_SAFE_INTEGER : bi);
@@ -38,30 +39,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
             <div className="text-[11px] text-slate-500">Select a movie to search torrent providers</div>
           </div>
 
-          {pakistaniMovieCatalogue && (
-            <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort Pakistani movies">
-              <span className="mr-1 text-xs text-slate-400">Sort by</span>
-              {([
-                ['popularity', 'Popularity'],
-                ['year', 'Year'],
-                ['rating', 'Rating'],
-              ] as const).map(([sort, label]) => (
-                <button
-                  key={sort}
-                  type="button"
-                  aria-pressed={pakistaniMovieSort === sort}
-                  onClick={() => setPakistaniMovieSort(sort)}
-                  className={'rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ' + (
-                    pakistaniMovieSort === sort
-                      ? 'border-cyan-400 bg-cyan-500/15 text-cyan-200'
-                      : 'border-slate-700 bg-slate-950 text-slate-400 hover:border-slate-500 hover:text-slate-200'
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
+
 
           <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
             <button
@@ -325,6 +303,31 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
               );
             })}
           </div>
+
+          {movieCatalogue && visibleMovieCatalogueItems.length > 0 && !isSearching && (
+            <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort movies">
+              <span className="mr-1 text-xs text-slate-400">Sort by</span>
+              {([
+                ['popularity', 'Popularity'],
+                ['rating', 'Rating'],
+                ['year', 'Year'],
+              ] as const).map(([sort, label]) => (
+                <button
+                  key={sort}
+                  type="button"
+                  aria-pressed={pakistaniMovieSort === sort}
+                  onClick={() => setPakistaniMovieSort(sort)}
+                  className={'rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ' + (
+                    pakistaniMovieSort === sort
+                      ? 'border-cyan-400 bg-cyan-500 text-slate-950'
+                      : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-cyan-500/60'
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {streamingOnly && ottPendingCount > 0 && (
             <div className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-400">
