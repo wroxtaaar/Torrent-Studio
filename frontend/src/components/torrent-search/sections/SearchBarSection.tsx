@@ -1,10 +1,10 @@
-import { Search, X, Loader2 } from 'lucide-react';
-import { FranchiseTmdbKey, MarvelFilmFilter, RegionalCatalogueMode } from '../types.ts';
+import { Search, X } from 'lucide-react';
+import { MarvelFilmFilter, RegionalCatalogueMode } from '../types.ts';
 import { nextClassicsSort, DEFAULT_CLASSICS_SORT } from '../classicsSort.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 
 export function SearchBarSection({ vm }: { vm: PanelModel }) {
-  const { activeTopSection, cancelSearch, classicsContentTab, classicsSort, setClassicsSort, clearTmdbCacheAndReload, dcContentTab, error, isClearingTmdbCache, isSearching, loadClassicsTvCatalogue, loadDcWebSeries, loadMarvelWebSeries, marvelContentTab, marvelFilmFilter, marvelWebSeriesCatalogue, nexStreamLoading, openMovieCatalogue, openRegionalCatalogue, openRegionalTvCatalogue, query, recentSearchRef, recentSearches, regionalCatalogueModes, regionalContentTabs, regionalTvModes, runSearch, searchNexStreamTitles, selectCachedFranchise, setActiveTopSection, setClassicsContentTab, setDcContentTab, setError, setFranchiseGridPage, setMarvelContentTab, setMarvelFilmFilter, setMovieCatalogue, setNexStreamError, setNexStreamSearchMode, setQuery, setRecentSearches, setRegionalContentTabs, setResolutionFilter, setResults, setSearched, setShowDcWebSeries, setShowMarvelWebSeries, setShowRecentSearches, setSizeSort, setTimeSort, setTmdbFranchiseKey, showDcWebSeries, showMarvelWebSeries, showRecentSearches, tmdbCacheMessage, tmdbFranchiseKey, tmdbFranchiseLabels } = vm;
+  const { activeTopSection, cancelSearch, classicsContentTab, classicsSort, setClassicsSort, dcContentTab, error, isSearching, loadClassicsTvCatalogue, loadDcWebSeries, loadMarvelWebSeries, marvelContentTab, marvelFilmFilter, marvelWebSeriesCatalogue, nexStreamLoading, openRegionalCatalogue, openRegionalTvCatalogue, query, recentSearchRef, recentSearches, regionalCatalogueModes, regionalContentTabs, regionalTvModes, runSearch, searchNexStreamTitles, selectCachedFranchise, setActiveTopSection, setClassicsContentTab, setDcContentTab, setError, setFranchiseGridPage, setMarvelContentTab, setMarvelFilmFilter, setMovieCatalogue, setNexStreamError, setNexStreamSearchMode, setQuery, setRecentSearches, setRegionalContentTabs, setResolutionFilter, setResults, setSearched, setShowDcWebSeries, setShowMarvelWebSeries, setShowRecentSearches, setSizeSort, setTimeSort, setTmdbFranchiseKey, showDcWebSeries, showMarvelWebSeries, showRecentSearches, } = vm;
   const topSectionClass = (section: 'marvel' | 'dc' | 'hollywood' | 'bollywood' | 'classics') => activeTopSection === section
     ? 'rounded-lg border border-cyan-400 bg-cyan-500 px-3 py-1.5 text-xs font-bold text-slate-950 shadow-[0_0_12px_rgba(34,211,238,0.35)]'
     : 'rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:border-cyan-500 hover:text-cyan-300';
@@ -187,51 +187,6 @@ export function SearchBarSection({ vm }: { vm: PanelModel }) {
               : <button key={mode} type="button" onClick={() => { const group = activeTopSection === 'bollywood' ? 'indian' : 'hollywood'; void openRegionalTvCatalogue(group, mode); }} className={regionalTvModes[activeTopSection === 'bollywood' ? 'indian' : 'hollywood'] === mode ? 'rounded-lg px-3 py-2 text-xs font-bold bg-cyan-500 text-slate-950' : 'rounded-lg px-3 py-2 text-xs font-bold bg-slate-950 text-slate-400 border border-slate-800'} aria-pressed={regionalTvModes[activeTopSection === 'bollywood' ? 'indian' : 'hollywood'] === mode}>{mode.charAt(0).toUpperCase()+mode.slice(1)}</button>)}
           </div>}
         </>}
-        <div className="mt-2 flex flex-col gap-2 rounded-lg border border-slate-800 bg-slate-950/70 p-2.5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="text-xs font-semibold text-slate-200">TMDB movie discovery</div>
-            <div className="text-[11px] text-slate-500">Load fresh Marvel/DC movie metadata instead of the cached torrent list.</div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              aria-label="Franchise to browse using TMDB"
-              value={tmdbFranchiseKey}
-              onChange={(event) => setTmdbFranchiseKey(event.target.value as FranchiseTmdbKey)}
-              className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-xs text-slate-200 sm:flex-none"
-            >
-              <option value="marvel">Marvel</option>
-              <option value="dc-live-action">DC</option>
-              <option value="dc-animated">DC Animated</option>
-            </select>
-            <button
-              type="button"
-              disabled={isSearching}
-              onClick={() => {
-                setResolutionFilter(null);
-                setSizeSort(null);
-                setTimeSort(null);
-                            void openMovieCatalogue(tmdbFranchiseKey, tmdbFranchiseLabels[tmdbFranchiseKey], 1);
-              }}
-              className="shrink-0 rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
-            >
-              Browse with TMDB
-            </button>
-            <button
-              type="button"
-              disabled={isSearching || isClearingTmdbCache}
-              onClick={() => void clearTmdbCacheAndReload()}
-              className="shrink-0 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 hover:bg-amber-500/20 disabled:opacity-50"
-              title="Clears all TMDB movie-catalogue and OTT caches, then refetches the current catalogue."
-            >
-              {isClearingTmdbCache
-                ? <><Loader2 className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />Clearing…</>
-                : 'Clear TMDB cache & reload'}
-            </button>
-          </div>
-          {tmdbCacheMessage && (
-            <div className="text-[11px] leading-relaxed text-slate-400">{tmdbCacheMessage}</div>
-          )}
-        </div>
       </div>
     </>
   );
