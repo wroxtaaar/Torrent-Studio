@@ -67,7 +67,7 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
     korean: 'Korean Dramas',
     pakistani: 'Pakistani Dramas',
     anime: 'Anime Series',
-  } as Record<string, string>)[activeRegionalSection];
+  } as Record<string, string>)[isHighestRatedTv ? 'highest-rated' : activeRegionalSection || 'hollywood'];
 
   return (
     <section className="space-y-3">
