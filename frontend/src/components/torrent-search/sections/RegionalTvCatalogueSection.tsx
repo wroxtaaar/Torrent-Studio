@@ -80,31 +80,34 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
             ))}
           </div>
 
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
-            <button
-              type="button"
-              disabled={regionalWebSeriesLoading || page <= 1 || !canNavigate}
-              onClick={() => navigate(page - 1)}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-300 disabled:opacity-40"
-            >
-              Previous
-            </button>
-            <span className="text-xs text-slate-500">Page {page} of {totalPages.toLocaleString()}</span>
-            <button
-              type="button"
-              disabled={regionalWebSeriesLoading || page >= totalPages || !canNavigate}
-              onClick={() => navigate(page + 1)}
-              className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-40"
-            >
-              Next
-            </button>
-          </div>
         </>
+      )}
+
+      {catalogue && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
+          <button
+            type="button"
+            disabled={regionalWebSeriesLoading || page <= 1 || !canNavigate}
+            onClick={() => navigate(page - 1)}
+            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-300 disabled:opacity-40"
+          >
+            Previous
+          </button>
+          <span className="text-xs text-slate-500">Page {page} of {totalPages.toLocaleString()}</span>
+          <button
+            type="button"
+            disabled={regionalWebSeriesLoading || page >= totalPages || !canNavigate}
+            onClick={() => navigate(page + 1)}
+            className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-40"
+          >
+            Next
+          </button>
+        </div>
       )}
 
       {catalogue && catalogue.results.length === 0 && !regionalWebSeriesLoading && (
         <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-5 text-sm text-slate-400">
-          No series were found on this page. Try another subsection or page.
+          No playable series were resolved for this page. Try another page.
         </div>
       )}
     </section>
