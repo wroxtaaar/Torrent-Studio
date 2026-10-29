@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { RegionalTvGroup, RegionalTvMode } from '../types.ts';
 import { imdbRatingKey } from '../grouping.ts';
@@ -34,14 +34,14 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
   const totalPages = Math.max(1, catalogue?.totalPages || 1);
   const canNavigate = Boolean(group && mode);
   const showSortButtons = activeRegionalSection === 'korean' || activeRegionalSection === 'pakistani' || activeRegionalSection === 'anime';
-  const sortedShows = useMemo(() => {
+  const sortedShows = (() => {
     const rows = catalogue?.results ?? [];
     if (!showSortButtons || sortBy === 'popularity') return rows;
     return [...rows].sort((a, b) => {
       if (sortBy === 'rating') return (Number(b.rating) || 0) - (Number(a.rating) || 0);
       return (Number(b.year) || 0) - (Number(a.year) || 0);
     });
-  }, [catalogue?.results, showSortButtons, sortBy]);
+  })();
   const navigate = (nextPage: number) => {
     if (group && mode) void openRegionalTvCatalogue(group, mode, nextPage);
   };
