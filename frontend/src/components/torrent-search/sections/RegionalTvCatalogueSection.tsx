@@ -75,7 +75,7 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
                 preferImdb
                 onOpen={() => {
                   if (activeRegionalSection === 'anime') openYenimeRequest(show.title, show.year, show.malId, 1, show.id);
-                  else if (activeRegionalSection !== 'korean') playCatalogueTvWithNexStream(show);
+                  else playCatalogueTvWithNexStream(show);
                 }}
               />
             ))}
