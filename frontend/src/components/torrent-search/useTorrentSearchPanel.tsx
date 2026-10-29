@@ -139,7 +139,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     setShowMarvelWebSeries(false);
     setShowDcWebSeries(false);
     const key = (mode + '-' + group) as MovieCatalogueKey;
-    const label = (mode.charAt(0).toUpperCase() + mode.slice(1)) + ' ' + (group === 'bollywood' ? 'Bollywood' : 'Hollywood');
+    const label = (mode.charAt(0).toUpperCase() + mode.slice(1)) + ' ' + ({ bollywood: 'Bollywood', hollywood: 'Hollywood', korean: 'Korean', pakistani: 'Pakistani', anime: 'Anime' } as Record<RegionalCatalogueGroup, string>)[group];
     setRegionalCatalogueModes(previous => ({ ...previous, [group]: mode }));
     setOpenRegionalCatalogueMenu(null);
     setResolutionFilter(null);

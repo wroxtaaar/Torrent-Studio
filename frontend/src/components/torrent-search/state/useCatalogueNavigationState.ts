@@ -19,7 +19,7 @@ export function useCatalogueNavigationState() {
   const [openMainCatalogueMenu, setOpenMainCatalogueMenu] = useState<MainCatalogueMenu | null>(null);
   const [activeTopSection, setActiveTopSection] = useState<ActiveTopSection>(null);
   const [dcContentTab, setDcContentTab] = useState<'movies' | 'animated' | 'web-series'>('movies');
-  const [regionalContentTabs, setRegionalContentTabs] = useState<Record<RegionalCatalogueGroup, RegionalContentTab>>({ bollywood: null, hollywood: null });
+  const [regionalContentTabs, setRegionalContentTabs] = useState<Record<RegionalCatalogueGroup, RegionalContentTab>>({ bollywood: null, hollywood: null, korean: null, pakistani: null, anime: null });
   const [marvelContentTab, setMarvelContentTab] = useState<RegionalContentTab>(null);
   const [classicsContentTab, setClassicsContentTab] = useState<ClassicsContentTab>('movies');
   const [classicsSort, setClassicsSort] = useState<ClassicsSort>(DEFAULT_CLASSICS_SORT);
@@ -39,11 +39,17 @@ export function useCatalogueNavigationState() {
   const [regionalCatalogueModes, setRegionalCatalogueModes] = useState<Record<RegionalCatalogueGroup, RegionalCatalogueMode>>({
     bollywood: 'popular',
     hollywood: 'popular',
+    korean: 'popular',
+    pakistani: 'popular',
+    anime: 'popular',
   });
   const [openRegionalTvMenu, setOpenRegionalTvMenu] = useState<RegionalTvGroup | null>(null);
   const [regionalTvModes, setRegionalTvModes] = useState<Record<RegionalTvGroup, RegionalTvMode>>({
     indian: 'popular',
     hollywood: 'popular',
+    korean: 'popular',
+    pakistani: 'popular',
+    anime: 'popular',
   });
   const [isClearingTmdbCache, setIsClearingTmdbCache] = useState(false);
   const [tmdbCacheMessage, setTmdbCacheMessage] = useState('');
