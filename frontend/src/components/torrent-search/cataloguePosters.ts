@@ -39,15 +39,20 @@ export function imdbFallbackForCatalogueMovie(movie: { title?: string; year?: nu
 }
 
 export function imdbRatingForCatalogueMovie(movie: MovieCatalogueItem): ImdbRatingResult | undefined {
-  if (movie.imdbRatingStatus !== 'found' && movie.imdbRatingStatus !== 'not_found') {
+  // Regional catalogue rows can include a usable stored IMDb score even when
+  // their status field is absent or uses a newer cache status. The score itself
+  // is authoritative for display; don't hide it because the status is stale.
+  const rating = Number(movie.imdbRating);
+  const hasRating = Number.isFinite(rating) && rating > 0;
+  if (!hasRating && movie.imdbRatingStatus !== 'found' && movie.imdbRatingStatus !== 'not_found') {
     return undefined;
   }
   return {
     title: movie.title,
     year: movie.year,
     mediaType: 'movie',
-    status: movie.imdbRatingStatus,
-    imdbRating: movie.imdbRating,
+    status: hasRating ? 'found' : movie.imdbRatingStatus,
+    imdbRating: hasRating ? rating : movie.imdbRating,
     imdbVotes: movie.imdbVotes,
     imdbId: movie.imdbId,
     imdbUrl: movie.imdbUrl,
