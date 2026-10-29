@@ -369,6 +369,9 @@ def main():
     tv_catalogues = (
         "indian-popular", "indian-trending", "indian-latest",
         "hollywood-popular", "hollywood-trending", "hollywood-latest",
+        "korean-popular", "korean-trending", "korean-latest",
+        "pakistani-popular", "pakistani-trending", "pakistani-latest",
+        "anime-popular", "anime-trending", "anime-latest",
     )
     failed_tv_catalogues = []
     for cat in tv_catalogues:
