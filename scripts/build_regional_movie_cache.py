@@ -269,6 +269,34 @@ def trending_candidates(cat, popular_rows, failures):
         yield {**row, "trendingFill": True}
 
 
+def is_quality_pakistani_movie(movie):
+    """Keep Pakistani movie catalogues country-correct and card-complete."""
+    countries = movie.get("originCountry") or movie.get("origin_country") or []
+    if not isinstance(countries, list):
+        countries = [str(countries)]
+    countries = {str(country).strip().upper() for country in countries if str(country).strip()}
+    if "PK" not in countries or "IN" in countries:
+        return False, "not_pakistani_origin"
+
+    year_value = movie.get("year") or str(movie.get("releaseDate") or movie.get("release_date") or "")[:4]
+    try:
+        year = int(str(year_value)[:4])
+    except (TypeError, ValueError):
+        return False, "missing_year"
+    if year < 2000:
+        return False, "before_2000"
+
+    if not str(movie.get("posterUrl") or movie.get("poster_path") or "").strip():
+        return False, "missing_poster"
+    rating = movie.get("imdbRating")
+    try:
+        if rating in (None, "") or float(rating) <= 0:
+            return False, "missing_imdb_rating"
+    except (TypeError, ValueError):
+        return False, "missing_imdb_rating"
+    return True, "ok"
+
+
 def build_movies(old):
     """Build each catalogue's finished list: only titles that can be watched, until 3 pages are full."""
     old_movies = old.get("movies", {})
@@ -283,7 +311,13 @@ def build_movies(old):
             generator = api_candidates(cat, failures)
         final, seen, checked = [], set(), 0
         collected = []
+        quality_skips = {}
         for movie in generator:
+            if cat.endswith("-pakistani"):
+                eligible, reason = is_quality_pakistani_movie(movie)
+                if not eligible:
+                    quality_skips[reason] = quality_skips.get(reason, 0) + 1
+                    continue
             key = movie_key(movie)
             if key in seen or key == "|":
                 continue
@@ -323,6 +357,8 @@ def build_movies(old):
             "final": final,
             "status": "ready" if len(final) >= FINAL_PER_CATALOGUE else "partial",
         }
+        if cat.endswith("-pakistani"):
+            print(json.dumps({"event": "pakistani_quality_filter", "catalogue": cat, "skipped": quality_skips}), flush=True)
         print(json.dumps({"event": "catalogue_cached", "catalogue": cat, "shown": len(final), "checked": checked,
                           "status": catalogues[cat]["status"]}), flush=True)
     return movies, catalogues, failures
