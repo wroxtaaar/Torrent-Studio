@@ -15,6 +15,9 @@ CACHE = BASE / "regional_movie_prebuilt_cache.json"
 TV_CACHE = BASE / "regional_tv_prebuilt_cache.json"
 STATE = BASE / "regional_movie_prebuilt_state.json"
 CATALOGUES = (
+    # Highest Rated is a dedicated, curated movie catalogue and is cached separately
+    # from the standard regional popularity/trending/latest feeds.
+    "highest-rated-hollywood", "highest-rated-bollywood",
     "popular-bollywood", "trending-bollywood", "latest-bollywood",
     "popular-hollywood", "trending-hollywood", "latest-hollywood",
     "popular-korean", "trending-korean", "latest-korean",
