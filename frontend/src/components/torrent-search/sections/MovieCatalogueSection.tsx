@@ -10,6 +10,19 @@ import { catalogueMovieIdentity, extractedQuality } from '../helpers.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 
 export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
+  const pakistaniPopularityOrder = ["joyland","jawani phir nhi ani","the legend of maula jatt","quaid-e-azam zindabad","teefa in trouble","waar","bol","na maloom afraad","o21","moor","kambakht","saya e khuda e zuljalal","zinda bhaag","tamanna","josh","dukhtar","main hoon shahid afridi","hijrat","swaarangi","khuda kay liye","jinnah","azaad","zill-e-shah","ishq khuda","the system"];
+  const pakistaniTitleKey = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const pakistaniMovieCatalogue = movieCatalogue?.catalogue.endsWith('-pakistani') === true;
+  const pakistaniMovieSort = vm.pakistaniMovieSort || 'popularity';
+  const sortedVisibleMovieCatalogueItems = pakistaniMovieCatalogue
+    ? [...visibleMovieCatalogueItems].sort((a, b) => {
+        if (pakistaniMovieSort === 'year') return (Number(b.year) || 0) - (Number(a.year) || 0);
+        if (pakistaniMovieSort === 'rating') return (Number(b.imdbRating ?? b.rating) || 0) - (Number(a.imdbRating ?? a.rating) || 0);
+        const ai = pakistaniPopularityOrder.indexOf(pakistaniTitleKey(a.title));
+        const bi = pakistaniPopularityOrder.indexOf(pakistaniTitleKey(b.title));
+        return (ai < 0 ? Number.MAX_SAFE_INTEGER : ai) - (bi < 0 ? Number.MAX_SAFE_INTEGER : bi);
+      })
+    : visibleMovieCatalogueItems;
   const { cataloguePosterUrlsRef, closeMoviePrepareCard, imdbRatingsByKey, isSearching, movieCatalogue, movieCatalogueSearchText, movieTorrentPreviewCatalogueId, movieTorrentPreviewGroup, movieTorrentPreviewPosterUrl, movieTorrentSearchError, movieTorrentSearchLoading, movieTorrentSearchTitle, nexStreamResolvingId, openMovieCatalogue, ottAvailabilityForMovie, ottPendingCount, pendingPosterAction, playWithNexStream, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, posterUrlFor, prepareBuildPendingRef, prepareClickIntentRef, prepareMovieTorrent, prepareStateFor, prepareTraceIdRef, preparedActionsFor, searchMovieTorrents, selectedMovieTorrentQualityByGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setSelectedMovieTorrentQualityByGroup, startPosterBackgroundWorkers, streamingOnly, visibleMovieCatalogueItems } = vm;
   return (
     <>
@@ -66,7 +79,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
             </div>
           )}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
-            {visibleMovieCatalogueItems.map(movie => {
+            {sortedVisibleMovieCatalogueItems.map(movie => {
               // Keep the selected torrent preview attached only to the exact
               // catalogue item the user clicked. Never reuse it by title alone.
               // A title match alone can leak an old Prepare card into another section
