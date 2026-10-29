@@ -52,14 +52,6 @@ class Stub(BaseHTTPRequestHandler):
             # only every third title has a torrent
             rows = [{"title": title, "size": 500 * 1024**2, "magnetUrl": "magnet:?x"}] if n % 3 == 0 else []
             return self.reply(rows)
-        if url.path == "/api/nexstream/resolve":  # NexStream has nothing for any of these titles
-            data = json.dumps({"detail": "NexStream could not resolve this title."}).encode()
-            self.send_response(502)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
-            return
         if url.path.startswith("/api/tv/catalogue/"):
             return self.reply({"results": [{"id": 1, "title": "Show", "year": 2024}], "totalPages": 1, "totalResults": 1})
         self.send_response(404)
@@ -89,10 +81,11 @@ def test_three_full_pages_of_watchable_titles_with_trending_history():
     for cat, body in cache["catalogues"].items():
         final = body["final"]
         assert len(final) == 54, (cat, len(final))
-        for row in final:  # NexStream has none of them, so everything shown has a torrent
-            assert row.get("nexStreamPlayable") is False
-            key = re.sub(r"[^a-z0-9]+", "", row["title"].casefold()) + "|" + str(row["year"])
-            assert cache["movies"][key]["torrentDetails"]["results"], row["title"]
+        for row in final:  # no recorded stream failures: titles without a torrent stay, Play is not hidden
+            assert "directStreamBroken" not in row
+            assert "nexStreamPlayable" not in row
+        with_torrent = [row for row in final if cache["movies"][re.sub(r"[^a-z0-9]+", "", row["title"].casefold()) + "|" + str(row["year"])]["torrentDetails"]["results"]]
+        assert 0 < len(with_torrent) < len(final)
 
     trending = cache["catalogues"]["trending-bollywood"]["final"]
     weeks_shown = {row.get("trendingWeek") for row in trending if not row.get("trendingFill")}
@@ -121,25 +114,17 @@ def test_torrent_check_is_not_too_strict(monkeypatch=None):
     assert [r["title"] for r in b.usable_rows(rows, "Dhood (Sandstorm)")] == ["Dhood.2026.1080p.WEB-DL"]
 
 
-def test_only_torrents_confirm_catalogue_source_and_legacy_failures_are_ignored():
+def test_title_stays_unless_it_has_no_torrent_and_its_stream_is_recorded_broken(monkeypatch):
     b = _builder()
     empty = {"status": "empty", "results": []}
-    assert b.has_source({"movie": {"id": 1}, "torrentDetails": {"status": "ready", "results": [{}]}})
-    assert not b.has_source({"movie": {"id": 1}, "torrentDetails": empty})
-    assert not b.has_source({"movie": {"id": 1}, "torrentDetails": empty, "nexStream": {"ok": True}})
-    assert not b.has_source({"movie": {"id": 603}, "torrentDetails": empty, "nexStream": {"ok": False}})
-    assert b.has_source({"movie": {"id": 603}, "torrentDetails": {"status": "ready", "results": [{}]}})
-    assert b.has_source({"movie": {"id": 1}, "torrentDetails": {"status": "unavailable", "results": []}})
-    assert not b.nexstream_broken({"movie": {"id": 603}})
-
-
-def test_legacy_nexstream_answers_are_never_preserved_as_vidrift_verification():
-    b = _builder()
-    legacy = {"nexStream": {"ok": False, "checkedAt": datetime.now(timezone.utc).isoformat()}}
-    state = b.nexstream_state({"id": 5}, legacy)
-    assert state["ok"] is None
-    assert state["provider"] == "VidRift"
-    assert state["availabilityVerified"] is False
+    ready = {"status": "ready", "results": [{}]}
+    monkeypatch.setattr(b, "NEXSTREAM_FAILED", {603})
+    assert b.has_source({"movie": {"id": 1}, "torrentDetails": ready})
+    assert b.has_source({"movie": {"id": 1}, "torrentDetails": empty})  # stream not known broken: keep
+    assert not b.has_source({"movie": {"id": 603}, "torrentDetails": empty})  # broken and no torrent: drop
+    assert b.has_source({"movie": {"id": 603}, "torrentDetails": ready})  # broken but has a torrent: keep
+    assert b.has_source({"movie": {"id": 603}, "torrentDetails": {"status": "unavailable", "results": []}})
+    assert b.stream_broken({"movie": {"id": 603}}) and not b.stream_broken({"movie": {"id": 1}})
 
 
 def test_failure_reports_need_enough_recent_comments():
@@ -160,9 +145,9 @@ def test_failure_reports_need_enough_recent_comments():
 
 def test_detail_score_counts_filled_in_card_details():
     b = _builder()
-    full = {"posterUrl": "p", "overview": "o", "imdbRating": 7.1, "nexStreamPlayable": True,
+    full = {"posterUrl": "p", "overview": "o", "imdbRating": 7.1,
             "ottAvailability": {"streamingProviders": [{"name": "X"}]}}
-    assert b.detail_score(full, {"torrentDetails": {"results": [{}]}}) == 6
+    assert b.detail_score(full, {"torrentDetails": {"results": [{}]}}) == 5
     bare = {"id": 1}
     assert b.detail_score(bare, {"torrentDetails": {"status": "empty", "results": []}}) == 0
     assert b.detail_score({"ottAvailability": {"status": "not_confirmed", "incomplete": True}}, {}) == 0

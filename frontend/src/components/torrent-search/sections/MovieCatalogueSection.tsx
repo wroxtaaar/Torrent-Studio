@@ -172,7 +172,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                     onSelectVariant={key => setSelectedMovieTorrentQualityByGroup(previous => ({ ...previous, [previewGroup.key]: key }))}
                     variantsAriaLabel={`Choose quality for ${previewGroup.title}`}
                     prepared={result && prepareState.primaryFile ? preparedActionsFor(prepareState.torrentKey, prepareState.primaryFile) : null}
-                    directStream={!Number(movie.tmdbId || movie.id) ? undefined : {
+                    directStream={movie.directStreamBroken === true || !Number(movie.tmdbId || movie.id) ? undefined : {
                       disabled: !Number(movie.tmdbId || movie.id) || nexStreamResolvingId === nexStreamMovieId,
                       label: nexStreamResolvingId === nexStreamMovieId ? 'Resolving…' : 'Direct Stream',
                       onClick: () => {
@@ -188,7 +188,6 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                           overview: movie.overview || '',
                           poster: movie.posterUrl || movieTorrentPreviewPosterUrl || null,
                           type: 'movie',
-                          direct: movie.directStreamAvailability?.verified === true,
                         });
                       },
                     }}

@@ -111,11 +111,8 @@ export interface MovieCatalogueItem {
   trendingWeek?: string;
   trendingRank?: number;
   trendingWeeks?: string[];
-  nexStreamPlayable?: boolean;
-  /** The cache build confirmed with NexStream that it has this title (the player link can be opened directly). */
-  nexStreamVerified?: boolean;
-  nexStreamCheckedAt?: string;
-  directStreamAvailability?: { provider: string; verified: boolean; status: string };
+  /** The title's direct stream is known not to play (recorded failure): hide Play, keep the torrent card. */
+  directStreamBroken?: boolean;
   imdbRatingStatus?: ImdbRatingResult['status'];
   imdbRating?: number | null;
   imdbVotes?: string | null;

@@ -737,12 +737,15 @@ def _prebuilt_final_page(catalogue_key: str, page: int) -> dict[str, Any] | None
 
 
 def _regional_entry_has_source(entry: dict[str, Any], row: dict[str, Any]) -> bool:
-    """Cached titles need a torrent; constructible VidRift URLs are not verification.
+    """Cached titles must be watchable: a torrent, or a direct stream that is not known to be broken.
 
-    Entries whose torrent scan never ran (no torrentDetails at all) are kept, so an unscanned
-    seed does not become an empty catalogue.
+    VidRift's player link is built from the TMDB id and cannot be verified from a server, so only a
+    recorded failure (directStreamBroken) takes the stream away. Entries whose torrent scan never ran
+    are kept, so an unscanned seed does not become an empty catalogue.
     """
     if not REGIONAL_CACHE_REQUIRE_SOURCE:
+        return True
+    if row.get("directStreamBroken") is not True:
         return True
     details = entry.get("torrentDetails")
     if not isinstance(details, dict) or details.get("status") == "unavailable":
@@ -887,7 +890,6 @@ def _regional_movie_cache_page_is_usable(payload: dict[str, Any], page: int) -> 
 async def _fetch_paginated_regional_movie_catalogue(
     catalogue_key: str, page: int,
     skip_ids: set[str] | None = None, skip_pages: int = 0,
-    nexstream_annotate: bool = False,
 ) -> dict[str, Any]:
     """Build stable 18-item display pages from eligible regional movie candidates.
 
@@ -972,10 +974,7 @@ async def _fetch_paginated_regional_movie_catalogue(
             seen_ids.add(identity)
             source_candidates.append(row)
         if is_bollywood_latest and source_candidates:
-            if nexstream_annotate:
-                eligible_rows.extend(await _annotate_nexstream_playable(source_candidates))
-            else:
-                eligible_rows.extend(await _filter_nexstream_playable_movies(source_candidates))
+            eligible_rows.extend(await _rows_with_tmdb_id(source_candidates))
         else:
             eligible_rows.extend(source_candidates)
         if len(eligible_rows) >= wanted:
@@ -1081,44 +1080,17 @@ async def _enrich_regional_movie_catalogue_metadata(
     return payload
 
 
-async def _filter_nexstream_playable_movies(
-    rows: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Legacy name: VidRift has no per-title availability API, so keep source candidates."""
+async def _rows_with_tmdb_id(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep titles with a TMDB id: the VidRift player link is built from it (nothing to verify server-side)."""
     eligible = []
     for row in rows:
         try:
             movie_id = int(row.get("tmdbId") or row.get("id") or 0)
         except (TypeError, ValueError):
             movie_id = 0
-        if movie_id <= 0:
-            continue
-        row["nexStreamPlayable"] = False
-        row["nexStreamVerified"] = False
-        row["directStreamAvailability"] = {
-            "provider": "VidRift",
-            "verified": False,
-            "status": "unverified",
-        }
-        eligible.append(row)
+        if movie_id > 0:
+            eligible.append(row)
     return eligible
-
-
-async def _annotate_nexstream_playable(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Add provider-neutral unverified state; never infer VidRift playability from a URL."""
-    for row in rows:
-        try:
-            movie_id = int(row.get("tmdbId") or row.get("id") or 0)
-        except (TypeError, ValueError):
-            movie_id = 0
-        row["nexStreamPlayable"] = False
-        row["nexStreamVerified"] = False
-        row["directStreamAvailability"] = {
-            "provider": "VidRift",
-            "verified": False,
-            "status": "unverified" if movie_id > 0 else "missing-tmdb-id",
-        }
-    return rows
 
 
 def _cached_regional_identities(catalogue_key: str) -> set[str] | None:
@@ -1186,7 +1158,7 @@ async def _live_regional_candidates(catalogue_key: str, page: int) -> dict[str, 
     source_token = _REGIONAL_MOVIE_SOURCE_FORCE_REFRESH.set(True)
     refreshed_token = _REGIONAL_MOVIE_SOURCE_REFRESHED_KEYS.set(_LIVE_REFRESHED_SOURCE_KEYS)
     try:
-        payload = await _fetch_paginated_regional_movie_catalogue(catalogue_key, page, nexstream_annotate=True)
+        payload = await _fetch_paginated_regional_movie_catalogue(catalogue_key, page)
         return await _enrich_regional_movie_catalogue_metadata(payload)
     finally:
         _REGIONAL_MOVIE_SOURCE_REFRESHED_KEYS.reset(refreshed_token)
@@ -1250,7 +1222,7 @@ async def _api_tmdb_movie_catalogue(
         if catalogue_key in {"popular-bollywood", "trending-bollywood", "latest-bollywood"}:
             rows = [row for row in rows if re.sub(r"[^a-z0-9]+", "", str(row.get("title") or "").casefold()) not in {"gangaa", "dearishq", "mastram"}]
         if catalogue_key == "latest-bollywood":
-            rows = await _filter_nexstream_playable_movies(rows)
+            rows = await _rows_with_tmdb_id(rows)
         fast_payload = dict(raw)
         fast_payload.update({"catalogue": catalogue_key, "page": page, "results": rows[:18], "pageSize": 18, "basic": True})
         _tmdb_movie_catalogue_cache[fast_key] = (time.monotonic(), fast_payload)

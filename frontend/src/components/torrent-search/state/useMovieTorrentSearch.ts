@@ -47,7 +47,7 @@ export function useMovieTorrentSearch({ prepareClickIntentRef, prepareTraceIdRef
 
     // A constructible unverified VidRift URL is not a provider-verified result; it only enables manual playback.
     const openNexStreamOnlyCard = (): boolean => {
-      if (!Number(movie.tmdbId || movie.id)) return false;
+      if (movie.directStreamBroken === true || !Number(movie.tmdbId || movie.id)) return false;
       const stub = { title: movie.title, mediaTitle: movie.title, posterUrl: movie.posterUrl || undefined, tmdbId: movie.tmdbId || movie.id, id: movie.tmdbId || movie.id, year: movie.year || undefined } as unknown as TorrentSearchResult;
       const group: TorrentQualityGroup = { key: 'nexstream-only:' + String(movie.id), title: movie.title, year: String(movie.year || ''), variants: [], posterResult: stub };
       setSelectedMovieTorrentQualityByGroup({});

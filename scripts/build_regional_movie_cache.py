@@ -64,7 +64,6 @@ ORDER = ("popular-bollywood", "popular-hollywood", "latest-bollywood", "latest-h
          "latest-korean", "latest-pakistani", "latest-anime", "trending-korean", "trending-pakistani", "trending-anime")
 # A scanned title is reused for a while so a weekly run only scans what is new.
 REUSE_DAYS = {"ready": 14, "empty": 1}
-NEXSTREAM_REUSE_DAYS = 7
 
 
 def week_start(today=None):
@@ -96,8 +95,8 @@ DETAIL_POOL = int(os.getenv("REGIONAL_CACHE_DETAIL_POOL", "108"))  # candidates 
 
 
 def detail_score(movie, entry):
-    """How many of a card's details are filled in (0-6): poster, synopsis, IMDb rating, streaming info,
-    NexStream and torrent. Later runs re-read every candidate, so gaps fill in and the card moves up."""
+    """How many of a card's details are filled in (0-5): poster, synopsis, IMDb rating, streaming info
+    and torrent. Later runs re-read every candidate, so gaps fill in and the card moves up."""
     ott = movie.get("ottAvailability") or {}
     has_ott = bool(ott.get("streamingProviders") or ott.get("rentProviders") or ott.get("buyProviders")) or (
         bool(ott) and ott.get("incomplete") is False)
@@ -107,7 +106,6 @@ def detail_score(movie, entry):
         bool(str(movie.get("overview") or "").strip()),
         movie.get("imdbRating") not in (None, "", 0),
         has_ott,
-        movie.get("nexStreamPlayable") is True,
         bool(isinstance(details, dict) and details.get("results")),
     ])
 
@@ -117,30 +115,25 @@ def movie_tmdb_id(movie):
     return int(value) if str(value).isdigit() else 0
 
 
-def nexstream_broken(entry):
-    """Legacy NexStream failures never suppress VidRift catalogue entries."""
-    return False
+def stream_broken(entry):
+    """True when the direct stream is known not to play this title (listed in nexstream_failures.json, which
+    the scan builds from the failure reports on the GitHub issue). VidRift's player link is built from the
+    TMDB id and cannot be checked from a server, so only a recorded failure counts."""
+    tmdb_id = movie_tmdb_id(entry["movie"])
+    return tmdb_id > 0 and tmdb_id in NEXSTREAM_FAILED
 
 
 def has_source(entry):
-    """Count a torrent as a source; an unverified embed URL never counts as availability."""
-    details = (entry or {}).get("torrentDetails")
-    if not isinstance(details, dict) or details.get("status") == "unavailable":
-        return True  # unknown scan: preserve the title
-    return bool(details.get("results"))
+    """Show a title when it has a usable torrent, or its direct stream is not known to be broken.
 
-
-TRANSIENT_NEXSTREAM = ("could not connect", "invalid response", "http 5", "http 429", "http 403", "not configured", "timed out")
-
-
-def check_nexstream(tmdb_id):
-    """VidRift has no per-title availability API; report only unknown for every TMDB ID."""
-    return None
-
-
-def nexstream_state(movie, old_entry):
-    """Legacy NexStream/VidRift state is always unverified; never preserve old API answers as VidRift verification."""
-    return {"ok": None, "provider": "VidRift", "availabilityVerified": False, "checkedAt": datetime.now(timezone.utc).isoformat()}
+    A scan that never ran or whose searches failed ("unavailable") is not evidence of absence either:
+    keep the title."""
+    details = entry.get("torrentDetails")
+    if isinstance(details, dict) and details.get("results"):
+        return True
+    if not stream_broken(entry):
+        return True
+    return not isinstance(details, dict) or details.get("status") == "unavailable"
 
 
 def fresh_enough(details):
@@ -299,13 +292,11 @@ def build_movies(old):
             if entry is None:
                 entry = movies[key] = {"movie": movie, "catalogues": []}
                 entry["torrentDetails"] = scan_torrents(movie, (old_movies.get(key) or {}).get("torrentDetails"))
-                entry["nexStream"] = nexstream_state(movie, old_movies.get(key))
             if cat not in entry["catalogues"]:
                 entry["catalogues"].append(cat)
             if has_source(entry):
-                movie = {**movie, "nexStreamPlayable": False,
-                         "nexStreamVerified": False,
-                         "directStreamAvailability": {"provider": "VidRift", "verified": False, "status": "unverified"}}
+                if stream_broken(entry):
+                    movie = {**movie, "directStreamBroken": True}  # hides the Play button, the torrent card stays
                 if cat in DETAIL_ORDERED:
                     movie = {**movie, "detailScore": detail_score(movie, entry)}
                 final.append(movie)
