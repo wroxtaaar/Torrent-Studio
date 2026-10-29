@@ -15,8 +15,8 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
   const pakistaniTitleKey = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '');
   const pakistaniMovieCatalogue = movieCatalogue?.catalogue.endsWith('-pakistani') === true;
   const pakistaniMovieSort = vm.pakistaniMovieSort || 'popularity';
-  const isHighestRatedHollywood = movieCatalogue?.catalogue === 'highest-rated-hollywood';
-  const sortedVisibleMovieCatalogueItems = !isHighestRatedHollywood && (pakistaniMovieCatalogue || pakistaniMovieSort !== 'popularity')
+  const isHighestRatedCatalogue = movieCatalogue?.catalogue === 'highest-rated-hollywood' || movieCatalogue?.catalogue === 'highest-rated-bollywood';
+  const sortedVisibleMovieCatalogueItems = !isHighestRatedCatalogue && (pakistaniMovieCatalogue || pakistaniMovieSort !== 'popularity')
     ? [...visibleMovieCatalogueItems].sort((a, b) => {
         if (pakistaniMovieSort === 'year') return (Number(b.year) || 0) - (Number(a.year) || 0);
         if (pakistaniMovieSort === 'rating') return (Number(b.imdbRating ?? b.rating) || 0) - (Number(a.imdbRating ?? a.rating) || 0);
@@ -42,7 +42,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
 
 
 
-          {movieCatalogue && visibleMovieCatalogueItems.length > 0 && !isSearching && !isHighestRatedHollywood && (
+          {movieCatalogue && visibleMovieCatalogueItems.length > 0 && !isSearching && !isHighestRatedCatalogue && (
             <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort movies">
               <span className="mr-1 text-xs text-slate-400">Sort by</span>
               {([
