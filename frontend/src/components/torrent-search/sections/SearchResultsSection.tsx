@@ -12,6 +12,10 @@ import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 import { isAnimeCatalogue } from '../yenime.ts';
 
 export function SearchResultsSection({ vm }: { vm: PanelModel }) {
+  const isRegionalTvView = ['hollywood', 'bollywood', 'korean', 'pakistani', 'anime'].includes(vm.activeTopSection || '')
+    && vm.regionalContentTabs[vm.activeTopSection as keyof typeof vm.regionalContentTabs] === 'web-series';
+  if (isRegionalTvView) return null;
+
   const { activeTopSection, catalogueExpectedTitles, classicsContentTab, classicsSort, dcWebSeriesCatalogue, dcWebSeriesError, dcWebSeriesLoading, error, expandedSearchGroupKey, franchiseGridPage, franchiseGridPageSize, groupedResults, imdbRatingsByKey, isSearching, marvelWebSeriesCatalogue, marvelWebSeriesError, marvelWebSeriesLoading, metadataPosterFailed, movieCatalogue, movieTorrentPreviewGroup, nexStreamLoading, nexStreamLoadingTitle, nexStreamResolvingId, nexStreamResults, onPlaySeedrFile, openYenimeRequest, pendingPosterAction, playCatalogueTvWithNexStream, playWithNexStream, playingTorrentKey, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, prepareMovieTorrent, prepareStateFor, preparedActionsFor, preparedForResult, preparingTorrentKey, regionalWebSeriesCatalogue, regionalWebSeriesError, regionalWebSeriesLoading, renderFranchisePagination, results, searchAvailabilityByGroup, searchMetadata, searchMetadataStatus, searchNexStreamTitles, searchPosterUrlsRef, selectedMovieTorrentQualityByGroup, selectedQualityByGroup, setDcWebSeriesCatalogue, setDcWebSeriesError, setDcWebSeriesLoading, setExpandedSearchGroupKey, setMarvelWebSeriesCatalogue, setMarvelWebSeriesError, setMarvelWebSeriesLoading, setMetadataPosterFailed, setMovieTorrentPreviewCatalogueId, setMovieTorrentPreviewGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setPlayingTorrentKey, setRegionalWebSeriesCatalogue, setRegionalWebSeriesError, setRegionalWebSeriesLoading, setSelectedMovieTorrentQualityByGroup, setSelectedQualityByGroup, showDcWebSeries, showMarvelWebSeries, sortedResults, startPosterBackgroundWorkers } = vm;
   return (
     <>
