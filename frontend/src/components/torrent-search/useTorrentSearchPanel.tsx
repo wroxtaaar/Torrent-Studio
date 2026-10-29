@@ -616,6 +616,8 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     setClassicsContentTab,
     classicsSort,
     setClassicsSort,
+    pakistaniMovieSort,
+    setPakistaniMovieSort,
     franchiseGridPage,
     setFranchiseGridPage,
     prepareBuildPendingRef,
