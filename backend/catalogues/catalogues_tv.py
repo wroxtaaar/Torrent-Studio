@@ -540,6 +540,15 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
         "hollywood-popular": ("US", "en", "popularity.desc"),
         "hollywood-trending": ("US", "en", "popularity.desc"),
         "hollywood-latest": ("US", "en", "first_air_date.desc"),
+        "korean-popular": ("KR", "ko", "popularity.desc"),
+        "korean-trending": ("KR", "ko", "popularity.desc"),
+        "korean-latest": ("KR", "ko", "first_air_date.desc"),
+        "pakistani-popular": ("PK", "ur", "popularity.desc"),
+        "pakistani-trending": ("PK", "ur", "popularity.desc"),
+        "pakistani-latest": ("PK", "ur", "first_air_date.desc"),
+        "anime-popular": ("JP", "ja", "popularity.desc"),
+        "anime-trending": ("JP", "ja", "popularity.desc"),
+        "anime-latest": ("JP", "ja", "first_air_date.desc"),
     }
     if catalogue_key not in configs:
         raise HTTPException(status_code=404, detail="Unknown TV catalogue.")
@@ -694,6 +703,7 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
                 "with_origin_country": country,
                 "with_original_language": language,
                 "with_type": "2|4",
+                **({"with_genres": "16"} if catalogue_key.startswith("anime-") else {}),
                 "watch_region": "IN",
                 "with_watch_monetization_types": "flatrate|free|ads",
                 "first_air_date.gte": "2015-01-01",
@@ -737,6 +747,10 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
 
                     networks = details.get("networks") if isinstance(details.get("networks"), list) else []
                     genres = details.get("genres") if isinstance(details.get("genres"), list) else []
+                    if catalogue_key.startswith("anime-") and not any(
+                        isinstance(genre, dict) and int(genre.get("id") or 0) == 16 for genre in genres
+                    ):
+                        return None
                     title_candidates = (details.get("name"), details.get("original_name"), item.get("name"), item.get("original_name"))
                     title_keys = {
                         re.sub(r"[^a-z0-9]+", "", str(title or "").casefold())
