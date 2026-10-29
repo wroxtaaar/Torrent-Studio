@@ -19,12 +19,14 @@ export const TvShowCard: React.FC<{
   /** Optional action area at the bottom of the card. */
   footer?: React.ReactNode;
 }> = ({ show, imdb, preferImdb = false, onOpen, footer }) => {
-  const rating = imdb ?? (show.imdbRating != null && show.imdbRating > 0 ? {
-    imdbRating: show.imdbRating,
+  const catalogueRating = Number(show.imdbRating) > 0 ? {
+    imdbRating: Number(show.imdbRating),
     imdbVotes: show.imdbVotes == null ? undefined : String(show.imdbVotes),
     imdbId: show.imdbId ?? undefined,
     imdbUrl: show.imdbUrl ?? undefined,
-  } : undefined);
+  } : undefined;
+  // Don't let a cached negative lookup override a real rating on the TV catalogue row.
+  const rating = Number(imdb?.imdbRating) > 0 ? imdb : catalogueRating || imdb;
   const providers = uniqueOttProviders(
     (show.streamingProviders || []).filter(provider => ['subscription', 'free', 'ads'].includes(provider.type)),
   );
