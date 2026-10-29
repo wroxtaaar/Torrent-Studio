@@ -1417,43 +1417,39 @@ async def api_tmdb_regional_tv_catalogue(
 
     if catalogue_key == "highest-rated-popular":
         # This order is copied from the user's saved IMDb list, not TMDB popularity.
-        imdb_rows = [
-            ("tt0944947", 9.2), ("tt4574334", 8.6), ("tt1520211", 8.1), ("tt1837492", 7.4),
-            ("tt2661044", 7.5), ("tt2372162", 8.0), ("tt5420376", 6.4), ("tt0413573", 7.6),
-            ("tt3107288", 7.4), ("tt2193021", 7.5), ("tt6468322", 8.2), ("tt0898266", 8.1),
-            ("tt2085059", 8.7), ("tt1475582", 9.0), ("tt2306299", 8.5), ("tt1578873", 7.3),
-            ("tt1405406", 7.7), ("tt1844624", 7.9), ("tt0903747", 9.5), ("tt4052886", 8.0),
-            ("tt0460681", 8.4), ("tt0455275", 8.3), ("tt3205802", 8.1), ("tt1567432", 7.7),
-            ("tt0096697", 8.6), ("tt1843230", 7.6), ("tt2707408", 8.7), ("tt3322312", 8.6),
-            ("tt0108778", 8.8), ("tt0460649", 8.3), ("tt1632701", 8.4), ("tt4158110", 8.5),
-            ("tt2632424", 8.2), ("tt4016454", 6.2), ("tt0397442", 7.5), ("tt2431438", 8.2),
-            ("tt3749900", 7.8), ("tt0475784", 8.4), ("tt2357547", 7.8), ("tt1442437", 8.5),
-            ("tt2861424", 9.0), ("tt4145054", 6.5), ("tt6257970", 8.0), ("tt1856010", 8.6),
-            ("tt5753856", 8.7), ("tt7134908", 7.1), ("tt7767422", 8.2), ("tt1586680", 8.5),
-            ("tt1826940", 7.8), ("tt2364582", 7.5), ("tt7335184", 7.6), ("tt0773262", 8.6),
-            ("tt3743822", 6.7), ("tt0182576", 8.1), ("tt2741602", 7.9), ("tt0411008", 8.3),
-            ("tt2442560", 8.7), ("tt0412142", 8.7), ("tt4428122", 6.7), ("tt2234222", 8.3),
-            ("tt1796960", 8.3), ("tt4474344", 7.3), ("tt4532368", 6.7), ("tt5834204", 8.3),
-            ("tt7569592", 7.4), ("tt6470478", 8.0), ("tt3566726", 7.8), ("tt1327801", 6.8),
-            ("tt0121955", 8.7), ("tt2467372", 8.4), ("tt1553656", 6.5), ("tt1312171", 7.8),
-            ("tt2356777", 8.8), ("tt4635282", 7.8), ("tt0410975", 7.7), ("tt3032476", 9.0),
-            ("tt2188671", 8.1), ("tt5675620", 8.4), ("tt6315640", 8.2), ("tt6128300", 7.2),
-            ("tt5555260", 8.7), ("tt4955642", 8.2), ("tt3322310", 6.4), ("tt6656238", 6.3),
-            ("tt5290382", 8.6), ("tt1837642", 7.8), ("tt3322314", 7.2), ("tt1837576", 7.7),
-            ("tt4230076", 7.2), ("tt3920596", 8.4), ("tt6487482", 6.5), ("tt1196946", 8.2),
-            ("tt4786824", 8.6), ("tt7366338", 9.3), ("tt3501584", 7.8), ("tt2710394", 7.4),
-            ("tt4834206", 7.7), ("tt0452046", 8.1), ("tt3921180", 7.0), ("tt6763664", 8.5),
-        ]
+        manifest_path = _CACHE_SEED_DIR / "highest_rated_catalogues.json"
+        try:
+            manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            manifest_payload = {}
+        tv_manifest = ((manifest_payload.get("catalogues") or {}).get("highest-rated-tv") or {})
+        imdb_rows = []
+        for entry in tv_manifest.get("titles", []) if isinstance(tv_manifest, dict) else []:
+            if not isinstance(entry, dict) or not entry.get("title"):
+                continue
+            match = re.search(r"(tt\\d+)", str(entry.get("imdbUrl") or ""))
+            if not match:
+                continue
+            try:
+                rating = float(entry.get("imdbRating") or 0)
+            except (TypeError, ValueError):
+                rating = 0.0
+            imdb_rows.append((match.group(1), rating, str(entry["title"])))
         start = (page - 1) * 18
         selected = imdb_rows[start:start + 18]
 
         async def resolve_imdb_tv(item):
-            imdb_id, imdb_rating = item
+            imdb_id, imdb_rating, source_title = item
             try:
                 found = await _tmdb_get_json(f"find/{imdb_id}", {"external_source": "imdb_id"})
                 matches = found.get("tv_results") if isinstance(found, dict) else []
                 if not matches:
-                    return None
+                    return {
+                        "id": "imdb:" + imdb_id, "title": source_title,
+                        "year": None, "releaseDate": "", "posterUrl": "", "overview": "",
+                        "rating": imdb_rating, "imdbRating": imdb_rating, "imdbId": imdb_id,
+                        "imdbListRank": imdb_rows.index(item) + 1, "directStreamBroken": True,
+                    }
                 row = matches[0]
                 air_date = str(row.get("first_air_date") or "")
                 poster_path = str(row.get("poster_path") or "")
@@ -1477,7 +1473,7 @@ async def api_tmdb_regional_tv_catalogue(
         resolved = await asyncio.gather(*(resolve_imdb_tv(item) for item in selected))
         rows = [row for row in resolved if row and row.get("id") and row.get("title")]
         payload = {
-            "catalogue": catalogue_key, "page": page, "totalPages": 6, "totalResults": 100,
+            "catalogue": catalogue_key, "page": page, "totalPages": max(1, (len(imdb_rows) + 17) // 18), "totalResults": len(imdb_rows),
             "provider": "IMDb curated list + TMDB metadata", "results": rows,
             "pageSize": 18, "curatedOrder": True,
         }
