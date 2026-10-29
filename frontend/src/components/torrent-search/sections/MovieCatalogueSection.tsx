@@ -10,7 +10,7 @@ import { catalogueMovieIdentity, extractedQuality } from '../helpers.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 
 export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
-  const { cataloguePosterUrlsRef, closeMoviePrepareCard, imdbRatingsByKey, isSearching, movieCatalogue, movieCatalogueSearchText, movieTorrentPreviewCatalogueId, movieTorrentPreviewGroup, movieTorrentPreviewPosterUrl, movieTorrentSearchError, movieTorrentSearchLoading, movieTorrentSearchTitle, nexStreamResolvingId, openMovieCatalogue, ottAvailabilityForMovie, ottPendingCount, pendingPosterAction, playWithNexStream, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, posterUrlFor, prepareBuildPendingRef, prepareClickIntentRef, prepareMovieTorrent, prepareStateFor, prepareTraceIdRef, preparedActionsFor, searchMovieTorrents, selectedMovieTorrentQualityByGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setSelectedMovieTorrentQualityByGroup, startPosterBackgroundWorkers, streamingOnly, visibleMovieCatalogueItems } = vm;
+  const { cataloguePosterUrlsRef, closeMoviePrepareCard, imdbRatingsByKey, isSearching, movieCatalogue, movieCatalogueSearchText, movieTorrentPreviewCatalogueId, movieTorrentPreviewGroup, movieTorrentPreviewPosterUrl, movieTorrentSearchError, movieTorrentSearchLoading, movieTorrentSearchTitle, nexStreamResolvingId, openMovieCatalogue, setPakistaniMovieSort, ottAvailabilityForMovie, ottPendingCount, pendingPosterAction, playWithNexStream, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, posterUrlFor, prepareBuildPendingRef, prepareClickIntentRef, prepareMovieTorrent, prepareStateFor, prepareTraceIdRef, preparedActionsFor, searchMovieTorrents, selectedMovieTorrentQualityByGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setSelectedMovieTorrentQualityByGroup, startPosterBackgroundWorkers, streamingOnly, visibleMovieCatalogueItems } = vm;
   const pakistaniPopularityOrder = ["joyland","jawaniphirnhiani","thelegendofmaulajatt","quaid-e-azamzindabad","teefaintrouble","waar","bol","namaloomafraad","o21","moor","kambakht","sayaekhudaezuljalal","zindabhaag","tamanna","josh","dukhtar","mainhoonshahidafridi","hijrat","swaarangi","khudakayliye","jinnah","azaad","zilleshah","ishqkhuda","thesystem"];
   const pakistaniTitleKey = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '');
   const pakistaniMovieCatalogue = movieCatalogue?.catalogue.endsWith('-pakistani') === true;
@@ -37,6 +37,31 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
             </div>
             <div className="text-[11px] text-slate-500">Select a movie to search torrent providers</div>
           </div>
+
+          {pakistaniMovieCatalogue && (
+            <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort Pakistani movies">
+              <span className="mr-1 text-xs text-slate-400">Sort by</span>
+              {([
+                ['popularity', 'Popularity'],
+                ['year', 'Year'],
+                ['rating', 'Rating'],
+              ] as const).map(([sort, label]) => (
+                <button
+                  key={sort}
+                  type="button"
+                  aria-pressed={pakistaniMovieSort === sort}
+                  onClick={() => setPakistaniMovieSort(sort)}
+                  className={'rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ' + (
+                    pakistaniMovieSort === sort
+                      ? 'border-cyan-400 bg-cyan-500/15 text-cyan-200'
+                      : 'border-slate-700 bg-slate-950 text-slate-400 hover:border-slate-500 hover:text-slate-200'
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
             <button
