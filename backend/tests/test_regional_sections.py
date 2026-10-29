@@ -294,3 +294,45 @@ def test_korean_tv_prebuilt_results_apply_release_type_origin_and_ott_filters(mo
     result = asyncio.run(tv.api_tmdb_regional_tv_catalogue("korean-popular", page=1))
 
     assert [row["title"] for row in result["results"]] == ["Eligible Korean Drama"]
+
+
+
+def test_korean_prebuilt_movies_filter_origin_language_and_unreleased_rows(monkeypatch, tmp_path):
+    monkeypatch.setattr(movies, "REGIONAL_MOVIE_PREBUILT_CACHE_PATH", tmp_path / "prebuilt.json")
+    monkeypatch.setattr(movies, "_CACHE_SEED_DIR", tmp_path)
+    monkeypatch.setattr(movies, "read_json_cached", lambda path: {
+        "catalogues": {
+            "popular-korean": {
+                "final": [
+                    {"id": 1, "title": "Eligible Korean Film", "originCountry": ["KR"], "originalLanguage": "ko", "releaseDate": "2024-01-01"},
+                    {"id": 2, "title": "Non-Korean Korean-Language Film", "originCountry": ["US"], "originalLanguage": "ko", "releaseDate": "2024-01-01"},
+                    {"id": 3, "title": "Korean Dubbed Film", "originCountry": ["KR"], "originalLanguage": "en", "releaseDate": "2024-01-01"},
+                    {"id": 4, "title": "Unreleased Korean Film", "originCountry": ["KR"], "originalLanguage": "ko", "releaseDate": "2999-01-01"},
+                ],
+            },
+        },
+    })
+
+    result = movies._prebuilt_final_page("popular-korean", 1)
+
+    assert [row["title"] for row in result["results"]] == ["Eligible Korean Film"]
+
+
+def test_korean_movie_source_filters_out_non_korean_origin(monkeypatch):
+    async def get_json(path, params):
+        assert params["with_origin_country"] == "KR"
+        return {
+            "page": 1,
+            "total_pages": 1,
+            "total_results": 3,
+            "results": [
+                {"id": 1, "title": "Korean Film", "original_language": "ko", "origin_country": ["KR"], "release_date": "2024-01-01"},
+                {"id": 2, "title": "Korean-Language US Film", "original_language": "ko", "origin_country": ["US"], "release_date": "2024-01-01"},
+                {"id": 3, "title": "English Korean Co-Production", "original_language": "en", "origin_country": ["KR"], "release_date": "2024-01-01"},
+            ],
+        }
+
+    monkeypatch.setattr(movies, "_tmdb_get_json", get_json)
+    result = asyncio.run(movies._tmdb_fetch_movie_catalogue("popular-korean", 1))
+
+    assert [row["title"] for row in result["results"]] == ["Korean Film"]
