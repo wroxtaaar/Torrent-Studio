@@ -782,6 +782,13 @@ async def _enrich_regional_tv_imdb_ratings(payload: dict[str, Any]) -> dict[str,
         for field in ("imdbRating", "imdbVotes", "imdbId", "imdbUrl"):
             if rating.get(field) is not None:
                 row[field] = rating[field]
+        try:
+            providers = row.get("streamingProviders")
+            if not isinstance(providers, list) or not providers:
+                row["streamingProviders"] = await _tv_streaming_providers(tmdb_id)
+        except Exception:
+            logger.info("Streaming provider enrichment failed for regional TV %s (%s)", title, tmdb_id, exc_info=True)
+            row.setdefault("streamingProviders", [])
 
     await asyncio.gather(*(enrich(row) for row in rows))
     return payload
