@@ -225,9 +225,6 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
         "popular-korean": ("ko", "popular"),
         "trending-korean": ("ko", "trending"),
         "latest-korean": ("ko", "latest"),
-        "popular-pakistani": ("ur", "popular"),
-        "trending-pakistani": ("ur", "trending"),
-        "latest-pakistani": ("ur", "latest"),
         "popular-anime": ("ja", "popular"),
         "trending-anime": ("ja", "trending"),
         "latest-anime": ("ja", "latest"),
@@ -1204,7 +1201,6 @@ async def _api_tmdb_movie_catalogue(
         "popular-bollywood", "trending-bollywood", "latest-bollywood",
         "popular-hollywood", "trending-hollywood", "latest-hollywood",
         "popular-korean", "trending-korean", "latest-korean",
-        "popular-pakistani", "trending-pakistani", "latest-pakistani",
         "popular-anime", "trending-anime", "latest-anime",
     }
     if catalogue_key not in allowed:
