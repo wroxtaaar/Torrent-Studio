@@ -1834,6 +1834,8 @@ _synopsis_enrichment_retry_task: asyncio.Task | None = None
 
 
 async def _start_catalogue_synopsis_enrichment() -> None:
+    if not BACKFILL_MISSING_METADATA:
+        return
     global _catalogue_synopsis_enrichment_task, _synopsis_enrichment_retry_task
     # Let cache initialization finish first. Enrichment must never delay the API.
     await asyncio.sleep(10)
@@ -2669,6 +2671,8 @@ async def _synopsis_enrichment_retry_loop() -> None:
 
 
 async def _start_tmdb_catalogue_synopsis_enrichment() -> None:
+    if not BACKFILL_MISSING_METADATA:
+        return
     # Registered after cache initialization; launch the backfill without holding
     # application startup open while hundreds of TMDB details are fetched.
     _schedule_tmdb_catalogue_synopsis_enrichment()
