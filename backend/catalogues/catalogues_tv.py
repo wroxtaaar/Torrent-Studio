@@ -675,7 +675,7 @@ async def _pakistani_drama_catalogue_page(catalogue_key: str, page: int) -> dict
                             break
                 if item is not None:
                     air_date = str(item.get("first_air_date") or "").strip()
-                    year_match = re.match(r"^(\\d{4})", air_date)
+            year_match = re.match(r"^(\\d{4})", air_date)
                     tmdb_id = int(item["id"])
                     poster_path = str(item.get("poster_path") or "").strip()
                     backdrop_path = str(item.get("backdrop_path") or "").strip()
