@@ -29,6 +29,7 @@ from core.settings import (
 )
 from metadata.imdb import _get_imdb_rating_record
 from metadata.tmdb import _tmdb_get_json
+from catalogues.pakistani_drama_order import PAKISTANI_DRAMA_POPULARITY_ORDER
 
 router = APIRouter()
 
@@ -623,6 +624,89 @@ _INDIAN_LINEAR_TV_NETWORKS = {
 }
 
 
+_PAKISTANI_DRAMA_ROWS: dict[str, dict[str, Any]] = {}
+
+
+def _pakistani_drama_title_key(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
+
+
+async def _pakistani_drama_catalogue_page(catalogue_key: str, page: int) -> dict[str, Any]:
+    """Resolve one page of the fixed 144-title Pakistani drama order from TMDB."""
+    page_size = 18
+    titles = PAKISTANI_DRAMA_POPULARITY_ORDER[(page - 1) * page_size:page * page_size]
+    semaphore = asyncio.Semaphore(4)
+
+    async def resolve(title: str) -> dict[str, Any]:
+        cached = _PAKISTANI_DRAMA_ROWS.get(_pakistani_drama_title_key(title))
+        if cached is not None:
+            return cached
+        fallback = {
+            "id": "pakistani-drama:" + _pakistani_drama_title_key(title),
+            "title": title, "year": 0, "releaseDate": "", "overview": "",
+            "posterUrl": "", "backdropUrl": "", "rating": 0.0,
+            "tmdbUrl": "", "streamingProviders": [], "providerLink": "",
+            "originalLanguage": "ur", "originCountry": ["PK"],
+            "source": "Curated Pakistani drama order",
+        }
+        async with semaphore:
+            try:
+                payload = await _tmdb_get_json("search/tv", {
+                    "query": title, "include_adult": "false", "language": "en-US", "page": 1,
+                })
+                target = _pakistani_drama_title_key(title)
+                candidates = [row for row in (payload.get("results") or []) if isinstance(row, dict) and row.get("id")]
+                candidates.sort(key=lambda row: (
+                    _pakistani_drama_title_key(row.get("name") or row.get("original_name")) == target,
+                    "PK" in (row.get("origin_country") or []) and "IN" not in (row.get("origin_country") or []),
+                    float(row.get("popularity") or 0),
+                ), reverse=True)
+                item = next((row for row in candidates if _pakistani_drama_title_key(row.get("name") or row.get("original_name")) == target and "PK" in (row.get("origin_country") or []) and "IN" not in (row.get("origin_country") or [])), None)
+                if item is None:
+                    # Verify candidates whose search result omits origin_country, while still
+                    # refusing an Indian or cross-border title when canonical details disagree.
+                    for candidate in candidates:
+                        if _pakistani_drama_title_key(candidate.get("name") or candidate.get("original_name")) != target:
+                            continue
+                        details = await _tmdb_get_json(f"tv/{int(candidate['id'])}", {})
+                        countries = details.get("origin_country") or []
+                        if "PK" in countries and "IN" not in countries:
+                            item = {**candidate, **details}
+                            break
+                if item is not None:
+                    air_date = str(item.get("first_air_date") or "").strip()
+                    year_match = re.match(r"^(\\d{4})", air_date)
+                    tmdb_id = int(item["id"])
+                    poster_path = str(item.get("poster_path") or "").strip()
+                    backdrop_path = str(item.get("backdrop_path") or "").strip()
+                    fallback.update({
+                        "id": tmdb_id, "title": title,
+                        "year": int(year_match.group(1)) if year_match else 0,
+                        "releaseDate": air_date,
+                        "overview": str(item.get("overview") or "").strip(),
+                        "posterUrl": TMDB_IMAGE_BASE + poster_path if poster_path else "",
+                        "backdropUrl": "https://image.tmdb.org/t/p/w780" + backdrop_path if backdrop_path else "",
+                        "rating": float(item.get("vote_average") or 0),
+                        "tmdbUrl": f"https://www.themoviedb.org/tv/{tmdb_id}",
+                        "streamingProviders": await _tv_streaming_providers(tmdb_id),
+                        "originalLanguage": str(item.get("original_language") or "ur"),
+                        "originCountry": item.get("origin_country") or ["PK"],
+                        "source": "TMDB + curated Pakistani drama order",
+                    })
+            except Exception as exc:
+                logger.info("Pakistani drama lookup failed for %s: %s", title, type(exc).__name__)
+        _PAKISTANI_DRAMA_ROWS[_pakistani_drama_title_key(title)] = fallback
+        return fallback
+
+    rows = await asyncio.gather(*(resolve(title) for title in titles))
+    return {
+        "catalogue": catalogue_key, "page": page, "totalPages": max(1, (len(PAKISTANI_DRAMA_POPULARITY_ORDER) + page_size - 1) // page_size),
+        "totalResults": len(PAKISTANI_DRAMA_POPULARITY_ORDER),
+        "provider": "TMDB + fixed Pakistani drama popularity order",
+        "results": rows, "pageSize": page_size, "curatedOrder": True,
+    }
+
+
 @router.get("/api/tv/catalogue/{catalogue_key}")
 async def api_tmdb_regional_tv_catalogue(
     catalogue_key: str,
@@ -649,6 +733,8 @@ async def api_tmdb_regional_tv_catalogue(
     }
     if catalogue_key not in configs:
         raise HTTPException(status_code=404, detail="Unknown TV catalogue.")
+    if catalogue_key.startswith("pakistani-"):
+        return await _pakistani_drama_catalogue_page(catalogue_key, page)
     # Indian Popular and Trending exclude scripted series whose TMDB network
     # metadata identifies Zee TV, Star Plus, Colors, or Sony TV as a broadcaster.
     exclude_indian_broadcast_networks = catalogue_key in {"indian-popular", "indian-trending"}
