@@ -119,19 +119,25 @@ export function useCatalogueDetailsPrefetch({ franchiseGridPage, franchiseGridPa
       if (hasMorePending) setImdbRetryTick(tick => tick + 1);
       setImdbRatingsByKey(previous => {
         const next = { ...previous };
-        for (const rating of ratings) {
+        ratings.forEach((rating, index) => {
           // Transient failures (rate limit / upstream error) are not answers:
           // don't store them and let the lookup be retried below.
           if (rating.status === 'rate_limited' || rating.status === 'unavailable') {
             needsRetry = true;
-            continue;
+            return;
           }
           const mediaType = rating.mediaType === 'tv' ? 'tv' : 'movie';
           const queryKey = imdbRatingKey(rating.query || rating.title, undefined, mediaType);
           const canonicalKey = imdbRatingKey(rating.title, rating.year, mediaType);
           next[queryKey] = rating;
           next[canonicalKey] = rating;
-        }
+
+          // Keep the response attached to the exact title/year key used to request it.
+          // OMDb may omit year or return a differently formatted title, so relying only
+          // on its canonical title/year can leave cards unable to find a valid rating.
+          const requestedKey = requests[index]?.[0];
+          if (requestedKey) next[requestedKey] = rating;
+        });
         return next;
       });
       if (needsRetry) {
