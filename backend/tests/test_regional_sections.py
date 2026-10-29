@@ -132,36 +132,16 @@ def test_pakistani_prebuilt_movies_filter_indian_entries(monkeypatch, tmp_path):
     assert [row["title"] for row in result["results"]] == ["Pakistani Film"]
 
 
-def test_pakistani_tv_discovery_includes_punjabi_language_series(monkeypatch, tmp_path):
+def test_pakistani_tv_catalogue_uses_fixed_curated_drama_order(monkeypatch, tmp_path):
     async def get_json(path, params):
-        if path == "discover/tv":
-            assert params["with_origin_country"] == "PK"
-            assert "with_original_language" not in params
-            return {
-                "page": 1,
-                "total_pages": 1,
-                "total_results": 1,
-                "results": [{
-                    "id": 101,
-                    "name": "Punjabi Pakistani Series",
-                    "original_language": "pa",
-                    "origin_country": ["PK"],
-                    "first_air_date": "2025-01-01",
-                }],
-            }
-        return {
-            "id": 101,
-            "name": "Punjabi Pakistani Series",
-            "original_name": "Punjabi Pakistani Series",
-            "type": "Scripted",
-            "first_air_date": "2025-01-01",
-        }
+        return {"page": 1, "total_pages": 1, "total_results": 0, "results": []}
 
     async def streaming_providers(tmdb_id):
-        return [{"name": "Example", "type": "subscription"}]
+        return []
 
     monkeypatch.setattr(tv, "_read_regional_tv_prebuilt_page", lambda *args: None)
     monkeypatch.setattr(tv, "_REGIONAL_TV_DISCOVERY_CACHE", {})
+    monkeypatch.setattr(tv, "_PAKISTANI_DRAMA_ROWS", {})
     monkeypatch.setattr(tv, "_tmdb_get_json", get_json)
     monkeypatch.setattr(tv, "_tv_streaming_providers", streaming_providers)
     monkeypatch.setattr(tv, "TMDB_READ_ACCESS_TOKENS", ["test-token"])
@@ -170,8 +150,10 @@ def test_pakistani_tv_discovery_includes_punjabi_language_series(monkeypatch, tm
     result = asyncio.run(tv.api_tmdb_regional_tv_catalogue("pakistani-popular", page=1))
 
     assert result["pageSize"] == 18
-    assert len(result["results"]) == 1
-    assert result["results"][0]["title"] == "Punjabi Pakistani Series"
+    assert result["totalResults"] == 144
+    assert len(result["results"]) == 18
+    assert [row["title"] for row in result["results"][:4]] == ["Humsafar", "Daam", "Mora Piya", "Kankar"]
+    assert result["curatedOrder"] is True
 
 
 def test_pakistani_tv_cache_filter_rejects_indian_titles():
