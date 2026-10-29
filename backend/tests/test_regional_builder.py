@@ -40,7 +40,8 @@ class Stub(BaseHTTPRequestHandler):
             cat, page = m.group(1), int(qs["page"][0])
             assert qs.get("live") == ["true"]
             group = "bw" if cat.endswith("bollywood") else "hw"
-            base = {"popular": 1000, "latest": 5000, "trending": 9000}[cat.split("-")[0]] + (0 if group == "bw" else 100000)
+            prefix = cat.split("-")[0]
+            base = {"popular": 1000, "latest": 5000, "trending": 9000, "highest": 13000}[prefix] + (0 if group == "bw" else 100000)
             if cat == "trending-bollywood":
                 rows = [movie(group, base + i) for i in range(THIS_WEEK_TRENDING)] if page == 1 else []
                 return self.reply({"results": rows, "totalPages": 1})
