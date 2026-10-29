@@ -204,7 +204,105 @@ def _is_bollywood_comedy_special(row: dict[str, Any]) -> bool:
     return bool(_BOLLYWOOD_COMEDY_SPECIAL_DESCRIPTION.search(description))
 
 
+
+def _highest_rated_manifest() -> dict[str, Any]:
+    paths = (
+        _CACHE_SEED_DIR / "highest_rated_catalogues.json",
+        Path(__file__).resolve().parents[1] / "cache-seed" / "highest_rated_catalogues.json",
+    )
+    for path in paths:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(payload, dict):
+                return payload
+        except (OSError, ValueError, TypeError):
+            continue
+    return {}
+
+
+async def _highest_rated_movie_curated_page(catalogue_key: str, page: int) -> dict[str, Any]:
+    """Resolve the supplied IMDb-ranked movie manifest into stable, ordered 18-item pages."""
+    manifest = _highest_rated_manifest()
+    catalogue = (manifest.get("catalogues") or {}).get(catalogue_key) or {}
+    titles = catalogue.get("titles") if isinstance(catalogue, dict) else []
+    titles = [row for row in titles if isinstance(row, dict) and row.get("title")]
+    page_size = 18
+    total_results = len(titles)
+    selected = titles[(page - 1) * page_size:page * page_size]
+    semaphore = asyncio.Semaphore(6)
+
+    async def resolve(entry: dict[str, Any]) -> dict[str, Any]:
+        title = str(entry.get("title") or "").strip()
+        imdb_url = str(entry.get("imdbUrl") or "")
+        imdb_match = re.search(r"(tt\d+)", imdb_url)
+        imdb_id = imdb_match.group(1) if imdb_match else ""
+        async with semaphore:
+            item: dict[str, Any] | None = None
+            if imdb_id:
+                try:
+                    found = await _tmdb_get_json("find/" + imdb_id, {"external_source": "imdb_id"})
+                    candidates = [row for row in (found.get("movie_results") or []) if isinstance(row, dict)]
+                    if candidates:
+                        item = candidates[0]
+                except Exception as exc:
+                    logger.info("TMDB IMDb lookup failed for %s: %s", title, type(exc).__name__)
+            if item is None:
+                try:
+                    search = await _tmdb_get_json("search/movie", {
+                        "query": title, "include_adult": "false", "language": "en-US", "page": 1,
+                    })
+                    candidates = [row for row in (search.get("results") or []) if isinstance(row, dict)]
+                    target = re.sub(r"[^a-z0-9]+", "", title.casefold())
+                    exact = [
+                        row for row in candidates
+                        if re.sub(r"[^a-z0-9]+", "", str(row.get("title") or row.get("original_title") or "").casefold()) == target
+                    ]
+                    item = (exact or candidates or [None])[0]
+                except Exception as exc:
+                    logger.info("TMDB title lookup failed for %s: %s", title, type(exc).__name__)
+        if not isinstance(item, dict):
+            return {
+                "id": "imdb:" + imdb_id if imdb_id else "imdb-title:" + re.sub(r"[^a-z0-9]+", "", title.casefold()),
+                "title": title, "year": None, "releaseDate": "", "overview": "",
+                "posterUrl": "", "backdropUrl": "", "rating": 0, "genres": [],
+                "imdbRating": entry.get("imdbRating"), "imdbId": imdb_id or None,
+                "imdbUrl": imdb_url, "imdbListRank": entry.get("rank"),
+                "directStreamBroken": True, "source": "Curated IMDb list",
+            }
+        release_date = str(item.get("release_date") or "").strip()
+        year_match = re.match(r"^(\d{4})", release_date)
+        poster_path = str(item.get("poster_path") or "").strip()
+        backdrop_path = str(item.get("backdrop_path") or "").strip()
+        return {
+            "id": item.get("id") or ("imdb:" + imdb_id),
+            "tmdbId": item.get("id"),
+            "title": title,
+            "year": int(year_match.group(1)) if year_match else None,
+            "releaseDate": release_date,
+            "overview": str(item.get("overview") or "").strip(),
+            "posterUrl": TMDB_IMAGE_BASE + poster_path if poster_path else "",
+            "backdropUrl": "https://image.tmdb.org/t/p/w780" + backdrop_path if backdrop_path else "",
+            "rating": float(item.get("vote_average") or 0),
+            "genres": [int(genre) for genre in (item.get("genre_ids") or []) if str(genre).isdigit()],
+            "imdbRating": entry.get("imdbRating"), "imdbId": imdb_id or None,
+            "imdbUrl": imdb_url, "imdbListRank": entry.get("rank"),
+            "source": "IMDb curated list + TMDB metadata",
+        }
+
+    rows = await asyncio.gather(*(resolve(entry) for entry in selected))
+    return {
+        "catalogue": catalogue_key, "releasedOnly": False,
+        "provider": "IMDb curated list + TMDB metadata",
+        "page": page, "totalPages": max(1, (total_results + page_size - 1) // page_size),
+        "totalResults": total_results, "pageSize": page_size, "results": rows,
+        "curatedOrder": True,
+        "attribution": "IMDb source-list order supplied by the user; metadata from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.",
+    }
+
+
 async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_only: bool = True) -> dict[str, Any]:
+    if catalogue_key in {"highest-rated-hollywood", "highest-rated-bollywood"}:
+        return await _highest_rated_movie_curated_page(catalogue_key, page)
     today = datetime.now(timezone.utc).date().isoformat()
     params: dict[str, Any] = {
         "include_adult": "false",
@@ -1240,7 +1338,7 @@ async def _korean_movie_curated_page(page: int, basic: bool = False) -> dict[str
                     "backdropUrl": "", "rating": 0, "genres": [], "source": "Curated IMDb list",
                 }
             release_date = str(item.get("release_date") or "").strip()
-            year_match = re.match(r"^(\\d{4})", release_date)
+            year_match = re.match(r"^(\d{4})", release_date)
             poster_path = str(item.get("poster_path") or "").strip()
             backdrop_path = str(item.get("backdrop_path") or "").strip()
             return {
