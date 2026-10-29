@@ -11,6 +11,10 @@ SPEC.loader.exec_module(MODULE)
 
 
 class HollywoodCacheTests(unittest.TestCase):
+    def test_highest_rated_is_not_a_hollywood_subsection(self):
+        self.assertEqual(set(MODULE.SUBSECTIONS), {"popular", "trending", "latest"})
+        self.assertNotIn("highestRated", MODULE.SUBSECTIONS)
+
     def test_missing_mode_preserves_existing_values(self):
         old = {"title": "Example", "posterUrl": "known-poster", "imdbRating": 8.1, "overview": ""}
         fresh = {"title": "Changed title", "posterUrl": "new-poster", "imdbRating": 9.0, "overview": "Synopsis"}
