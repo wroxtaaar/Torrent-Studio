@@ -33,6 +33,111 @@ from catalogues.pakistani_drama_order import PAKISTANI_DRAMA_POPULARITY_ORDER
 
 router = APIRouter()
 
+# IMDb's supplied 100 most popular anime TV shows, in the order from the saved chart.
+ANIME_POPULARITY_ORDER: tuple[tuple[str, str], ...] = (
+    ("Cyberpunk: Edgerunners", "tt12590266"),
+    ("Black Clover", "tt7441658"),
+    ("Bleach: Thousand-Year Blood War", "tt14986406"),
+    ("Attack on Titan", "tt2560140"),
+    ("Steel Ball Run: JoJo's Bizarre Adventure", "tt38268282"),
+    ("One Piece", "tt0388629"),
+    ("Dragon Ball Super: Beerus", "tt39395275"),
+    ("Re: Zero - Starting Life in Another World", "tt5607616"),
+    ("Jujutsu Kaisen", "tt12343534"),
+    ("JoJo's Bizarre Adventure", "tt2359704"),
+    ("Vinland Saga", "tt10233448"),
+    ("My Hero Academia", "tt5626028"),
+    ("Bleach", "tt0434665"),
+    ("Death Note", "tt0877057"),
+    ("Demon Slayer: Kimetsu no Yaiba", "tt9335498"),
+    ("Fullmetal Alchemist: Brotherhood", "tt1355642"),
+    ("Naruto: Shippuden", "tt0988824"),
+    ("Hunter X Hunter", "tt2098220"),
+    ("Tokyo Revengers", "tt13196080"),
+    ("Mushoku Tensei: Jobless Reincarnation", "tt13293588"),
+    ("The Apothecary Diaries", "tt26743760"),
+    ("Monster", "tt0434706"),
+    ("Frieren: Beyond Journey's End", "tt22248376"),
+    ("Solo Leveling", "tt21209876"),
+    ("Naruto", "tt0409591"),
+    ("Firefly Wedding", "tt39394153"),
+    ("Chainsaw Man", "tt13616990"),
+    ("Code Geass: Lelouch of the Rebellion", "tt0994314"),
+    ("Berserk", "tt0318871"),
+    ("One Punch Man", "tt4508902"),
+    ("Steins; Gate", "tt1910272"),
+    ("Cowboy Bebop", "tt0213338"),
+    ("Neon Genesis Evangelion", "tt0112159"),
+    ("Gintama", "tt0988818"),
+    ("Dragon Ball Z", "tt0214341"),
+    ("Mob Psycho 100", "tt5897304"),
+    ("The Ramparts of Ice", "tt39123061"),
+    ("Dragon Ball Super", "tt4644488"),
+    ("That Time I Got Reincarnated as a Slime", "tt9054364"),
+    ("Link Click", "tt14976292"),
+    ("Dandadan", "tt30217403"),
+    ("Pokémon", "tt0168366"),
+    ("Kaiju No. 8", "tt21975436"),
+    ("Tokyo Ghoul", "tt3741634"),
+    ("Takopi's Original Sin", "tt36988358"),
+    ("Gurren Lagann", "tt0948103"),
+    ("Dr. Stone", "tt9679542"),
+    ("Blue Box", "tt32639706"),
+    ("Witch Hat Atelier", "tt32550889"),
+    ("Haikyuu!!", "tt3398540"),
+    ("Overgeared", "tt43691353"),
+    ("Daemons of the Shadow Realm", "tt37532356"),
+    ("86", "tt13718450"),
+    ("Spy x Family", "tt13706018"),
+    ("The Boondocks", "tt0373732"),
+    ("Hell's Paradise", "tt13911284"),
+    ("Gachiakuta", "tt32612521"),
+    ("Erased", "tt5249462"),
+    ("Devil May Cry", "tt15716776"),
+    ("Pluto", "tt26737616"),
+    ("The Fragrant Flower Blooms with Dignity", "tt36592690"),
+    ("My Dress-Up Darling", "tt15765670"),
+    ("Made in Abyss", "tt7222086"),
+    ("Your Lie in April", "tt3895150"),
+    ("Rascal Does Not Dream of Bunny Girl Senpai", "tt8993398"),
+    ("Violet Evergarden", "tt7078180"),
+    ("Boruto: Naruto Next Generations", "tt6342474"),
+    ("Blue Lock", "tt15222080"),
+    ("The Ghost in the Shell", "tt36517689"),
+    ("Love Unseen Beneath the Clear Night Sky", "tt39304754"),
+    ("Teen Titans", "tt0343314"),
+    ("Classroom of the Elite", "tt7263328"),
+    ("The Seven Deadly Sins", "tt3909224"),
+    ("Kaguya-sama: Love Is War", "tt9522300"),
+    ("Sword Art Online", "tt2250192"),
+    ("Orb: On the Movements of the Earth", "tt33044444"),
+    ("Serial Experiments Lain", "tt0500092"),
+    ("Smoking Behind the Supermarket with You", "tt37614297"),
+    ("Ranma ½", "tt32766897"),
+    ("Dragon Ball", "tt0280249"),
+    ("Fire Force", "tt9307686"),
+    ("Fullmetal Alchemist", "tt0421357"),
+    ("Samurai Champloo", "tt0423731"),
+    ("Fighting Spirit", "tt0481256"),
+    ("Tougen Anki: Dark Demon of Paradise", "tt32344704"),
+    ("Kingdom", "tt2404499"),
+    ("Even the Student Council Has Its Holes!", "tt43650242"),
+    ("Chainsmoker Cat", "tt39551330"),
+    ("Parasyte: The Maxim", "tt3358020"),
+    ("Legend of the Galactic Heroes", "tt0096633"),
+    ("The Promised Neverland", "tt8788458"),
+    ("Delicious in Dungeon", "tt21621494"),
+    ("Dororo", "tt9458304"),
+    ("Akame ga Kill!", "tt3742982"),
+    ("Horimiya", "tt13103134"),
+    ("Dragon Ball", "tt0088509"),
+    ("Sakamoto Days", "tt17069148"),
+    ("The Eminence in Shadow", "tt14115938"),
+    ("Assassination Classroom", "tt3837246"),
+    ("Aoashi", "tt15792808"),
+)
+
+
 
 MARVEL_WEB_SERIES: tuple[tuple[str, int], ...] = (
     ("WandaVision", 2021), ("The Falcon and the Winter Soldier", 2021), ("Loki", 2021),
@@ -631,6 +736,87 @@ def _pakistani_drama_title_key(value: Any) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
 
 
+
+
+async def _anime_popular_curated_page(page: int) -> dict[str, Any]:
+    """Resolve one page of the supplied IMDb top-100 anime TV list against TMDB."""
+    page_size = 18
+    start = (page - 1) * page_size
+    selected = ANIME_POPULARITY_ORDER[start:start + page_size]
+    semaphore = asyncio.Semaphore(4)
+
+    async def resolve(item: tuple[str, str]) -> dict[str, Any]:
+        title, imdb_id = item
+        fallback: dict[str, Any] = {
+            "id": f"anime-imdb:{imdb_id}",
+            "title": title,
+            "year": None,
+            "releaseDate": "",
+            "overview": "",
+            "posterUrl": "",
+            "backdropUrl": "",
+            "rating": 0.0,
+            "tmdbUrl": "",
+            "streamingProviders": [],
+            "providerLink": "",
+            "source": "IMDb 100 most popular anime TV shows",
+            "imdbId": imdb_id,
+        }
+        async with semaphore:
+            try:
+                payload = await _tmdb_get_json("search/tv", {
+                    "query": title,
+                    "include_adult": "false",
+                    "language": "en-US",
+                    "page": 1,
+                })
+                candidates = [row for row in (payload.get("results") or []) if isinstance(row, dict) and row.get("id")]
+                normalized = _normalize_title(title)
+                candidates.sort(key=lambda row: (
+                    0 if _normalize_title(row.get("name") or row.get("original_name")) == normalized else 1,
+                    -float(row.get("popularity") or 0),
+                ))
+                if not candidates:
+                    return fallback
+                row = candidates[0]
+                release_date = str(row.get("first_air_date") or "")
+                try:
+                    year = int(release_date[:4]) if len(release_date) >= 4 else None
+                except ValueError:
+                    year = None
+                tmdb_id = int(row["id"])
+                poster_path = str(row.get("poster_path") or "")
+                backdrop_path = str(row.get("backdrop_path") or "")
+                return {
+                    **fallback,
+                    "id": tmdb_id,
+                    "tmdbId": tmdb_id,
+                    "title": str(row.get("name") or title),
+                    "year": year,
+                    "releaseDate": release_date,
+                    "overview": str(row.get("overview") or ""),
+                    "posterUrl": f"{TMDB_IMAGE_BASE}/w500{poster_path}" if poster_path else "",
+                    "backdropUrl": f"{TMDB_IMAGE_BASE}/w780{backdrop_path}" if backdrop_path else "",
+                    "rating": float(row.get("vote_average") or 0),
+                    "tmdbUrl": f"https://www.themoviedb.org/tv/{tmdb_id}",
+                }
+            except Exception as exc:
+                logger.info("TMDB anime lookup failed for %s (%s): %s", title, imdb_id, exc)
+                return fallback
+
+    results = await asyncio.gather(*(resolve(item) for item in selected))
+    return {
+        "catalogue": "anime-popular",
+        "page": page,
+        "totalPages": max(1, (len(ANIME_POPULARITY_ORDER) + page_size - 1) // page_size),
+        "totalResults": len(ANIME_POPULARITY_ORDER),
+        "pageSize": page_size,
+        "provider": "IMDb supplied top-100 anime TV chart + TMDB metadata",
+        "curatedOrder": True,
+        "results": results,
+    }
+
+
 async def _pakistani_drama_catalogue_page(catalogue_key: str, page: int) -> dict[str, Any]:
     """Resolve one page of the fixed 144-title Pakistani drama order from TMDB."""
     page_size = 18
@@ -735,6 +921,8 @@ async def api_tmdb_regional_tv_catalogue(
         raise HTTPException(status_code=404, detail="Unknown TV catalogue.")
     if catalogue_key.startswith("pakistani-"):
         return await _pakistani_drama_catalogue_page(catalogue_key, page)
+    if catalogue_key == "anime-popular":
+        return await _anime_popular_curated_page(page)
     # Indian Popular and Trending exclude scripted series whose TMDB network
     # metadata identifies Zee TV, Star Plus, Colors, or Sony TV as a broadcaster.
     exclude_indian_broadcast_networks = catalogue_key in {"indian-popular", "indian-trending"}
