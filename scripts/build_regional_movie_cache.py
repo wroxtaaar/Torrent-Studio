@@ -414,6 +414,7 @@ def main():
     )
     failed_tv_catalogues = []
     for cat in tv_catalogues:
+        target_series = 100 if cat == "highest-rated-popular" else TARGET_PER_CATALOGUE
         prior = tv_cache["catalogues"].get(cat, {})
         pages = []
         seen = set()
@@ -449,8 +450,8 @@ def main():
                 total_pages = max(1, int(data.get("totalPages") or 1))
             except (TypeError, ValueError):
                 total_pages = PAGE_LIMIT
-            print(json.dumps({"event": "tv_catalogue_page", "catalogue": cat, "page": page, "pageSeries": len(rows), "uniqueSeries": len(seen), "target": TARGET_PER_CATALOGUE}), flush=True)
-            if len(seen) >= TARGET_PER_CATALOGUE or page >= total_pages:
+            print(json.dumps({"event": "tv_catalogue_page", "catalogue": cat, "page": page, "pageSeries": len(rows), "uniqueSeries": len(seen), "target": target_series}), flush=True)
+            if len(seen) >= target_series or page >= total_pages:
                 break
             time.sleep(float(os.getenv("REGIONAL_CACHE_DELAY_SECONDS", "0.4")))
         if failed:
@@ -461,11 +462,11 @@ def main():
         count = len({str(show.get("id") or (norm(show.get("title")) + "|" + str(show.get("year") or ""))) for p in pages for show in p.get("results", []) if isinstance(show, dict) and show.get("title")})
         tv_cache["catalogues"][cat] = {
             "builtAt": datetime.now(timezone.utc).isoformat(),
-            "targetSeries": TARGET_PER_CATALOGUE,
+            "targetSeries": target_series,
             "seriesCount": count,
             "totalResults": max((int(p.get("totalResults") or 0) for p in pages), default=count),
             "pages": pages,
-            "status": "ready" if count >= TARGET_PER_CATALOGUE else "partial",
+            "status": "ready" if count >= target_series else "partial",
         }
         tv_cache["builtAt"] = datetime.now(timezone.utc).isoformat()
         tv_cache["status"] = "building"
