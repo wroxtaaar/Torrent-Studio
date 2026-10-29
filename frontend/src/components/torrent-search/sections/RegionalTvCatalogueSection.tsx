@@ -115,25 +115,6 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
 
 
 
-      {catalogue && sortedShows.length > 0 && !regionalWebSeriesLoading && (
-        <>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
-            {sortedShows.map(show => (
-              <TvShowCard
-                key={String(show.id)}
-                show={show}
-                imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]}
-                onOpen={() => {
-                  if (activeRegionalSection === 'anime') openYenimeRequest(show.title, show.year, show.malId, 1, show.id);
-                  else playCatalogueTvWithNexStream(show);
-                }}
-              />
-            ))}
-          </div>
-
-        </>
-      )}
-
       {catalogue && sortedShows.length > 0 && !regionalWebSeriesLoading && showSortButtons && (
         <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort catalogue">
           {(['popularity', 'rating', 'year'] as const).map(option => (
@@ -153,6 +134,27 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
           ))}
         </div>
       )}
+
+      {catalogue && sortedShows.length > 0 && !regionalWebSeriesLoading && (
+        <>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
+            {sortedShows.map(show => (
+              <TvShowCard
+                key={String(show.id)}
+                show={show}
+                imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]}
+                onOpen={() => {
+                  if (activeRegionalSection === 'anime') openYenimeRequest(show.title, show.year, show.malId, 1, show.id);
+                  else playCatalogueTvWithNexStream(show);
+                }}
+              />
+            ))}
+          </div>
+
+        </>
+      )}
+
+
 
       {catalogue && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
