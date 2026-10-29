@@ -370,6 +370,7 @@ def main():
         "korean-popular", "korean-trending", "korean-latest",
         "pakistani-popular", "pakistani-trending", "pakistani-latest",
         "anime-popular", "anime-trending", "anime-latest",
+        "highest-rated-popular",
     )
     failed_tv_catalogues = []
     for cat in tv_catalogues:
