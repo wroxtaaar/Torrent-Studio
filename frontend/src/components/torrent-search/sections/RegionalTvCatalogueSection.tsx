@@ -130,6 +130,26 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
         </>
       )}
 
+      {catalogue && sortedShows.length > 0 && !regionalWebSeriesLoading && showSortButtons && (
+        <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort catalogue">
+          {(['popularity', 'rating', 'year'] as const).map(option => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={sortBy === option}
+              onClick={() => setSortBy(option)}
+              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
+                sortBy === option
+                  ? 'border-cyan-400 bg-cyan-500 text-slate-950'
+                  : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-cyan-500/60'
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+
       {catalogue && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
           <button
@@ -152,25 +172,7 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
         </div>
       )}
 
-      {catalogue && sortedShows.length > 0 && !regionalWebSeriesLoading && showSortButtons && (
-        <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort catalogue">
-          {(['popularity', 'rating', 'year'] as const).map(option => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={sortBy === option}
-              onClick={() => setSortBy(option)}
-              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
-                sortBy === option
-                  ? 'border-cyan-400 bg-cyan-500 text-slate-950'
-                  : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-cyan-500/60'
-              }`}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-      )}
+
 
       {catalogue && catalogue.results.length === 0 && !regionalWebSeriesLoading && (
         <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-5 text-sm text-slate-400">
