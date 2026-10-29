@@ -35,6 +35,7 @@ from core.http_cache import (
     _prebuilt_catalogue_page,
 )
 from metadata.imdb import _get_imdb_rating_record
+from catalogues.korean_movie_order import KOREAN_MOVIE_POPULARITY_ORDER
 from integrations.mdblist import BOLLYWOOD_TRENDING_LIST, mdblist_list_items
 from core.json_cache import read_json_cached
 from core.settings import (
@@ -1192,6 +1193,79 @@ async def _live_regional_candidates(catalogue_key: str, page: int) -> dict[str, 
         _REGIONAL_MOVIE_SOURCE_FORCE_REFRESH.reset(source_token)
 
 
+async def _korean_movie_curated_page(page: int, basic: bool = False) -> dict[str, Any]:
+    """Resolve the user-curated IMDb order into stable, 18-item Korean movie pages."""
+    page_size = REGIONAL_MOVIE_CACHE_PAGE_SIZE
+    total_results = len(KOREAN_MOVIE_POPULARITY_ORDER)
+    start = (page - 1) * page_size
+    selected = KOREAN_MOVIE_POPULARITY_ORDER[start:start + page_size]
+    semaphore = asyncio.Semaphore(6)
+
+    async def resolve(imdb_id: str, title: str) -> dict[str, Any]:
+        async with semaphore:
+            item: dict[str, Any] | None = None
+            try:
+                found = await _tmdb_get_json("find/" + imdb_id, {"external_source": "imdb_id"})
+                candidates = [row for row in (found.get("movie_results") or []) if isinstance(row, dict)]
+                if candidates:
+                    item = candidates[0]
+            except Exception as exc:
+                logger.info("TMDB IMDb lookup failed for Korean title %s: %s", title, type(exc).__name__)
+            if item is None:
+                try:
+                    search = await _tmdb_get_json("search/movie", {
+                        "query": title, "include_adult": "false", "language": "en-US", "page": 1,
+                    })
+                    candidates = [row for row in (search.get("results") or []) if isinstance(row, dict)]
+                    exact = [
+                        row for row in candidates
+                        if re.sub(r"[^a-z0-9]+", "", str(row.get("title") or row.get("original_title") or "").casefold())
+                        == re.sub(r"[^a-z0-9]+", "", title.casefold())
+                    ]
+                    item = (exact or candidates or [None])[0]
+                except Exception as exc:
+                    logger.info("TMDB title lookup failed for Korean title %s: %s", title, type(exc).__name__)
+            if not isinstance(item, dict):
+                return {
+                    "id": "imdb:" + imdb_id, "imdbId": imdb_id, "title": title,
+                    "year": None, "releaseDate": "", "overview": "", "posterUrl": "",
+                    "backdropUrl": "", "rating": 0, "genres": [], "source": "Curated IMDb list",
+                }
+            release_date = str(item.get("release_date") or "").strip()
+            year_match = re.match(r"^(\\d{4})", release_date)
+            poster_path = str(item.get("poster_path") or "").strip()
+            backdrop_path = str(item.get("backdrop_path") or "").strip()
+            return {
+                "id": item.get("id") or ("imdb:" + imdb_id),
+                "tmdbId": item.get("id"),
+                "imdbId": imdb_id,
+                "title": title,
+                "year": int(year_match.group(1)) if year_match else None,
+                "releaseDate": release_date,
+                "overview": str(item.get("overview") or "").strip(),
+                "posterUrl": TMDB_IMAGE_BASE + poster_path if poster_path else "",
+                "backdropUrl": "https://image.tmdb.org/t/p/w780" + backdrop_path if backdrop_path else "",
+                "rating": float(item.get("vote_average") or 0),
+                "genres": [int(genre) for genre in (item.get("genre_ids") or []) if str(genre).isdigit()],
+                "source": "TMDB",
+            }
+
+    rows = await asyncio.gather(*(resolve(imdb_id, title) for imdb_id, title in selected))
+    return {
+        "catalogue": "popular-korean",
+        "releasedOnly": False,
+        "provider": "Curated IMDb lists + TMDB metadata",
+        "page": page,
+        "totalPages": max(1, (total_results + page_size - 1) // page_size),
+        "totalResults": total_results,
+        "pageSize": page_size,
+        "results": rows,
+        "basic": basic,
+        "curatedOrder": True,
+        "attribution": "IMDb list order supplied by the user; metadata from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.",
+    }
+
+
 async def _api_tmdb_movie_catalogue(
     catalogue_key: str,
     page: int,
@@ -1199,6 +1273,15 @@ async def _api_tmdb_movie_catalogue(
     max_size_gb: int,
     basic: bool,
 ):
+    if catalogue_key == "popular-korean" and released_only:
+        cache_key = ("popular-korean|curated-imdb-v1", page)
+        cached = _tmdb_movie_catalogue_cache.get(cache_key)
+        if cached and time.monotonic() - cached[0] < TMDB_CATALOGUE_CACHE_SECONDS:
+            return {**cached[1], "basic": basic}
+        curated = await _korean_movie_curated_page(page, basic=basic)
+        _tmdb_movie_catalogue_cache[cache_key] = (time.monotonic(), curated)
+        return curated
+
     allowed = {
         "marvel", "dc-live-action", "dc-animated",
         "popular-bollywood", "trending-bollywood", "latest-bollywood",
