@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Query
 from core.cache_diagnostics import _record_cache_event
 from search.search_providers import _normalize_title
 from core.settings import (
+    BACKFILL_MISSING_METADATA,
     CACHE_ONLY_MODE,
     DATA_DIR,
     DC_TV_CATALOGUE_CACHE_FILE,
@@ -516,6 +517,10 @@ def _is_pakistani_tv_row(row: dict[str, Any]) -> bool:
 
 
 async def _enrich_regional_tv_imdb_ratings(payload: dict[str, Any]) -> dict[str, Any]:
+    # Explicitly disabled metadata backfill means cached catalogue responses must not
+    # trigger fresh OMDb/MDBList lookups for missing IMDb fields.
+    if not BACKFILL_MISSING_METADATA:
+        return payload
     rows = payload.get("results")
     if not isinstance(rows, list):
         return payload
