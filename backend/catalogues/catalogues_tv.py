@@ -138,6 +138,109 @@ ANIME_POPULARITY_ORDER: tuple[tuple[str, str], ...] = (
 )
 
 
+KOREAN_DRAMA_POPULARITY_ORDER: tuple[tuple[str, str], ...] = (
+    ("Doctor X: Age of the White Mafia", "tt39328047"),
+    ("Squid Game", "tt10919420"),
+    ("All of Us Are Dead", "tt14169960"),
+    ("When Life Gives You Tangerines", "tt26471411"),
+    ("Teach You a Lesson", "tt34809853"),
+    ("Bloodhounds", "tt26315487"),
+    ("A Love Other Than Yours", "tt43736405"),
+    ("Agent Kim Reactivated", "tt42127457"),
+    ("Mouse", "tt13634792"),
+    ("Crash Landing on You", "tt10850932"),
+    ("Weak Hero Class 1", "tt20234568"),
+    ("Kingdom", "tt6611916"),
+    ("Dead-End Job", "tt36458668"),
+    ("Mousetrap", "tt36996011"),
+    ("Extraordinary Attorney Woo", "tt20869502"),
+    ("Our Sticky Love", "tt36955608"),
+    ("Alchemy of Souls", "tt20859920"),
+    ("A Shop for Killers", "tt26450613"),
+    ("The Glory", "tt21344706"),
+    ("Reply 1988", "tt5182866"),
+    ("The East Palace", "tt35051401"),
+    ("The Wonderfools", "tt34440854"),
+    ("Doctor of Love", "tt39087958"),
+    ("Sweet Home", "tt11612120"),
+    ("Spooky in Love", "tt40247521"),
+    ("My Name", "tt12940504"),
+    ("Vincenzo", "tt13433812"),
+    ("My Mister", "tt7923710"),
+    ("The Scandal", "tt36347588"),
+    ("My Demon", "tt29569035"),
+    ("Perfect Crown", "tt39333617"),
+    ("Business Proposal", "tt14819828"),
+    ("Death's Game", "tt26225038"),
+    ("Queen of Tears", "tt27668559"),
+    ("If Wishes Could Kill", "tt36104233"),
+    ("Trigger", "tt27898511"),
+    ("It's Okay to Not Be Okay", "tt12451520"),
+    ("Guardian: The Lonely and Great God", "tt5994364"),
+    ("We Are All Trying Here", "tt36732944"),
+    ("True Beauty", "tt13274038"),
+    ("Twinkling Watermelon", "tt27446493"),
+    ("Can This Love Be Translated?", "tt30293074"),
+    ("Twenty Five Twenty One", "tt17513352"),
+    ("Moving", "tt24640580"),
+    ("The Penthouse: War in Life", "tt13067118"),
+    ("Descendants of the Sun", "tt4925000"),
+    ("Study Group", "tt35304338"),
+    ("The Uncanny Counter", "tt13273826"),
+    ("Lovely Runner", "tt31324295"),
+    ("The Blue Road", "tt38336631"),
+    ("Love Next Door", "tt30446769"),
+    ("Good Boy", "tt32361930"),
+    ("My Dearest", "tt26228190"),
+    ("Boyfriend on Demand", "tt35848827"),
+    ("Taxi Driver", "tt13759970"),
+    ("Marry My Husband", "tt26628595"),
+    ("Hometown Cha-Cha-Cha", "tt14518756"),
+    ("Mercy for None", "tt29650530"),
+    ("Mr. Sunshine", "tt7094780"),
+    ("Bon Appetit, Your Majesty", "tt37600136"),
+    ("The Art of Sarah", "tt35149250"),
+    ("Karma", "tt29921070"),
+    ("Strong Girl Bong-soon", "tt6263222"),
+    ("My Royal Nemesis", "tt38828946"),
+    ("A Bona Fide Killer", "tt43616775"),
+    ("Happiness", "tt14979052"),
+    ("Made in Korea", "tt33298903"),
+    ("Signal", "tt5332206"),
+    ("The Scarecrow", "tt39245629"),
+    ("Mr. Plankton", "tt27539317"),
+    ("The Manipulated", "tt36188448"),
+    ("Gyeongseong Creature", "tt22352854"),
+    ("Dear X", "tt37890201"),
+    ("D.P.", "tt13024974"),
+    ("Spring Fever", "tt39137681"),
+    ("Light Shop", "tt31014115"),
+    ("Vagabond", "tt8523042"),
+    ("Stranger", "tt6461346"),
+    ("Hospital Playlist", "tt11769304"),
+    ("Our Blues", "tt19115260"),
+    ("The Worst of Evil", "tt20600022"),
+    ("Big Mouth", "tt21195490"),
+    ("The 8 Show", "tt30423279"),
+    ("My Dearest Nemesis", "tt33320428"),
+    ("Moon Lovers: Scarlet Heart Ryeo", "tt5320412"),
+    ("Genie, Make a Wish", "tt32409807"),
+    ("Mr. Queen", "tt13400006"),
+    ("Itaewon Class", "tt11239552"),
+    ("Sold Out on You", "tt39387440"),
+    ("Welcome to Samdalri", "tt26653824"),
+    ("Beyond Evil", "tt13634872"),
+    ("King the Land", "tt26693803"),
+    ("Little Women", "tt21828868"),
+    ("Parasyte: The Grey", "tt21874396"),
+    ("Night Has Come", "tt29899652"),
+    ("Hotel Del Luna", "tt10220588"),
+    ("The Fiery Priest", "tt9674954"),
+    ("In Your Radiant Season", "tt39369595"),
+    ("Oh! My Guard", "tt49931644"),
+    ("Hellbound", "tt12235718"),
+)
+
 
 MARVEL_WEB_SERIES: tuple[tuple[str, int], ...] = (
     ("WandaVision", 2021), ("The Falcon and the Winter Soldier", 2021), ("Loki", 2021),
@@ -893,6 +996,161 @@ async def _pakistani_drama_catalogue_page(catalogue_key: str, page: int) -> dict
     }
 
 
+async def _korean_popular_curated_page(page: int) -> dict[str, Any]:
+    """Resolve one page of the supplied IMDb top-100 Korean drama TV list against TMDB."""
+    page_size = 18
+    start = (page - 1) * page_size
+    selected = KOREAN_DRAMA_POPULARITY_ORDER[start:start + page_size]
+    semaphore = asyncio.Semaphore(4)
+
+    async def resolve(item: tuple[str, str]) -> dict[str, Any]:
+        title, imdb_id = item
+        fallback: dict[str, Any] = {
+            "id": f"korean-imdb:{imdb_id}",
+            "title": title,
+            "year": None,
+            "releaseDate": "",
+            "overview": "",
+            "posterUrl": "",
+            "backdropUrl": "",
+            "rating": 0.0,
+            "tmdbUrl": "",
+            "streamingProviders": [],
+            "providerLink": "",
+            "source": "IMDb 100 most popular Korean drama TV shows",
+            "imdbId": imdb_id,
+        }
+        async with semaphore:
+            try:
+                payload = await _tmdb_get_json("search/tv", {
+                    "query": title,
+                    "include_adult": "false",
+                    "language": "en-US",
+                    "page": 1,
+                })
+                candidates = [row for row in (payload.get("results") or []) if isinstance(row, dict) and row.get("id")]
+                normalized = _normalize_title(title)
+                candidates.sort(key=lambda row: (
+                    0 if _normalize_title(row.get("name") or row.get("original_name")) == normalized else 1,
+                    -float(row.get("popularity") or 0),
+                ))
+                if not candidates:
+                    return fallback
+                row = candidates[0]
+                release_date = str(row.get("first_air_date") or "")
+                try:
+                    year = int(release_date[:4]) if len(release_date) >= 4 else None
+                except ValueError:
+                    year = None
+                tmdb_id = int(row["id"])
+                poster_path = str(row.get("poster_path") or "")
+                backdrop_path = str(row.get("backdrop_path") or "")
+                return {
+                    **fallback,
+                    "id": tmdb_id,
+                    "tmdbId": tmdb_id,
+                    "title": str(row.get("name") or title),
+                    "year": year,
+                    "releaseDate": release_date,
+                    "overview": str(row.get("overview") or ""),
+                    "posterUrl": f"{TMDB_IMAGE_BASE}/w500{poster_path}" if poster_path else "",
+                    "backdropUrl": f"{TMDB_IMAGE_BASE}/w780{backdrop_path}" if backdrop_path else "",
+                    "rating": float(row.get("vote_average") or 0),
+                    "tmdbUrl": f"https://www.themoviedb.org/tv/{tmdb_id}",
+                }
+            except Exception as exc:
+                logger.info("TMDB anime lookup failed for %s (%s): %s", title, imdb_id, exc)
+                return fallback
+
+    results = await asyncio.gather(*(resolve(item) for item in selected))
+    return {
+        "catalogue": "korean-popular",
+        "page": page,
+        "totalPages": max(1, (len(KOREAN_DRAMA_POPULARITY_ORDER) + page_size - 1) // page_size),
+        "totalResults": len(KOREAN_DRAMA_POPULARITY_ORDER),
+        "pageSize": page_size,
+        "provider": "IMDb supplied top-100 Korean drama TV chart + TMDB metadata",
+        "curatedOrder": True,
+        "results": results,
+    }
+
+
+async def _pakistani_drama_catalogue_page(catalogue_key: str, page: int) -> dict[str, Any]:
+    """Resolve one page of the fixed 144-title Pakistani drama order from TMDB."""
+    page_size = 18
+    titles = PAKISTANI_DRAMA_POPULARITY_ORDER[(page - 1) * page_size:page * page_size]
+    semaphore = asyncio.Semaphore(4)
+
+    async def resolve(title: str) -> dict[str, Any]:
+        cached = _PAKISTANI_DRAMA_ROWS.get(_pakistani_drama_title_key(title))
+        if cached is not None:
+            return cached
+        fallback = {
+            "id": "pakistani-drama:" + _pakistani_drama_title_key(title),
+            "title": title, "year": 0, "releaseDate": "", "overview": "",
+            "posterUrl": "", "backdropUrl": "", "rating": 0.0,
+            "tmdbUrl": "", "streamingProviders": [], "providerLink": "",
+            "originalLanguage": "ur", "originCountry": ["PK"],
+            "source": "Curated Pakistani drama order",
+        }
+        async with semaphore:
+            try:
+                payload = await _tmdb_get_json("search/tv", {
+                    "query": title, "include_adult": "false", "language": "en-US", "page": 1,
+                })
+                target = _pakistani_drama_title_key(title)
+                candidates = [row for row in (payload.get("results") or []) if isinstance(row, dict) and row.get("id")]
+                candidates.sort(key=lambda row: (
+                    _pakistani_drama_title_key(row.get("name") or row.get("original_name")) == target,
+                    "PK" in (row.get("origin_country") or []) and "IN" not in (row.get("origin_country") or []),
+                    float(row.get("popularity") or 0),
+                ), reverse=True)
+                item = next((row for row in candidates if _pakistani_drama_title_key(row.get("name") or row.get("original_name")) == target and "PK" in (row.get("origin_country") or []) and "IN" not in (row.get("origin_country") or [])), None)
+                if item is None:
+                    # Verify candidates whose search result omits origin_country, while still
+                    # refusing an Indian or cross-border title when canonical details disagree.
+                    for candidate in candidates:
+                        if _pakistani_drama_title_key(candidate.get("name") or candidate.get("original_name")) != target:
+                            continue
+                        details = await _tmdb_get_json(f"tv/{int(candidate['id'])}", {})
+                        countries = details.get("origin_country") or []
+                        if "PK" in countries and "IN" not in countries:
+                            item = {**candidate, **details}
+                            break
+                if item is not None:
+                    air_date = str(item.get("first_air_date") or "").strip()
+                    year_match = re.match(r"^(\\d{4})", air_date)
+                    tmdb_id = int(item["id"])
+                    poster_path = str(item.get("poster_path") or "").strip()
+                    backdrop_path = str(item.get("backdrop_path") or "").strip()
+                    fallback.update({
+                        "id": tmdb_id, "title": title,
+                        "year": int(year_match.group(1)) if year_match else 0,
+                        "releaseDate": air_date,
+                        "overview": str(item.get("overview") or "").strip(),
+                        "posterUrl": TMDB_IMAGE_BASE + poster_path if poster_path else "",
+                        "backdropUrl": "https://image.tmdb.org/t/p/w780" + backdrop_path if backdrop_path else "",
+                        "rating": float(item.get("vote_average") or 0),
+                        "tmdbUrl": f"https://www.themoviedb.org/tv/{tmdb_id}",
+                        "streamingProviders": await _tv_streaming_providers(tmdb_id),
+                        "originalLanguage": str(item.get("original_language") or "ur"),
+                        "originCountry": item.get("origin_country") or ["PK"],
+                        "source": "TMDB + curated Pakistani drama order",
+                    })
+            except Exception as exc:
+                logger.info("Pakistani drama lookup failed for %s: %s", title, type(exc).__name__)
+        _PAKISTANI_DRAMA_ROWS[_pakistani_drama_title_key(title)] = fallback
+        return fallback
+
+    rows = await asyncio.gather(*(resolve(title) for title in titles))
+    return {
+        "catalogue": catalogue_key, "page": page, "totalPages": max(1, (len(PAKISTANI_DRAMA_POPULARITY_ORDER) + page_size - 1) // page_size),
+        "totalResults": len(PAKISTANI_DRAMA_POPULARITY_ORDER),
+        "provider": "TMDB + fixed Pakistani drama popularity order",
+        "results": rows, "pageSize": page_size, "curatedOrder": True,
+    }
+
+
 @router.get("/api/tv/catalogue/{catalogue_key}")
 async def api_tmdb_regional_tv_catalogue(
     catalogue_key: str,
@@ -923,6 +1181,8 @@ async def api_tmdb_regional_tv_catalogue(
         return await _pakistani_drama_catalogue_page(catalogue_key, page)
     if catalogue_key == "anime-popular":
         return await _anime_popular_curated_page(page)
+    if catalogue_key == "korean-popular":
+        return await _korean_popular_curated_page(page)
     # Indian Popular and Trending exclude scripted series whose TMDB network
     # metadata identifies Zee TV, Star Plus, Colors, or Sony TV as a broadcaster.
     exclude_indian_broadcast_networks = catalogue_key in {"indian-popular", "indian-trending"}
