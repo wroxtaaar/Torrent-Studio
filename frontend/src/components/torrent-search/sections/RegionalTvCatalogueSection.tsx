@@ -12,7 +12,6 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
     imdbRatingsByKey,
     openRegionalTvCatalogue,
     playCatalogueTvWithNexStream,
-    openYenimeRequest,
     regionalContentTabs,
     regionalWebSeriesCatalogue,
     regionalWebSeriesError,
@@ -73,10 +72,10 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
                 show={show}
                 imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]}
                 preferImdb
-                onOpen={() => {}}
-                footer={activeRegionalSection === 'korean' || activeRegionalSection === 'anime' ? undefined : (
-                  <button type="button" onClick={() => playCatalogueTvWithNexStream(show)} className="w-full rounded-lg bg-violet-500 px-3 py-2 text-xs font-bold text-white hover:bg-violet-400">Choose episode</button>
-                )}
+                onOpen={() => {
+                  if (activeRegionalSection === 'anime') openYenimeRequest(show.title, show.year, show.malId, 1, show.id);
+                  else if (activeRegionalSection !== 'korean') playCatalogueTvWithNexStream(show);
+                }}
               />
             ))}
           </div>
