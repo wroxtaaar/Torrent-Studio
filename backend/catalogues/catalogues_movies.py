@@ -217,6 +217,8 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
         params["release_date.lte"] = today
 
     regional_modes = {
+        "highest-rated-hollywood": ("en", "highest-rated"),
+        "highest-rated-bollywood": ("hi", "highest-rated"),
         "popular-bollywood": ("hi", "popular"),
         "trending-bollywood": ("hi", "trending"),
         "latest-bollywood": ("hi", "latest"),
@@ -284,11 +286,15 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
         else:
             if not catalogue_key.endswith("-pakistani"):
                 params["with_original_language"] = language_code
-            params["sort_by"] = (
-                "popularity.desc" if mode == "popular"
-                else "release_date.desc" if mode == "latest"
-                else "primary_release_date.desc"
-            )
+            if mode == "highest-rated":
+                params["sort_by"] = "vote_average.desc"
+                params["vote_count.gte"] = 500 if language_code == "en" else 100
+            else:
+                params["sort_by"] = (
+                    "popularity.desc" if mode == "popular"
+                    else "release_date.desc" if mode == "latest"
+                    else "primary_release_date.desc"
+                )
             if mode == "latest":
                 # Use release_date rather than primary_release_date: many English-
                 # language TMDB records have no primary_release_date, so that filter
