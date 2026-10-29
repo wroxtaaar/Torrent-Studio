@@ -41,6 +41,31 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
 
 
 
+          {movieCatalogue && visibleMovieCatalogueItems.length > 0 && !isSearching && (
+            <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort movies">
+              <span className="mr-1 text-xs text-slate-400">Sort by</span>
+              {([
+                ['popularity', 'Popularity'],
+                ['rating', 'Rating'],
+                ['year', 'Year'],
+              ] as const).map(([sort, label]) => (
+                <button
+                  key={sort}
+                  type="button"
+                  aria-pressed={pakistaniMovieSort === sort}
+                  onClick={() => setPakistaniMovieSort(sort)}
+                  className={'rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ' + (
+                    pakistaniMovieSort === sort
+                      ? 'border-cyan-400 bg-cyan-500 text-slate-950'
+                      : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-cyan-500/60'
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
             <button
               type="button"
@@ -304,30 +329,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
             })}
           </div>
 
-          {movieCatalogue && visibleMovieCatalogueItems.length > 0 && !isSearching && (
-            <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort movies">
-              <span className="mr-1 text-xs text-slate-400">Sort by</span>
-              {([
-                ['popularity', 'Popularity'],
-                ['rating', 'Rating'],
-                ['year', 'Year'],
-              ] as const).map(([sort, label]) => (
-                <button
-                  key={sort}
-                  type="button"
-                  aria-pressed={pakistaniMovieSort === sort}
-                  onClick={() => setPakistaniMovieSort(sort)}
-                  className={'rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ' + (
-                    pakistaniMovieSort === sort
-                      ? 'border-cyan-400 bg-cyan-500 text-slate-950'
-                      : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-cyan-500/60'
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
+
 
           {streamingOnly && ottPendingCount > 0 && (
             <div className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-400">
