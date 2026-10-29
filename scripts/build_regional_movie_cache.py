@@ -67,39 +67,27 @@ ORDER = ("highest-rated-hollywood", "highest-rated-bollywood",
           "trending-bollywood", "trending-hollywood", "popular-korean", "popular-pakistani", "popular-anime",
           "latest-korean", "latest-pakistani", "latest-anime", "trending-korean", "trending-pakistani", "trending-anime")
 
-# IMDb source-list order for the first three UI pages (54 titles per catalogue).
-# These are title ranks from the user's saved IMDb Top 250 Movies and Greatest Hindi Movies lists.
+# Ordered IMDb source lists are kept in the same manifest consumed by the API.
+MANIFEST_PATH = Path(__file__).resolve().parents[1] / "backend" / "cache-seed" / "highest_rated_catalogues.json"
+MANIFEST = read_json(MANIFEST_PATH, {"catalogues": {}})
 IMDB_ORDERED_TITLES = {
     "highest-rated-hollywood": [
-        "The Shawshank Redemption", "The Godfather", "The Dark Knight", "The Godfather Part II",
-        "The Lord of the Rings: The Return of the King", "12 Angry Men", "Schindler's List",
-        "The Lord of the Rings: The Fellowship of the Ring", "Pulp Fiction", "The Lord of the Rings: The Two Towers",
-        "Il buono, il brutto, il cattivo", "Forrest Gump", "Inception", "Fight Club",
-        "Star Wars: Episode V - The Empire Strikes Back", "The Matrix", "Interstellar", "GoodFellas",
-        "One Flew Over the Cuckoo's Nest", "Se7en", "It's a Wonderful Life", "The Silence of the Lambs",
-        "Saving Private Ryan", "Shichinin no samurai", "The Green Mile", "Cidade de Deus", "La vita è bella",
-        "Terminator 2: Judgment Day", "Back to the Future", "Star Wars", "Sen to Chihiro no kamikakushi",
-        "Gladiator", "The Pianist", "Kill Bill: The Whole Bloody Affair", "Gisaengchung", "Hotaru no haka",
-        "Seppuku", "The Lion King", "Psycho", "The Departed", "Whiplash", "The Prestige",
-        "American History X", "Spider-Man: Across the Spider-Verse", "Nuovo Cinema Paradiso", "Léon",
-        "Casablanca", "Intouchables", "The Usual Suspects", "Django Unchained", "Alien", "Rear Window",
-        "Modern Times", "C'era una volta il West",
+        str(row.get("title") or "") for row in
+        ((MANIFEST.get("catalogues") or {}).get("highest-rated-hollywood") or {}).get("titles", [])
+        if isinstance(row, dict) and row.get("title")
     ],
     "highest-rated-bollywood": [
-        "Lagaan: Once Upon a Time in India", "Gangs of Wasseypur", "Rang De Basanti", "Mughal-E-Azam",
-        "Sparsh", "Koshish", "3 Idiots", "Sardar Udham", "Swades: We, the People", "Taare Zameen Par",
-        "Pyaasa", "Shershaah", "Anand", "A Wednesday", "Shatranj Ke Khilari", "Guide", "Bhaag Milkha Bhaag",
-        "Dangal", "Udaan", "Jaane Bhi Do Yaaro", "Black Friday", "Andhadhun", "Jai Bhim", "Do Bigha Zamin",
-        "Zindagi Na Milegi Dobara", "Ek Ruka Hua Faisla", "Haider", "Shahid", "Paan Singh Tomar",
-        "Dil Chahta Hai", "Special Chabbis", "Queen", "Drishyam", "Barfi!", "Guru", "Chhoti Si Baat",
-        "Chak De! India", "Sarfarosh", "PK", "Ek Doctor Ki Maut", "Kahaani", "Salaam Bombay!", "Black",
-        "Awaara", "Omkara", "Arth", "Bajrangi Bhaijaan", "Dev.D", "Mother India", "Khuda Kay Liye",
-        "Kaagaz Ke Phool", "Roja", "Jab We Met", "Baby",
+        str(row.get("title") or "") for row in
+        ((MANIFEST.get("catalogues") or {}).get("highest-rated-bollywood") or {}).get("titles", [])
+        if isinstance(row, dict) and row.get("title")
     ],
 }
 IMDB_ORDER_RANK = {
     key: {norm(title): rank for rank, title in enumerate(titles, 1)}
     for key, titles in IMDB_ORDERED_TITLES.items()
+}
+IMDB_TARGET_COUNTS = {
+    key: len(titles) for key, titles in IMDB_ORDERED_TITLES.items()
 }
 # A scanned title is reused for a while so a weekly run only scans what is new.
 REUSE_DAYS = {"ready": 14, "empty": 1}
@@ -323,6 +311,7 @@ def build_movies(old):
             generator = api_candidates(cat, failures)
         final, seen, checked = [], set(), 0
         collected = []
+        catalogue_target = IMDB_TARGET_COUNTS.get(cat, FINAL_PER_CATALOGUE)
         for movie in generator:
             key = movie_key(movie)
             if key in seen or key == "|":
@@ -333,18 +322,24 @@ def build_movies(old):
             entry = movies.get(key)
             if entry is None:
                 entry = movies[key] = {"movie": movie, "catalogues": []}
-                entry["torrentDetails"] = scan_torrents(movie, (old_movies.get(key) or {}).get("torrentDetails"))
+                prior_details = (old_movies.get(key) or {}).get("torrentDetails")
+                # Only warm torrents for the first three UI pages; later curated titles
+                # remain listed and can be searched when selected.
+                if cat in IMDB_ORDER_RANK and checked > FINAL_PER_CATALOGUE:
+                    entry["torrentDetails"] = prior_details or {"query": str(movie.get("title") or ""), "results": [], "status": "unavailable"}
+                else:
+                    entry["torrentDetails"] = scan_torrents(movie, prior_details)
             if cat not in entry["catalogues"]:
                 entry["catalogues"].append(cat)
             if has_source(entry):
-                if stream_broken(entry):
-                    movie = {**movie, "directStreamBroken": True}  # hides the Play button, the torrent card stays
+                if stream_broken(entry) or not movie_tmdb_id(movie):
+                    movie = {**movie, "directStreamBroken": True}  # hide playback if TMDB could not resolve this title
                 if cat in DETAIL_ORDERED:
                     movie = {**movie, "detailScore": detail_score(movie, entry)}
                 final.append(movie)
                 if len(final) % 10 == 0:
                     print(json.dumps({"event": "progress", "catalogue": cat, "shown": len(final), "checked": checked}), flush=True)
-            if len(final) >= (DETAIL_POOL if cat in DETAIL_ORDERED else FINAL_PER_CATALOGUE) or checked >= MAX_CANDIDATES:
+            if len(final) >= (DETAIL_POOL if cat in DETAIL_ORDERED else catalogue_target) or checked >= MAX_CANDIDATES:
                 break
         if cat in DETAIL_ORDERED:
             # Most complete cards first (newest first among equals); the rest follow and fill in on later runs.
@@ -369,11 +364,11 @@ def build_movies(old):
                 print(json.dumps({"event": "catalogue_preserved", "catalogue": cat, "movies": len(final)}), flush=True)
         catalogues[cat] = {
             "builtAt": datetime.now(timezone.utc).isoformat(),
-            "targetMovies": FINAL_PER_CATALOGUE,
+            "targetMovies": catalogue_target,
             "movieCount": len(final),
             "candidatesChecked": checked,
             "final": final,
-            "status": "ready" if len(final) >= FINAL_PER_CATALOGUE else "partial",
+            "status": "ready" if len(final) >= catalogue_target else "partial",
         }
         print(json.dumps({"event": "catalogue_cached", "catalogue": cat, "shown": len(final), "checked": checked,
                           "status": catalogues[cat]["status"]}), flush=True)
