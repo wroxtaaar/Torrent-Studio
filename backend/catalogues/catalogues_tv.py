@@ -855,20 +855,29 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
         required_count = max(54, page * 18)
 
         while source_page <= source_total_pages and len(eligible_rows) < required_count:
-            payload = await _tmdb_get_json("discover/tv", {
-                "include_adult": "false",
-                "language": "en-US",
-                "sort_by": sort_by,
-                "with_origin_country": country,
-                **({} if catalogue_key.startswith("pakistani-") else {"with_original_language": language}),
-                "with_type": "2|4",
-                **({"with_genres": "16"} if catalogue_key.startswith("anime-") else {}),
-                "watch_region": "IN",
-                "with_watch_monetization_types": "flatrate|free|ads",
-                "first_air_date.gte": "2015-01-01",
-                "first_air_date.lte": today,
-                "page": source_page,
-            })
+            if catalogue_key.endswith("-trending"):
+                # Popular is popularity-ranked Discover; Trending must use TMDB's
+                # independent weekly trend ranking or it duplicates Popular.
+                payload = await _tmdb_get_json("trending/tv/week", {
+                    "language": "en-US",
+                    "include_adult": "false",
+                    "page": source_page,
+                })
+            else:
+                payload = await _tmdb_get_json("discover/tv", {
+                    "include_adult": "false",
+                    "language": "en-US",
+                    "sort_by": sort_by,
+                    "with_origin_country": country,
+                    **({} if catalogue_key.startswith("pakistani-") else {"with_original_language": language}),
+                    "with_type": "2|4",
+                    **({"with_genres": "16"} if catalogue_key.startswith("anime-") else {}),
+                    "watch_region": "IN",
+                    "with_watch_monetization_types": "flatrate|free|ads",
+                    "first_air_date.gte": "2015-01-01",
+                    "first_air_date.lte": today,
+                    "page": source_page,
+                })
             source_total_pages = max(1, min(int(payload.get("total_pages") or 1), 500))
 
             # Resolve independent series concurrently. The old sequential loop
