@@ -971,7 +971,7 @@ async def _pakistani_drama_catalogue_page(catalogue_key: str, page: int) -> dict
                             break
                 if item is not None:
                     air_date = str(item.get("first_air_date") or "").strip()
-                    year_match = re.match(r"^(\\d{4})", air_date)
+                    year_match = re.match(r"^(\d{4})", air_date)
                     tmdb_id = int(item["id"])
                     poster_path = str(item.get("poster_path") or "").strip()
                     backdrop_path = str(item.get("backdrop_path") or "").strip()
@@ -1135,7 +1135,7 @@ async def _pakistani_drama_catalogue_page(catalogue_key: str, page: int) -> dict
                             break
                 if item is not None:
                     air_date = str(item.get("first_air_date") or "").strip()
-                    year_match = re.match(r"^(\\d{4})", air_date)
+                    year_match = re.match(r"^(\d{4})", air_date)
                     tmdb_id = int(item["id"])
                     poster_path = str(item.get("poster_path") or "").strip()
                     backdrop_path = str(item.get("backdrop_path") or "").strip()
@@ -1434,7 +1434,7 @@ async def api_tmdb_regional_tv_catalogue(
         for entry in tv_manifest.get("titles", []) if isinstance(tv_manifest, dict) else []:
             if not isinstance(entry, dict) or not entry.get("title"):
                 continue
-            match = re.search(r"(tt\\d+)", str(entry.get("imdbUrl") or ""))
+            match = re.search(r"(tt\d+)", str(entry.get("imdbUrl") or ""))
             if not match:
                 continue
             try:
