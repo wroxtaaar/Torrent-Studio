@@ -259,7 +259,6 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                   year={movie.year}
                   imdb={movieImdb}
                   tmdbRating={movie.rating}
-                  preferImdb={/-(korean|pakistani|anime)$/.test(movieCatalogue.catalogue)}
                   trendWeekLabel={movieCatalogue.catalogue.startsWith('trending-') && movie.trendingWeek
                     ? 'Week of ' + new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(movie.trendingWeek + 'T00:00:00Z')) + (movie.trendingRank ? ' · #' + movie.trendingRank : '')
                     : undefined}
