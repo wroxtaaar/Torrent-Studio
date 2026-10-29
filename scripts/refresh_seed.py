@@ -106,6 +106,7 @@ def refresh_hollywood_bollywood(env, data_dir):
         env = {**env, "HOME_DATA_DIR": str(data_dir), "HOME_API_BASE": base}
         run([sys.executable, "maintenance/pull_nexstream_reports.py", str(data_dir)], env, cwd=BACKEND)
         run([sys.executable, str(ROOT / "scripts" / "build_regional_movie_cache.py")], env)
+        warm_regional_tv_catalogues(base)
         warm_imdb_dataset(env)
         warm_tv_imdb(env)
     finally:
@@ -114,6 +115,38 @@ def refresh_hollywood_bollywood(env, data_dir):
             server.wait(20)
         except subprocess.TimeoutExpired:
             server.kill()
+
+
+def warm_regional_tv_catalogues(base):
+    """Prebuild every regional web-series section so Render can serve it from the cache bundle."""
+    import json
+    import urllib.error
+    import urllib.request
+
+    catalogues = [
+        "indian-popular", "indian-trending", "indian-latest",
+        "hollywood-popular", "hollywood-trending", "hollywood-latest",
+        "korean-popular", "korean-trending", "korean-latest",
+        "pakistani-popular", "pakistani-trending", "pakistani-latest",
+        "anime-popular", "anime-trending", "anime-latest",
+    ]
+    failures = []
+    for key in catalogues:
+        url = f"{base}/api/tv/catalogue/{key}?page=1"
+        try:
+            with urllib.request.urlopen(url, timeout=180) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            results = payload.get("results")
+            if not isinstance(results, list) or not results:
+                failures.append(f"{key}: empty or invalid results")
+                print(f"WARNING: regional TV cache warm returned no results for {key}", flush=True)
+                continue
+            print(f"Regional TV cache warmed: {key} ({len(results)} rows, {payload.get('totalPages', 1)} pages)", flush=True)
+        except Exception as exc:
+            failures.append(f"{key}: {exc}")
+            print(f"WARNING: regional TV cache warm failed for {key}: {exc}", flush=True)
+    if failures:
+        raise RuntimeError("Regional TV cache refresh incomplete: " + "; ".join(failures))
 
 
 def warm_tv_imdb(env):
