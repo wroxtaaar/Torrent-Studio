@@ -234,7 +234,7 @@ async def _highest_rated_movie_curated_page(catalogue_key: str, page: int) -> di
     async def resolve(entry: dict[str, Any]) -> dict[str, Any]:
         title = str(entry.get("title") or "").strip()
         imdb_url = str(entry.get("imdbUrl") or "")
-        imdb_match = re.search(r"(tt\\d+)", imdb_url)
+        imdb_match = re.search(r"(tt\d+)", imdb_url)
         imdb_id = imdb_match.group(1) if imdb_match else ""
         async with semaphore:
             item: dict[str, Any] | None = None
@@ -270,7 +270,7 @@ async def _highest_rated_movie_curated_page(catalogue_key: str, page: int) -> di
                 "directStreamBroken": True, "source": "Curated IMDb list",
             }
         release_date = str(item.get("release_date") or "").strip()
-        year_match = re.match(r"^(\\d{4})", release_date)
+        year_match = re.match(r"^(\d{4})", release_date)
         poster_path = str(item.get("poster_path") or "").strip()
         backdrop_path = str(item.get("backdrop_path") or "").strip()
         return {
@@ -1338,7 +1338,7 @@ async def _korean_movie_curated_page(page: int, basic: bool = False) -> dict[str
                     "backdropUrl": "", "rating": 0, "genres": [], "source": "Curated IMDb list",
                 }
             release_date = str(item.get("release_date") or "").strip()
-            year_match = re.match(r"^(\\d{4})", release_date)
+            year_match = re.match(r"^(\d{4})", release_date)
             poster_path = str(item.get("poster_path") or "").strip()
             backdrop_path = str(item.get("backdrop_path") or "").strip()
             return {
