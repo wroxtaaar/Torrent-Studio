@@ -1970,4 +1970,7 @@ async def _regional_movie_catalogue_weekly_scheduler() -> None:
 
 
 async def _start_regional_movie_catalogue_scheduler() -> None:
+    # Do not start scheduled provider refreshes when missing-metadata backfill is disabled.
+    if not BACKFILL_MISSING_METADATA:
+        return
     asyncio.create_task(_regional_movie_catalogue_weekly_scheduler())
