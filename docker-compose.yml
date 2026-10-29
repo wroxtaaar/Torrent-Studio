@@ -10,7 +10,8 @@ services:
       - "${HOST_PORT:-10000}:10000"
     environment:
       PORT: "10000"
-      CACHE_ONLY_MODE: "${CACHE_ONLY_MODE:-true}"
+      CACHE_ONLY_MODE: "${CACHE_ONLY_MODE:-false}"
+      TMDB_READ_ACCESS_TOKENS: "${TMDB_READ_ACCESS_TOKENS:-}"
       SEEDR_SESSION_SECRET: "${SEEDR_SESSION_SECRET:?Set SEEDR_SESSION_SECRET in .env}"
       CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:10000}"
     volumes:

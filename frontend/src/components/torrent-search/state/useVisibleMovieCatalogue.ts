@@ -48,7 +48,7 @@ export function useVisibleMovieCatalogue({ movieCatalogue, isMarvelEnglishResult
     }
     // Regional catalogues arrive pre-sorted by popularity, release date, or
     // weekly trend history; re-sorting them by release date would discard that ranking.
-    const isRegionalMovieCatalogue = /^(popular|trending|latest)-(bollywood|hollywood)$/.test(
+    const isRegionalMovieCatalogue = /^(popular|trending|latest)-(bollywood|hollywood|korean|pakistani|anime)$/.test(
       String(movieCatalogue?.catalogue || ''),
     );
     if (!isRegionalMovieCatalogue) {

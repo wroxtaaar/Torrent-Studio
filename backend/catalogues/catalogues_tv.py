@@ -701,7 +701,7 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
                 "language": "en-US",
                 "sort_by": sort_by,
                 "with_origin_country": country,
-                "with_original_language": language,
+                **({} if catalogue_key.startswith("pakistani-") else {"with_original_language": language}),
                 "with_type": "2|4",
                 **({"with_genres": "16"} if catalogue_key.startswith("anime-") else {}),
                 "watch_region": "IN",
@@ -725,7 +725,12 @@ async def api_tmdb_regional_tv_catalogue(catalogue_key: str, page: int = Query(1
                     return None
                 origins = item.get("origin_country") or []
                 original_language = str(item.get("original_language") or "").casefold()
-                if country not in origins or original_language != language:
+                matches_language = (
+                    original_language in {"ur", "pa", "en"}
+                    if catalogue_key.startswith("pakistani-")
+                    else original_language == language
+                )
+                if country not in origins or not matches_language:
                     return None
                 air_date = str(item.get("first_air_date") or "").strip()
                 try:

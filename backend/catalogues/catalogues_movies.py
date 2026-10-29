@@ -158,6 +158,16 @@ def _tmdb_release_date_is_released(value: Any, today: str) -> bool:
     return release_date <= cutoff_date
 
 
+def _is_pakistani_movie_row(row: dict[str, Any]) -> bool:
+    countries = row.get("originCountry") or row.get("origin_country") or []
+    if not isinstance(countries, list):
+        countries = [str(countries)]
+    normalized_countries = {str(country).strip().upper() for country in countries}
+    if normalized_countries:
+        return "PK" in normalized_countries and "IN" not in normalized_countries
+    return str(row.get("originalLanguage") or row.get("original_language") or "").casefold() in {"ur", "pa"}
+
+
 _BOLLYWOOD_COMEDY_SPECIAL_TITLES = {
     "madhurvirlicasualtea",
     "maheepsinghfir",
@@ -359,8 +369,13 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
     for item in raw_results:
         if not isinstance(item, dict):
             continue
-        if regional and str(item.get("original_language") or "").lower() != regional[0]:
-            continue
+        if regional:
+            original_language = str(item.get("original_language") or "").lower()
+            if catalogue_key.endswith("-pakistani"):
+                if not _is_pakistani_movie_row(item):
+                    continue
+            elif original_language != regional[0]:
+                continue
         title = str(item.get("title") or item.get("original_title") or "").strip()
         if not title:
             continue
@@ -383,6 +398,8 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
             "rating": float(item.get("vote_average") or 0),
             "genres": [int(genre) for genre in (item.get("genre_ids") or []) if str(genre).isdigit()],
             "source": "TMDB",
+            **({"originCountry": item.get("origin_country") or [], "originalLanguage": original_language}
+               if catalogue_key.endswith("-pakistani") else {}),
         })
 
     total_pages = max(1, min(500, int(payload.get("total_pages") or 1)))
@@ -687,6 +704,8 @@ def _prebuilt_final_rows(catalogue_key: str) -> list[dict[str, Any]] | None:
             continue
         final = ((payload.get("catalogues") or {}).get(catalogue_key) or {}).get("final") if isinstance(payload, dict) else None
         if isinstance(final, list) and final:
+            if catalogue_key.endswith("-pakistani"):
+                final = [row for row in final if isinstance(row, dict) and _is_pakistani_movie_row(row)]
             return final
     return None
 
@@ -782,6 +801,8 @@ def _cache_only_regional_movie_catalogue(catalogue_key: str, page: int) -> dict[
                 continue
             row.setdefault("tmdbId", row.get("id"))
             row.setdefault("source", "Bundled TMDB cache")
+            if catalogue_key.endswith("-pakistani") and not _is_pakistani_movie_row(row):
+                continue
             movie_id = str(row.get("tmdbId") or row.get("id") or "").strip()
             title_key = re.sub(r"[^a-z0-9]+", "", str(row.get("title") or "").casefold())
             key = movie_id or (title_key + "|" + str(row.get("year") or ""))
@@ -880,8 +901,9 @@ async def _fetch_paginated_regional_movie_catalogue(
     # 18-card regional page without borrowing popularity-ranked Discover rows.
     max_source_pages = min(30, max(3, page)) if is_bollywood_latest else 30
     source_cache_variant = (
-        "|trending-v4" if is_trending
-        else "|released-v7" if catalogue_key == "latest-bollywood"
+        "|trending-v5" if is_trending and catalogue_key.endswith("-pakistani")
+        else "|trending-v4" if is_trending
+        else "|released-v7" if catalogue_key.endswith("-pakistani") or catalogue_key == "latest-bollywood"
         else "|released-v6"
     )
     source_cache_prefix = catalogue_key + source_cache_variant
@@ -928,6 +950,8 @@ async def _fetch_paginated_regional_movie_catalogue(
         source_candidates: list[dict[str, Any]] = []
         for row in filtered_payload.get("results") or []:
             if not isinstance(row, dict):
+                continue
+            if catalogue_key.endswith("-pakistani") and not _is_pakistani_movie_row(row):
                 continue
             if is_bollywood_latest and _is_bollywood_comedy_special(row):
                 continue
@@ -1227,10 +1251,7 @@ async def _api_tmdb_movie_catalogue(
         _tmdb_movie_catalogue_cache[fast_key] = (time.monotonic(), fast_payload)
         return fast_payload
 
-    if released_only and catalogue_key in {
-        "popular-bollywood", "trending-bollywood", "latest-bollywood",
-        "popular-hollywood", "trending-hollywood", "latest-hollywood",
-    }:
+    if released_only and catalogue_key in REGIONAL_MOVIE_CATALOGUE_KEYS:
         force_refresh = _REGIONAL_MOVIE_CATALOGUE_FORCE_REFRESH.get()
         if not force_refresh and page <= REGIONAL_MOVIE_PREWARM_PAGES:
             final_page = _prebuilt_final_page(catalogue_key, page)
@@ -1243,7 +1264,7 @@ async def _api_tmdb_movie_catalogue(
                 _record_cache_event("movie_catalogue", "weekly_trending_archive_hit")
                 return archived_page
 
-        eligible_cache_key = (catalogue_key + "|eligible-v6", page)
+        eligible_cache_key = (catalogue_key + "|eligible-v8", page)
         eligible_cached = _tmdb_movie_catalogue_cache.get(eligible_cache_key)
         stale_payload = None
         if eligible_cached:
@@ -1339,10 +1360,7 @@ async def _api_tmdb_movie_catalogue(
     )
     cache_key = (catalogue_key + cache_variant, page)
     now = time.monotonic()
-    is_regional_movie_catalogue = catalogue_key in {
-        "popular-bollywood", "trending-bollywood", "latest-bollywood",
-        "popular-hollywood", "trending-hollywood", "latest-hollywood",
-    }
+    is_regional_movie_catalogue = catalogue_key in REGIONAL_MOVIE_CATALOGUE_KEYS
     # Regional movie pages 1-3 are durable VPS catalogue snapshots. Keep using
     # them across restarts/TTL expiry; refresh only when a page has never been saved.
     durable_regional_page = is_regional_movie_catalogue and not is_trending_catalogue and page <= REGIONAL_MOVIE_PREWARM_PAGES

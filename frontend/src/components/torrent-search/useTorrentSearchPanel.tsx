@@ -106,7 +106,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       document.removeEventListener('keydown', handleEscape);
     };
   }, [openRegionalTvMenu]);
-  const openRegionalTvCatalogue = async (group: RegionalTvGroup, mode: RegionalTvMode) => {
+  const openRegionalTvCatalogue = async (group: RegionalTvGroup, mode: RegionalTvMode, page = 1) => {
     const key = group + '-' + mode;
     setRegionalTvModes(previous => ({ ...previous, [group]: mode }));
     setOpenRegionalTvMenu(null);
@@ -124,8 +124,8 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     const generation = ++searchGenerationRef.current;
     searchRequestRef.current?.abort();
     try {
-      const page = await api.getTvCatalogue(key);
-      if (generation === searchGenerationRef.current) setRegionalWebSeriesCatalogue(page);
+      const cataloguePage = await api.getTvCatalogue(key, page);
+      if (generation === searchGenerationRef.current) setRegionalWebSeriesCatalogue(cataloguePage);
     } catch (error: any) {
       if (generation === searchGenerationRef.current) setRegionalWebSeriesError(String(error?.message || 'Could not load web series.'));
     } finally {
@@ -257,7 +257,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
 
       // Regional catalogues (Hollywood/Bollywood) paint the stored rows first, exactly like the
       // Marvel/DC pages, and the enriched page replaces them a moment later.
-      const isRegionalCatalogue = /^(popular|trending|latest)-(bollywood|hollywood)$/.test(String(key));
+      const isRegionalCatalogue = /^(popular|trending|latest)-(bollywood|hollywood|korean|pakistani|anime)$/.test(String(key));
       if (page > 3 || isRegionalCatalogue) {
         // Deep pages paint quickly with source metadata and lightweight posters.
         // The full eligibility/provider/details response replaces this in the background.
