@@ -2,9 +2,9 @@
 """Build the self-contained Hollywood section cache without torrent searches.
 
 Outputs hollywood.json under REFRESH_SEED_DIR (default backend/cache-seed).
-Subsections are Highest Rated, Popular, Trending and Latest. Each stores paged
-movie metadata from the existing API; previously cached torrent details are
-preserved when records can be matched.
+Subsections are Popular, Trending and Latest. Highest Rated is a separate
+Top section and is intentionally not part of hollywood.json. Each subsection
+stores movie metadata; previously cached torrent details are preserved when matched.
 
 Modes:
   python scripts/build_hollywood_section_cache.py missing
@@ -32,7 +32,6 @@ API = os.getenv("HOME_API_BASE", "http://127.0.0.1:10000").rstrip("/")
 OUTPUT = SEED / "hollywood.json"
 PAGE_SIZE = 18
 SUBSECTIONS = {
-    "highestRated": "highest-rated-hollywood",
     "popular": "popular-hollywood",
     "trending": "trending-hollywood",
     "latest": "latest-hollywood",
