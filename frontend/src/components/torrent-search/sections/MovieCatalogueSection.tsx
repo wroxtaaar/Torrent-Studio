@@ -277,6 +277,16 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                           ? 'Streaming providers not confirmed'
                           : 'No streaming providers reported'
                   }
+                  footer={/^(popular|trending|latest)-(korean|anime)$/.test(movieCatalogue.catalogue) ? (
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button type="button" disabled={!Number(movie.tmdbId || movie.id)} onClick={() => {
+                        const tmdbId = Number(movie.tmdbId || movie.id);
+                        if (!Number.isInteger(tmdbId) || tmdbId <= 0) { setNexStreamError('This title has no valid TMDB ID for VidRift playback.'); return; }
+                        void playWithNexStream({ id: tmdbId, title: movie.title, date: movie.releaseDate || (movie.year ? String(movie.year) : ''), overview: movie.overview || '', poster: movie.posterUrl || null, type: 'movie' });
+                      }} className="rounded-lg bg-violet-500 px-2 py-2 text-[11px] font-bold text-white hover:bg-violet-400 disabled:opacity-40">▶ VidRift</button>
+                      <button type="button" onClick={() => void vm.searchNexStreamTitles(movie.title, 'movie')} className="rounded-lg border border-cyan-500/50 bg-slate-950 px-2 py-2 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/10">NexStream search</button>
+                    </div>
+                  ) : undefined}
                 />
               );
             })}
