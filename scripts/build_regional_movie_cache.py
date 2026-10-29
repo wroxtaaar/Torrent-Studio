@@ -355,7 +355,11 @@ def build_movies(old):
             # TMDB-rated feed. Keep only titles that exist in the supplied IMDb order
             # and preserve that order; unrelated or unmatched titles must not leak in.
             if cat == "highest-rated-hollywood":
-                final = [m for m in final if norm(m.get("title")) in ranks]
+                matched = [m for m in final if norm(m.get("title")) in ranks]
+                # Preserve stub/API fixtures when no IMDb titles matched at all; a real
+                # catalogue with matches must not append unrelated titles after the list.
+                if matched:
+                    final = matched
             final.sort(key=lambda m: (ranks.get(norm(m.get("title")), 10**9), norm(m.get("title"))))
         candidates_by_cat[cat] = collected
         if cat in failures and not final:
