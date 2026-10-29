@@ -10,7 +10,8 @@ import { catalogueMovieIdentity, extractedQuality } from '../helpers.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 
 export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
-  const pakistaniPopularityOrder = ["joyland","jawani phir nhi ani","the legend of maula jatt","quaid-e-azam zindabad","teefa in trouble","waar","bol","na maloom afraad","o21","moor","kambakht","saya e khuda e zuljalal","zinda bhaag","tamanna","josh","dukhtar","main hoon shahid afridi","hijrat","swaarangi","khuda kay liye","jinnah","azaad","zill-e-shah","ishq khuda","the system"];
+  const { cataloguePosterUrlsRef, closeMoviePrepareCard, imdbRatingsByKey, isSearching, movieCatalogue, movieCatalogueSearchText, movieTorrentPreviewCatalogueId, movieTorrentPreviewGroup, movieTorrentPreviewPosterUrl, movieTorrentSearchError, movieTorrentSearchLoading, movieTorrentSearchTitle, nexStreamResolvingId, openMovieCatalogue, ottAvailabilityForMovie, ottPendingCount, pendingPosterAction, playWithNexStream, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, posterUrlFor, prepareBuildPendingRef, prepareClickIntentRef, prepareMovieTorrent, prepareStateFor, prepareTraceIdRef, preparedActionsFor, searchMovieTorrents, selectedMovieTorrentQualityByGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setSelectedMovieTorrentQualityByGroup, startPosterBackgroundWorkers, streamingOnly, visibleMovieCatalogueItems } = vm;
+  const pakistaniPopularityOrder = ["joyland","jawaniphirnhiani","thelegendofmaulajatt","quaid-e-azamzindabad","teefaintrouble","waar","bol","namaloomafraad","o21","moor","kambakht","sayaekhudaezuljalal","zindabhaag","tamanna","josh","dukhtar","mainhoonshahidafridi","hijrat","swaarangi","khudakayliye","jinnah","azaad","zilleshah","ishqkhuda","thesystem"];
   const pakistaniTitleKey = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '');
   const pakistaniMovieCatalogue = movieCatalogue?.catalogue.endsWith('-pakistani') === true;
   const pakistaniMovieSort = vm.pakistaniMovieSort || 'popularity';
@@ -23,7 +24,6 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
         return (ai < 0 ? Number.MAX_SAFE_INTEGER : ai) - (bi < 0 ? Number.MAX_SAFE_INTEGER : bi);
       })
     : visibleMovieCatalogueItems;
-  const { cataloguePosterUrlsRef, closeMoviePrepareCard, imdbRatingsByKey, isSearching, movieCatalogue, movieCatalogueSearchText, movieTorrentPreviewCatalogueId, movieTorrentPreviewGroup, movieTorrentPreviewPosterUrl, movieTorrentSearchError, movieTorrentSearchLoading, movieTorrentSearchTitle, nexStreamResolvingId, openMovieCatalogue, ottAvailabilityForMovie, ottPendingCount, pendingPosterAction, playWithNexStream, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, posterUrlFor, prepareBuildPendingRef, prepareClickIntentRef, prepareMovieTorrent, prepareStateFor, prepareTraceIdRef, preparedActionsFor, searchMovieTorrents, selectedMovieTorrentQualityByGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setSelectedMovieTorrentQualityByGroup, startPosterBackgroundWorkers, streamingOnly, visibleMovieCatalogueItems } = vm;
   return (
     <>
       {movieCatalogue && (
