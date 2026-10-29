@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# New pushes supersede older CI/deploy workflows for the same branch.
+concurrency:
+  group: torrent-studio-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -67,6 +72,10 @@ jobs:
   deploy-vps:
     name: Deploy to Oracle VPS
     runs-on: ubuntu-latest
+    # Never allow two VPS deployments for main to run at the same time.
+    concurrency:
+      group: torrent-studio-vps-deploy-${{ github.ref }}
+      cancel-in-progress: true
     needs: [backend, frontend, docker]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
