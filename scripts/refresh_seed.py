@@ -31,6 +31,7 @@ GROUPS = {
             "regional_movie_prebuilt_cache.json", "regional_movie_trending_archive.json", "nexstream_cache.json",
         ],
     },
+    "regional-tv-new": {"top": ["regional_tv_prebuilt_cache.json"], "runtime": ["imdb_rating_cache.json"]},  # only Korean, Pakistani and anime sections
     "tv-imdb": {"top": [], "runtime": ["imdb_rating_cache.json"]},   # only the OMDb ratings for web series/anime
     "imdb-dataset": {"top": [], "runtime": ["imdb_rating_cache.json"]},   # only IMDb ratings from the free dataset
     "classics": {
@@ -106,7 +107,7 @@ def refresh_hollywood_bollywood(env, data_dir):
         env = {**env, "HOME_DATA_DIR": str(data_dir), "HOME_API_BASE": base}
         run([sys.executable, "maintenance/pull_nexstream_reports.py", str(data_dir)], env, cwd=BACKEND)
         run([sys.executable, str(ROOT / "scripts" / "build_regional_movie_cache.py")], env)
-        warm_regional_tv_catalogues(base)
+        warm_regional_tv_catalogues(base, include_existing=True)
         warm_imdb_dataset(env)
         warm_tv_imdb(env)
     finally:
@@ -117,19 +118,23 @@ def refresh_hollywood_bollywood(env, data_dir):
             server.kill()
 
 
-def warm_regional_tv_catalogues(base):
-    """Prebuild every regional web-series section so Render can serve it from the cache bundle."""
+def warm_regional_tv_catalogues(base, include_existing=False):
+    """Prebuild only the requested regional web-series sections for the cache bundle."""
     import json
     import urllib.error
     import urllib.request
 
     catalogues = [
-        "indian-popular", "indian-trending", "indian-latest",
-        "hollywood-popular", "hollywood-trending", "hollywood-latest",
         "korean-popular", "korean-trending", "korean-latest",
         "pakistani-popular", "pakistani-trending", "pakistani-latest",
         "anime-popular", "anime-trending", "anime-latest",
     ]
+    if include_existing:
+        catalogues = [
+            "indian-popular", "indian-trending", "indian-latest",
+            "hollywood-popular", "hollywood-trending", "hollywood-latest",
+            *catalogues,
+        ]
     failures = []
     for key in catalogues:
         url = f"{base}/api/tv/catalogue/{key}?page=1"
@@ -147,6 +152,27 @@ def warm_regional_tv_catalogues(base):
             print(f"WARNING: regional TV cache warm failed for {key}: {exc}", flush=True)
     if failures:
         raise RuntimeError("Regional TV cache refresh incomplete: " + "; ".join(failures))
+
+
+def refresh_regional_tv_new(env, data_dir):
+    """Refresh only Korean, Pakistani and anime regional TV cache entries."""
+    port = env.setdefault("PORT", "10112")
+    if not port_is_free(int(port)):
+        port = env["PORT"] = str(free_port())
+        print(f"Port in use by another process; using {port} for this run's backend.", flush=True)
+    base = f"http://127.0.0.1:{port}"
+    server = subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "fullstack_app:app", "--host", "127.0.0.1", "--port", port],
+        cwd=BACKEND, env=env)
+    try:
+        wait_ready(base, server)
+        warm_regional_tv_catalogues(base)
+    finally:
+        server.terminate()
+        try:
+            server.wait(20)
+        except subprocess.TimeoutExpired:
+            server.kill()
 
 
 def warm_tv_imdb(env):
@@ -217,6 +243,8 @@ def main():
             warm_tv_imdb(env)
         elif group == "hollywood-bollywood":
             refresh_hollywood_bollywood(env, data_dir)
+        elif group == "regional-tv-new":
+            refresh_regional_tv_new(env, data_dir)
         elif group == "classics":
             refresh_classics(env)
         else:
