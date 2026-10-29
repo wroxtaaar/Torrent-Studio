@@ -1367,10 +1367,10 @@ async def _api_tmdb_movie_catalogue(
         cache_key = ("popular-pakistani|curated-25-v1", page)
         cached = _tmdb_movie_catalogue_cache.get(cache_key)
         if cached and time.monotonic() - cached[0] < TMDB_CATALOGUE_CACHE_SECONDS:
-            enriched = await _enrich_regional_movie_catalogue_metadata(cached[1], include_ott=False)
+            enriched = await _enrich_regional_movie_catalogue_metadata(cached[1], include_ott=True)
             return {**enriched, "basic": basic}
         curated = await _pakistani_movie_curated_page(page, basic=basic)
-        curated = await _enrich_regional_movie_catalogue_metadata(curated, include_ott=False)
+        curated = await _enrich_regional_movie_catalogue_metadata(curated, include_ott=True)
         _tmdb_movie_catalogue_cache[cache_key] = (time.monotonic(), curated)
         return curated
 
@@ -1378,10 +1378,10 @@ async def _api_tmdb_movie_catalogue(
         cache_key = ("popular-korean|curated-imdb-v1", page)
         cached = _tmdb_movie_catalogue_cache.get(cache_key)
         if cached and time.monotonic() - cached[0] < TMDB_CATALOGUE_CACHE_SECONDS:
-            enriched = await _enrich_regional_movie_catalogue_metadata(cached[1], include_ott=False)
+            enriched = await _enrich_regional_movie_catalogue_metadata(cached[1], include_ott=True)
             return {**enriched, "basic": basic}
         curated = await _korean_movie_curated_page(page, basic=basic)
-        curated = await _enrich_regional_movie_catalogue_metadata(curated, include_ott=False)
+        curated = await _enrich_regional_movie_catalogue_metadata(curated, include_ott=True)
         _tmdb_movie_catalogue_cache[cache_key] = (time.monotonic(), curated)
         return curated
 
