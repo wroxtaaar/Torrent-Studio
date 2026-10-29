@@ -158,6 +158,16 @@ def _tmdb_release_date_is_released(value: Any, today: str) -> bool:
     return release_date <= cutoff_date
 
 
+def _is_korean_movie_row(row: dict[str, Any]) -> bool:
+    """Only include Korean-origin, Korean-language films in the Korean catalogue."""
+    countries = row.get("originCountry") or row.get("origin_country") or []
+    if not isinstance(countries, list):
+        countries = [str(countries)]
+    normalized_countries = {str(country).strip().upper() for country in countries}
+    language = str(row.get("originalLanguage") or row.get("original_language") or "").strip().casefold()
+    return "KR" in normalized_countries and language == "ko"
+
+
 def _is_pakistani_movie_row(row: dict[str, Any]) -> bool:
     countries = row.get("originCountry") or row.get("origin_country") or []
     if not isinstance(countries, list):
@@ -373,6 +383,9 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
             original_language = str(item.get("original_language") or "").lower()
             if catalogue_key.endswith("-pakistani"):
                 if not _is_pakistani_movie_row(item):
+                    continue
+            elif catalogue_key.endswith("-korean"):
+                if not _is_korean_movie_row(item):
                     continue
             elif original_language != regional[0]:
                 continue
@@ -711,6 +724,14 @@ def _prebuilt_final_rows(catalogue_key: str) -> list[dict[str, Any]] | None:
         if isinstance(final, list) and final:
             if catalogue_key.endswith("-pakistani"):
                 final = [row for row in final if isinstance(row, dict) and _is_pakistani_movie_row(row)]
+            elif catalogue_key.endswith("-korean"):
+                today = datetime.now(timezone.utc).date().isoformat()
+                final = [
+                    row for row in final
+                    if isinstance(row, dict)
+                    and _is_korean_movie_row(row)
+                    and _tmdb_release_date_is_released(row.get("releaseDate") or row.get("release_date"), today)
+                ]
             return final
     return None
 
