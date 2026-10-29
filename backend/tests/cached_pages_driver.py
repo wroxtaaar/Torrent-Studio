@@ -14,7 +14,7 @@ for i in range(100):
     movies[f"m{i}|2025"] = {"catalogues": ["popular-hollywood"],
         "torrentDetails": {"results": [] if i % 5 == 0 else [{"title": "x"}]},
         "movie": {"id": 1000 + i, "tmdbId": 1000 + i, "title": f"Cached {i}", "year": 2025,
-        "releaseDate": f"2025-{1 + i // 9 % 12:02d}-{1 + i % 9:02d}"}}
+        "releaseDate": f"2025-{1 + i // 9 % 12:02d}-{1 + i % 9:02d}", "directStreamBroken": i % 5 == 0}}
 # A finished list written by the cache builder: served exactly as stored, in order.
 final = [{"id": 7000 + i, "tmdbId": 7000 + i, "title": f"Final {i}", "year": 2025, "releaseDate": "2025-01-01"} for i in range(54)]
 (seed / "runtime" / "regional_movie_prebuilt_cache.json").write_text(json.dumps({
