@@ -1039,7 +1039,7 @@ async def _fetch_paginated_regional_movie_catalogue(
 
 
 async def _enrich_regional_movie_catalogue_metadata(
-    payload: dict[str, Any],
+    payload: dict[str, Any], *, include_ott: bool = True,
 ) -> dict[str, Any]:
     rows = payload.get("results")
     if not isinstance(rows, list):
@@ -1085,6 +1085,8 @@ async def _enrich_regional_movie_catalogue_metadata(
                 )
                 row["imdbRatingStatus"] = "unavailable"
 
+            if not include_ott:
+                return
             try:
                 row["ottAvailability"] = await api_tmdb_movie_ott_availability(
                     movie_id, region="IN",
@@ -1367,6 +1369,7 @@ async def _api_tmdb_movie_catalogue(
         if cached and time.monotonic() - cached[0] < TMDB_CATALOGUE_CACHE_SECONDS:
             return {**cached[1], "basic": basic}
         curated = await _pakistani_movie_curated_page(page, basic=basic)
+        curated = await _enrich_regional_movie_catalogue_metadata(curated, include_ott=False)
         _tmdb_movie_catalogue_cache[cache_key] = (time.monotonic(), curated)
         return curated
 
@@ -1376,6 +1379,7 @@ async def _api_tmdb_movie_catalogue(
         if cached and time.monotonic() - cached[0] < TMDB_CATALOGUE_CACHE_SECONDS:
             return {**cached[1], "basic": basic}
         curated = await _korean_movie_curated_page(page, basic=basic)
+        curated = await _enrich_regional_movie_catalogue_metadata(curated, include_ott=False)
         _tmdb_movie_catalogue_cache[cache_key] = (time.monotonic(), curated)
         return curated
 
