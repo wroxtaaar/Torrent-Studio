@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { RegionalTvGroup, RegionalTvMode } from '../types.ts';
 import { imdbRatingKey } from '../grouping.ts';
@@ -7,6 +8,7 @@ import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 const REGIONAL_SECTIONS = ['hollywood', 'bollywood', 'korean', 'pakistani', 'anime'] as const;
 
 export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
+  const [sortBy, setSortBy] = useState<'popularity' | 'rating' | 'year'>('popularity');
   const {
     activeTopSection,
     imdbRatingsByKey,
@@ -31,6 +33,15 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
   const page = catalogue?.page || 1;
   const totalPages = Math.max(1, catalogue?.totalPages || 1);
   const canNavigate = Boolean(group && mode);
+  const showSortButtons = activeRegionalSection === 'korean' || activeRegionalSection === 'pakistani' || activeRegionalSection === 'anime';
+  const sortedShows = useMemo(() => {
+    const rows = catalogue?.results ?? [];
+    if (!showSortButtons || sortBy === 'popularity') return rows;
+    return [...rows].sort((a, b) => {
+      if (sortBy === 'rating') return (Number(b.rating) || 0) - (Number(a.rating) || 0);
+      return (Number(b.year) || 0) - (Number(a.year) || 0);
+    });
+  }, [catalogue?.results, showSortButtons, sortBy]);
   const navigate = (nextPage: number) => {
     if (group && mode) void openRegionalTvCatalogue(group, mode, nextPage);
   };
@@ -64,10 +75,30 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
         </div>
       )}
 
-      {catalogue && catalogue.results.length > 0 && (
+      {showSortButtons && (
+        <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort catalogue">
+          {(['popularity', 'rating', 'year'] as const).map(option => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={sortBy === option}
+              onClick={() => setSortBy(option)}
+              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
+                sortBy === option
+                  ? 'border-cyan-400 bg-cyan-500 text-slate-950'
+                  : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-cyan-500/60'
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {catalogue && sortedShows.length > 0 && (
         <>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
-            {catalogue.results.map(show => (
+            {sortedShows.map(show => (
               <TvShowCard
                 key={String(show.id)}
                 show={show}
