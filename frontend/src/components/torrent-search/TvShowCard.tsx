@@ -4,7 +4,7 @@ import { MovieCompactCard, imdbTitleLink, type MovieCardImdb } from '../MovieCar
 import { toCardProviders, uniqueOttProviders } from './ottProviders.ts';
 import { lowQualityPosterUrl } from './posterUrls.ts';
 
-type TvShowCardShow = Pick<TvCatalogueItem, 'id' | 'title' | 'year' | 'posterUrl' | 'overview' | 'rating' | 'streamingProviders' | 'imdbRating' | 'imdbVotes' | 'imdbId' | 'imdbUrl'>;
+type TvShowCardShow = Pick<TvCatalogueItem, 'id' | 'title' | 'year' | 'releaseDate' | 'posterUrl' | 'overview' | 'rating' | 'streamingProviders' | 'imdbRating' | 'imdbVotes' | 'imdbId' | 'imdbUrl'>;
 
 /**
  * The initial card for every TV / web-series section. It is the same MovieCompactCard the
@@ -27,14 +27,16 @@ export const TvShowCard: React.FC<{
   } : undefined;
   // Don't let a cached negative lookup override a real rating on the TV catalogue row.
   const rating = Number(imdb?.imdbRating) > 0 ? imdb : catalogueRating || imdb;
+  const releaseDateYear = String(show.releaseDate || '').match(/^(\d{4})/);
+  const displayYear = show.year || (releaseDateYear ? Number(releaseDateYear[1]) : undefined);
   const providers = uniqueOttProviders(
     (show.streamingProviders || []).filter(provider => ['subscription', 'free', 'ads'].includes(provider.type)),
   );
   return (
     <MovieCompactCard
       title={show.title}
-      titleHref={imdbTitleLink(rating, show.title, show.year)}
-      year={show.year}
+      titleHref={imdbTitleLink(rating, show.title, displayYear)}
+      year={displayYear}
       imdb={rating}
       tmdbRating={show.rating}
       preferImdb={preferImdb}
@@ -54,7 +56,7 @@ export const TvShowCard: React.FC<{
         if (image.dataset.posterFallbackTried !== 'true') {
           image.dataset.posterFallbackTried = 'true';
           const params = new URLSearchParams({ title: show.title, size: 'w185' });
-          if (show.year) params.set('year', String(show.year));
+          if (displayYear) params.set('year', String(displayYear));
           image.src = '/api/poster?' + params.toString();
           return;
         }
