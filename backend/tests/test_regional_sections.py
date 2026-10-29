@@ -240,3 +240,57 @@ def test_regional_tv_rows_deduplicate_same_series_by_id_and_title_year():
     result = tv._dedupe_regional_tv_rows(rows)
 
     assert [row["id"] for row in result] == [101, 303]
+
+
+
+def test_korean_tv_prebuilt_results_apply_release_type_origin_and_ott_filters(monkeypatch):
+    async def get_json(path, params):
+        tmdb_id = int(path.split("/")[-1])
+        return {
+            1: {
+                "id": 1, "name": "Old Korean Drama", "first_air_date": "2014-12-01",
+                "origin_country": ["KR"], "original_language": "ko", "type": "Scripted",
+                "genres": [{"id": 18, "name": "Drama"}],
+            },
+            2: {
+                "id": 2, "name": "Eligible Korean Drama", "first_air_date": "2022-01-01",
+                "origin_country": ["KR"], "original_language": "ko", "type": "Scripted",
+                "genres": [{"id": 18, "name": "Drama"}],
+            },
+            3: {
+                "id": 3, "name": "Korean Variety Show", "first_air_date": "2022-01-01",
+                "origin_country": ["KR"], "original_language": "ko", "type": "Reality",
+                "genres": [{"id": 10764, "name": "Reality"}],
+            },
+            4: {
+                "id": 4, "name": "Non-Korean Series", "first_air_date": "2022-01-01",
+                "origin_country": ["US"], "original_language": "en", "type": "Scripted",
+                "genres": [{"id": 18, "name": "Drama"}],
+            },
+        }[tmdb_id]
+
+    async def streaming_providers(tmdb_id):
+        return [{"name": "Example OTT", "type": "subscription"}] if tmdb_id == 2 else []
+
+    async def enrich(payload):
+        return payload
+
+    monkeypatch.setattr(tv, "_read_regional_tv_prebuilt_page", lambda *args: {
+        "catalogue": "korean-popular",
+        "page": 1,
+        "totalPages": 1,
+        "totalResults": 4,
+        "results": [
+            {"id": 1, "title": "Old Korean Drama", "releaseDate": "2014-12-01"},
+            {"id": 2, "title": "Eligible Korean Drama", "releaseDate": "2022-01-01"},
+            {"id": 3, "title": "Korean Variety Show", "releaseDate": "2022-01-01"},
+            {"id": 4, "title": "Non-Korean Series", "releaseDate": "2022-01-01"},
+        ],
+    })
+    monkeypatch.setattr(tv, "_tmdb_get_json", get_json)
+    monkeypatch.setattr(tv, "_tv_streaming_providers", streaming_providers)
+    monkeypatch.setattr(tv, "_enrich_regional_tv_imdb_ratings", enrich)
+
+    result = asyncio.run(tv.api_tmdb_regional_tv_catalogue("korean-popular", page=1))
+
+    assert [row["title"] for row in result["results"]] == ["Eligible Korean Drama"]
