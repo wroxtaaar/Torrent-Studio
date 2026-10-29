@@ -59,8 +59,8 @@ FINAL_PER_CATALOGUE = int(os.getenv("REGIONAL_CACHE_FINAL_PER_CATALOGUE", "54"))
 MAX_CANDIDATES = int(os.getenv("REGIONAL_CACHE_MAX_CANDIDATES", "450"))
 ARCHIVE = BASE / "regional_movie_trending_archive.json"
 ORDER = ("popular-bollywood", "popular-hollywood", "latest-bollywood", "latest-hollywood",
-         "trending-bollywood", "trending-hollywood", "popular-korean", "popular-pakistani", "popular-anime",
-         "latest-korean", "latest-anime", "trending-korean", "trending-pakistani", "trending-anime")
+         "trending-bollywood", "trending-hollywood", "popular-korean", "popular-anime",
+         "latest-korean", "latest-anime", "trending-korean", "trending-anime")
 # A scanned title is reused for a while so a weekly run only scans what is new.
 REUSE_DAYS = {"ready": 14, "empty": 1}
 
