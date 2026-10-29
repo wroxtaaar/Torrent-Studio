@@ -6,17 +6,17 @@ export type CachedFranchiseKey = 'marvel' | 'dc-live-action';
 
 export type MainCatalogueMenu = 'dc' | 'bollywood' | 'hollywood';
 
-export type ActiveTopSection = 'marvel' | 'dc' | 'hollywood' | 'bollywood' | 'classics' | null;
+export type ActiveTopSection = 'marvel' | 'dc' | 'hollywood' | 'bollywood' | 'korean' | 'pakistani' | 'anime' | 'classics' | null;
 
 export type RegionalContentTab = 'movies' | 'web-series' | null;
 
 export type ClassicsContentTab = 'movies' | 'web-series' | 'anime';
 
-export type RegionalCatalogueGroup = 'bollywood' | 'hollywood';
+export type RegionalCatalogueGroup = 'bollywood' | 'hollywood' | 'korean' | 'pakistani' | 'anime';
 
 export type RegionalCatalogueMode = 'popular' | 'trending' | 'latest';
 
-export type RegionalTvGroup = 'indian' | 'hollywood';
+export type RegionalTvGroup = 'indian' | 'hollywood' | 'korean' | 'pakistani' | 'anime';
 
 export type RegionalTvMode = 'popular' | 'trending' | 'latest';
 
