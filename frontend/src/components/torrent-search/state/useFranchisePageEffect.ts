@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { api, TorrentSearchResult } from '../../../api/client.ts';
 import { episodeSeriesTitle, normalizeSavedOttTitle } from '../grouping.ts';
 import { normalizeSavedOttProviders, uniqueOttProviders } from '../ottProviders.ts';
+import { franchiseCatalogueSection } from '../../../api/sectionCache.ts';
 import { useSearchMetadataState } from './useSearchMetadataState.ts';
 import { useCatalogueNavigationState } from './useCatalogueNavigationState.ts';
 import { useGroupedResults } from './useGroupedResults.ts';
@@ -19,6 +20,43 @@ export function useFranchisePageEffect({ activeFranchiseSearchMode, franchiseGri
     if (!pageGroups.length) return;
     const titles = Array.from(new Set(pageGroups.map(group => String(group.title || '').trim()).filter(Boolean)));
     if (!titles.length) return;
+
+    if (franchiseCatalogueSection(activeFranchiseSearchMode)) {
+      setSearchAvailabilityByGroup(previous => {
+        const next = { ...previous };
+        for (const group of pageGroups) {
+          const row = group.variants.find(variant =>
+            Boolean(variant.ottAvailability || variant.streamingProviders?.length)
+          );
+          const saved = row?.ottAvailability;
+          const region = String(saved?.region || 'IN');
+          const providers = uniqueOttProviders([
+            ...normalizeSavedOttProviders(saved?.streamingProviders || [], 'streaming', region),
+            ...normalizeSavedOttProviders(saved?.rentProviders || [], 'rent', region),
+            ...normalizeSavedOttProviders(saved?.buyProviders || [], 'buy', region),
+            ...normalizeSavedOttProviders(row?.streamingProviders || [], 'streaming', region),
+          ]);
+          next[group.key] = {
+            status: providers.length ? 'ready' : 'not_confirmed',
+            query: group.title,
+            title: row?.title || group.title,
+            year: group.year,
+            providers,
+            matches: providers.length ? [{
+              id: String(row?.tmdbId || ''),
+              tmdbId: row?.tmdbId ?? undefined,
+              title: row?.title || group.title,
+              year: group.year,
+              type: 'movie',
+              status: 'ready',
+              providers,
+            }] : [],
+          };
+        }
+        return next;
+      });
+      return;
+    }
 
     const controller = new AbortController();
     void api.searchSavedOtt(titles, controller.signal).then(response => {

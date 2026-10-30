@@ -5,11 +5,17 @@ import { useSearchMetadataState } from './useSearchMetadataState.ts';
 import { useCatalogueNavigationState } from './useCatalogueNavigationState.ts';
 import { useGroupedResults } from './useGroupedResults.ts';
 import { useVisibleMovieCatalogue } from './useVisibleMovieCatalogue.ts';
+import { franchiseCatalogueSection } from '../../../api/sectionCache.ts';
 
-export function useCatalogueDetailsPrefetch({ franchiseGridPage, franchiseGridPageSize, movieCatalogue, groupedResults, searchMetadata, imdbRatingsByKey, imdbRatingRequestedRef, imdbRetryCountRef, setImdbRetryTick, imdbInFlightRef, setImdbRatingsByKey, imdbRetryTick, visibleMovieCatalogueItems, tvItems, rateAllGroups }: { rateAllGroups: boolean; tvItems: Array<{ title: string; year?: number | string | null; tmdbId?: number; imdbRating?: number | null; imdbRatingStatus?: string }> } & Pick<ReturnType<typeof useCatalogueNavigationState>, 'franchiseGridPage' | 'franchiseGridPageSize' | 'movieCatalogue'> & Pick<ReturnType<typeof useGroupedResults>, 'groupedResults'> & Pick<ReturnType<typeof useSearchMetadataState>, 'searchMetadata' | 'imdbRatingsByKey' | 'imdbRatingRequestedRef' | 'imdbRetryCountRef' | 'setImdbRetryTick' | 'imdbInFlightRef' | 'setImdbRatingsByKey' | 'imdbRetryTick'> & Pick<ReturnType<typeof useVisibleMovieCatalogue>, 'visibleMovieCatalogueItems'>) {
+export function useCatalogueDetailsPrefetch({ franchiseGridPage, franchiseGridPageSize, movieCatalogue, groupedResults, searchMetadata, imdbRatingsByKey, imdbRatingRequestedRef, imdbRetryCountRef, setImdbRetryTick, imdbInFlightRef, setImdbRatingsByKey, imdbRetryTick, visibleMovieCatalogueItems, tvItems, rateAllGroups, activeFranchiseSearchMode, selfContainedSectionMetadata }: { rateAllGroups: boolean; selfContainedSectionMetadata: boolean; tvItems: Array<{ title: string; year?: number | string | null; tmdbId?: number; imdbRating?: number | null; imdbRatingStatus?: string }> } & Pick<ReturnType<typeof useCatalogueNavigationState>, 'franchiseGridPage' | 'franchiseGridPageSize' | 'movieCatalogue' | 'activeFranchiseSearchMode'> & Pick<ReturnType<typeof useGroupedResults>, 'groupedResults'> & Pick<ReturnType<typeof useSearchMetadataState>, 'searchMetadata' | 'imdbRatingsByKey' | 'imdbRatingRequestedRef' | 'imdbRetryCountRef' | 'setImdbRetryTick' | 'imdbInFlightRef' | 'setImdbRatingsByKey' | 'imdbRetryTick'> & Pick<ReturnType<typeof useVisibleMovieCatalogue>, 'visibleMovieCatalogueItems'>) {
   // IMDb ratings are fetched independently after cards have rendered.
   // Movies use OMDb's movie type; show metadata uses OMDb's series type.
   useEffect(() => {
+    if (
+      selfContainedSectionMetadata ||
+      movieCatalogue?.curatedOrder ||
+      Boolean(activeFranchiseSearchMode && franchiseCatalogueSection(activeFranchiseSearchMode))
+    ) return;
     // Synopsis/IMDb are cheap cached reads: load them with the initial cards, not after posters.
     const visibleStart = (franchiseGridPage - 1) * franchiseGridPageSize;
     const visibleGroupTitles = new Set(groupedResults
@@ -159,6 +165,6 @@ export function useCatalogueDetailsPrefetch({ franchiseGridPage, franchiseGridPa
     }).finally(() => {
       imdbInFlightRef.current = Math.max(0, imdbInFlightRef.current - 1);
     });
-  }, [movieCatalogue?.results, searchMetadata, groupedResults, imdbRatingsByKey, imdbRetryTick, franchiseGridPage, tvItems, rateAllGroups]);
+  }, [movieCatalogue?.results, movieCatalogue?.curatedOrder, selfContainedSectionMetadata, activeFranchiseSearchMode, searchMetadata, groupedResults, imdbRatingsByKey, imdbRetryTick, franchiseGridPage, tvItems, rateAllGroups]);
 
 }

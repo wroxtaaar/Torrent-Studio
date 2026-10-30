@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { api, MovieCatalogueKey, TorrentSearchResult } from '../../api/client.ts';
+import { movieCataloguePageFromSection, movieCatalogueSection, tvCataloguePageFromSectionCache } from '../../api/sectionCache.ts';
 import { setHighQualityPostersReady } from '../MovieCards.tsx';
 import { imdbRatingKey, torrentResultKey } from './grouping.ts';
 import { CachedFranchiseSearchMode, persistImdbRatings, persistSearchAvailability, persistSearchMetadata, readFranchisePageCache, writeFranchisePageCache } from './persistentCaches.ts';
 import { readPosterTitleCache } from './posterCache.ts';
 import { lowQualityPosterUrl } from './posterUrls.ts';
 import { isDefaultClassicsSort } from './classicsSort.ts';
+import { franchiseCatalogueSection, franchiseRowsFromSection } from '../../api/sectionCache.ts';
 import { CachedFranchiseKey, FranchiseTmdbKey, RegionalCatalogueGroup, RegionalCatalogueMode, RegionalTvGroup, RegionalTvMode } from './types.ts';
 import { useNexStreamState } from './state/useNexStreamState.ts';
 import { useSearchMetadataState } from './state/useSearchMetadataState.ts';
@@ -125,7 +127,12 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     const generation = ++searchGenerationRef.current;
     searchRequestRef.current?.abort();
     try {
-      const cataloguePage = await api.getTvCatalogue(key, page);
+      const cataloguePage = await tvCataloguePageFromSectionCache(
+        section => api.getSectionCache(section),
+        key,
+        page,
+      ) || await api.getTvCatalogue(key, page);
+      if (!cataloguePage) throw new Error('The requested TV subsection is missing from its section cache.');
       if (generation === searchGenerationRef.current) setRegionalWebSeriesCatalogue(cataloguePage);
     } catch (error: any) {
       if (generation === searchGenerationRef.current) setRegionalWebSeriesError(String(error?.message || 'Could not load web series.'));
@@ -209,7 +216,24 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     dcWebSeriesCatalogue,
     marvelWebSeriesCatalogue,
   ]);
-  const { runSearch: runSearchRaw } = useSearchRunner({ setFranchiseGridPage, setActiveFranchiseSearchMode, franchisePageRequestRef, franchisePageGenerationRef, franchiseLoadedPagesRef, posterFirstPageReadyRef, setPosterFirstPageReady, setIsPresetCatalogueAction, setIsMarvelEnglishResults, setIsDcLiveActionEnglishResults, setShowMarvelWebSeries, setError, setSearched, setIsSearching, setCatalogueBuildProgress, setCatalogueExpectedTitles, setMovieCatalogue, franchiseGridPageSize, franchiseGridPage, setShowDcWebSeries, setMovieTorrentSearchError, setMovieTorrentPreviewCatalogueId, movieTorrentSearchControllerRef, movieTorrentSearchGenerationRef, setMovieTorrentSearchLoading, setMovieTorrentPickerGroups, setMovieTorrentPreviewGroup, setExpandedSearchGroupKey, query, setResults, searchGenerationRef, searchRequestRef, setShowRecentSearches, setQuery, setSearchMetadata, setSearchMetadataStatus, setSearchAvailabilityByGroup, setSelectedQualityByGroup, setPosterOverrides, posterMetadataFailedRef, posterLoadedRef, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterBackgroundAttemptsRef, posterBackgroundGenerationRef, saveRecentSearch, searchNexStreamTitles, nexStreamSearchGenerationRef, nexStreamSearchControllerRef, setNexStreamLoading, setNexStreamSearchMode, setNexStreamResults, setNexStreamError, setNexStreamPlayer });
+  const { runSearch: runSearchRaw } = useSearchRunner({
+    setFranchiseGridPage, setActiveFranchiseSearchMode, franchisePageRequestRef,
+    franchisePageGenerationRef, franchiseLoadedPagesRef, posterFirstPageReadyRef,
+    setPosterFirstPageReady, setIsPresetCatalogueAction, setIsMarvelEnglishResults,
+    setIsDcLiveActionEnglishResults, setShowMarvelWebSeries, setError, setSearched,
+    setIsSearching, setCatalogueBuildProgress, setCatalogueExpectedTitles, setMovieCatalogue,
+    franchiseGridPageSize, franchiseGridPage, setShowDcWebSeries, setMovieTorrentSearchError,
+    setMovieTorrentPreviewCatalogueId, movieTorrentSearchControllerRef,
+    movieTorrentSearchGenerationRef, setMovieTorrentSearchLoading, setMovieTorrentPickerGroups,
+    setMovieTorrentPreviewGroup, setExpandedSearchGroupKey, query, setResults,
+    searchGenerationRef, searchRequestRef, setShowRecentSearches, setQuery, setSearchMetadata,
+    setSearchMetadataStatus, setImdbRatingsByKey, setSearchAvailabilityByGroup,
+    setSelectedQualityByGroup, setPosterOverrides, posterMetadataFailedRef, posterLoadedRef,
+    posterBackgroundQueueRef, posterBackgroundQueuedRef, posterBackgroundAttemptsRef,
+    posterBackgroundGenerationRef, saveRecentSearch, searchNexStreamTitles,
+    nexStreamSearchGenerationRef, nexStreamSearchControllerRef, setNexStreamLoading,
+    setNexStreamSearchMode, setNexStreamResults, setNexStreamError, setNexStreamPlayer,
+  });
   const { searchMovieTorrents, selectMovieTorrentGroup, closeMoviePrepareCard } = useMovieTorrentSearch({ prepareClickIntentRef, prepareTraceIdRef, setExpandedSearchGroupKey, movieTorrentSearchControllerRef, movieTorrentSearchGenerationRef, setMovieTorrentSearchTitle, setMovieTorrentPreviewCatalogueId, setMovieTorrentPreviewPosterUrl, cataloguePosterUrlsRef, setMovieTorrentSearchLoading, setMovieTorrentSearchError, setMovieTorrentPreviewGroup, setMovieTorrentPickerGroups, setSelectedMovieTorrentQualityByGroup, movieTorrentDetailsCacheRef, prepareBuildPendingRef, movieCatalogue, setSearched, error, setResults, setQuery, setSelectedQualityByGroup, startPosterBackgroundSearch, persistMovieTorrentCache });
   // Opening any Marvel/DC/Classics/search view must close a Hollywood/Bollywood web-series list, otherwise it
   // stays on screen and the new results appear below it.
@@ -268,6 +292,17 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       posterBackgroundQueuedRef.current.clear();
       posterBackgroundAttemptsRef.current.clear();
       posterBackgroundGenerationRef.current += 1;
+
+      const section = movieCatalogueSection(key);
+      if (section) {
+        const document = await api.getSectionCache(section.section);
+        const data = movieCataloguePageFromSection(document, key, section.subsection, page);
+        if (!data) throw new Error('The requested movie subsection is missing from its section cache.');
+        if (generation !== searchGenerationRef.current) return;
+        setMovieCatalogue(data);
+        setCatalogueBuildProgress('');
+        return;
+      }
 
       // Regional catalogues (Hollywood/Bollywood) paint the stored rows first, exactly like the
       // Marvel/DC pages, and the enriched page replaces them a moment later.
@@ -333,7 +368,8 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       }
       return;
     }
-    const browserCachedPage = readFranchisePageCache(mode, page);
+    const sectionLocation = franchiseCatalogueSection(mode);
+    const browserCachedPage = sectionLocation ? null : readFranchisePageCache(mode, page);
     if (browserCachedPage) {
       setResults(previous => {
         const byKey = new Map<string, TorrentSearchResult>();
@@ -365,6 +401,37 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       setCatalogueBuildProgress(`Loading page ${page} of the ${mode.replace(/-/g, ' ')} catalogue…`);
     }
     try {
+      if (sectionLocation) {
+        const document = await api.getSectionCache(sectionLocation.section);
+        if (isStale()) return;
+        const subsection = document.subsections[sectionLocation.subsection];
+        const allResults = franchiseRowsFromSection(document, sectionLocation.subsection);
+        if (!subsection || !allResults) {
+          throw new Error('The requested subsection is missing from its section cache.');
+        }
+        const pageSize = Math.max(1, Number(subsection.pageSize) || franchiseGridPageSize);
+        const pageRows = allResults.slice((page - 1) * pageSize, page * pageSize);
+        setResults(previous => {
+          const byKey = new Map<string, TorrentSearchResult>();
+          [...previous, ...pageRows].forEach(row => {
+            const key = torrentResultKey(row);
+            if (!byKey.has(key)) byKey.set(key, row);
+          });
+          return Array.from(byKey.values());
+        });
+        const nowLoaded = franchiseLoadedPagesRef.current.get(mode) || new Set<number>();
+        nowLoaded.add(page);
+        franchiseLoadedPagesRef.current.set(mode, nowLoaded);
+        const totalTitles = Number(subsection.totalResults) || allResults.length;
+        if (totalTitles > 0) setCatalogueExpectedTitles(totalTitles);
+        if (!background) {
+          setSearched(true);
+          setError('');
+          setCatalogueBuildProgress('');
+        }
+        return;
+      }
+
       const fetchPage = () => mode === 'marvel'
         ? api.getMarvelCatalogue(controller.signal, { page, pageSize: franchiseGridPageSize })
         : api.getCatalogue(mode, controller.signal, { page, pageSize: franchiseGridPageSize });
@@ -428,7 +495,11 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
   // so sorting does not wait for per-title lookups page by page.
   const storedRatingsLoadedRef = useRef(false);
   useEffect(() => {
-    if (classicsSort.key !== 'rating' || storedRatingsLoadedRef.current) return;
+    if (
+      classicsSort.key !== 'rating' ||
+      storedRatingsLoadedRef.current ||
+      (activeFranchiseSearchMode && franchiseCatalogueSection(activeFranchiseSearchMode))
+    ) return;
     storedRatingsLoadedRef.current = true;
     void fetch('/api/catalogue/imdb-ratings/stored', { headers: { Accept: 'application/json' } })
       .then(response => (response.ok ? response.json() : null))
@@ -445,11 +516,11 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
         });
       })
       .catch(() => { storedRatingsLoadedRef.current = false; });
-  }, [classicsSort.key]);
+  }, [classicsSort.key, activeFranchiseSearchMode]);
   const { sortedResults, groupedResults } = useGroupedResults({ results, resolutionFilter, sizeSort, timeSort, isMarvelEnglishResults, showMarvelWebSeries, marvelFilmFilter, activeFranchiseSearchMode, classicsSort, imdbRatingsByKey: activeFranchiseSearchMode && classicsSort.key === 'rating' ? imdbRatingsByKey : NO_RATINGS });
   useFranchisePageEffect({ activeFranchiseSearchMode, franchiseGridPage, franchiseGridPageSize, error, groupedResults, searchAvailabilityByGroup, setSearchAvailabilityByGroup });
-  useSynopsisPrefetch({ franchiseGridPage, franchiseGridPageSize, groupedResults, searchMetadata, setSearchMetadata, tvMetadataRequestedRef });
-  usePosterEffects({ groupedResults, franchiseGridPage, franchiseGridPageSize, posterFirstPageReadyRef, setPosterFirstPageReady, previousPosterPageRef, movieCatalogue, posterFirstPageReady, queueOttLookups, posterBackgroundGenerationRef, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterBackgroundAttemptsRef, posterBackgroundActiveKeysRef, enqueuePosterBackgroundJobs, pendingPosterAction, setPendingPosterAction, prepareClickIntentRef, prepareTraceIdRef, setExpandedSearchGroupKey, searchMovieTorrents });
+  useSynopsisPrefetch({ franchiseGridPage, franchiseGridPageSize, groupedResults, searchMetadata, setSearchMetadata, tvMetadataRequestedRef, activeFranchiseSearchMode });
+  usePosterEffects({ groupedResults, franchiseGridPage, franchiseGridPageSize, posterFirstPageReadyRef, setPosterFirstPageReady, previousPosterPageRef, movieCatalogue, posterFirstPageReady, queueOttLookups, activeFranchiseSearchMode, posterBackgroundGenerationRef, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterBackgroundAttemptsRef, posterBackgroundActiveKeysRef, enqueuePosterBackgroundJobs, pendingPosterAction, setPendingPosterAction, prepareClickIntentRef, prepareTraceIdRef, setExpandedSearchGroupKey, searchMovieTorrents });
   usePosterReadyGate({ posterFirstPageReady, activeFranchiseSearchMode, imdbInFlightRef });
   // Sorting the Classics by rating or oldest-first needs every page, not just the visible one:
   // fetch the remaining cached pages one after another (cheap, they are stored files).
@@ -480,7 +551,29 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       .map((item: any) => ({ title: item.title, year: item.date ? String(item.date).slice(0, 4) : null }));
     return [...fromCatalogue, ...fromNexStream].filter(item => item.title);
   }, [regionalWebSeriesCatalogue, dcWebSeriesCatalogue, marvelWebSeriesCatalogue, nexStreamResults]);
-  useCatalogueDetailsPrefetch({ rateAllGroups: Boolean(activeFranchiseSearchMode) && classicsSort.key === 'rating', tvItems: tvItemsForImdb, franchiseGridPage, franchiseGridPageSize, movieCatalogue, groupedResults, searchMetadata, imdbRatingsByKey, imdbRatingRequestedRef, imdbRetryCountRef, setImdbRetryTick, imdbInFlightRef, setImdbRatingsByKey, imdbRetryTick, visibleMovieCatalogueItems });
+  useCatalogueDetailsPrefetch({
+    rateAllGroups: Boolean(activeFranchiseSearchMode) && classicsSort.key === 'rating',
+    selfContainedSectionMetadata: Boolean(
+      movieCatalogue?.curatedOrder ||
+      regionalWebSeriesCatalogue?.curatedOrder ||
+      (activeFranchiseSearchMode && franchiseCatalogueSection(activeFranchiseSearchMode))
+    ),
+    activeFranchiseSearchMode,
+    tvItems: tvItemsForImdb,
+    franchiseGridPage,
+    franchiseGridPageSize,
+    movieCatalogue,
+    groupedResults,
+    searchMetadata,
+    imdbRatingsByKey,
+    imdbRatingRequestedRef,
+    imdbRetryCountRef,
+    setImdbRetryTick,
+    imdbInFlightRef,
+    setImdbRatingsByKey,
+    imdbRetryTick,
+    visibleMovieCatalogueItems,
+  });
   const clearTmdbCacheAndReload = async () => {
     const currentCatalogue = movieCatalogue;
     const key = currentCatalogue?.catalogue || tmdbFranchiseKey;

@@ -7,8 +7,9 @@ import { usePosterState } from './usePosterState.ts';
 import { usePosterWorkers } from './usePosterWorkers.ts';
 import { useMovieTorrentSearch } from './useMovieTorrentSearch.ts';
 import { useGroupedResults } from './useGroupedResults.ts';
+import { franchiseCatalogueSection } from '../../../api/sectionCache.ts';
 
-export function usePosterEffects({ groupedResults, franchiseGridPage, franchiseGridPageSize, posterFirstPageReadyRef, setPosterFirstPageReady, previousPosterPageRef, movieCatalogue, posterFirstPageReady, queueOttLookups, posterBackgroundGenerationRef, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterBackgroundAttemptsRef, posterBackgroundActiveKeysRef, enqueuePosterBackgroundJobs, pendingPosterAction, setPendingPosterAction, prepareClickIntentRef, prepareTraceIdRef, setExpandedSearchGroupKey, searchMovieTorrents }: Pick<ReturnType<typeof useGroupedResults>, 'groupedResults'> & Pick<ReturnType<typeof useCatalogueNavigationState>, 'franchiseGridPage' | 'franchiseGridPageSize' | 'posterFirstPageReadyRef' | 'setPosterFirstPageReady' | 'previousPosterPageRef' | 'movieCatalogue' | 'posterFirstPageReady' | 'queueOttLookups'> & Pick<ReturnType<typeof usePosterState>, 'posterBackgroundGenerationRef' | 'posterBackgroundQueueRef' | 'posterBackgroundQueuedRef' | 'posterBackgroundAttemptsRef' | 'posterBackgroundActiveKeysRef'> & Pick<ReturnType<typeof usePosterWorkers>, 'enqueuePosterBackgroundJobs'> & Pick<ReturnType<typeof useMoviePreviewState>, 'pendingPosterAction' | 'setPendingPosterAction' | 'prepareClickIntentRef' | 'prepareTraceIdRef' | 'setExpandedSearchGroupKey'> & Pick<ReturnType<typeof useMovieTorrentSearch>, 'searchMovieTorrents'>) {
+export function usePosterEffects({ groupedResults, franchiseGridPage, franchiseGridPageSize, posterFirstPageReadyRef, setPosterFirstPageReady, previousPosterPageRef, movieCatalogue, posterFirstPageReady, queueOttLookups, activeFranchiseSearchMode, posterBackgroundGenerationRef, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterBackgroundAttemptsRef, posterBackgroundActiveKeysRef, enqueuePosterBackgroundJobs, pendingPosterAction, setPendingPosterAction, prepareClickIntentRef, prepareTraceIdRef, setExpandedSearchGroupKey, searchMovieTorrents }: Pick<ReturnType<typeof useGroupedResults>, 'groupedResults'> & Pick<ReturnType<typeof useCatalogueNavigationState>, 'franchiseGridPage' | 'franchiseGridPageSize' | 'posterFirstPageReadyRef' | 'setPosterFirstPageReady' | 'previousPosterPageRef' | 'movieCatalogue' | 'posterFirstPageReady' | 'queueOttLookups' | 'activeFranchiseSearchMode'> & Pick<ReturnType<typeof usePosterState>, 'posterBackgroundGenerationRef' | 'posterBackgroundQueueRef' | 'posterBackgroundQueuedRef' | 'posterBackgroundAttemptsRef' | 'posterBackgroundActiveKeysRef'> & Pick<ReturnType<typeof usePosterWorkers>, 'enqueuePosterBackgroundJobs'> & Pick<ReturnType<typeof useMoviePreviewState>, 'pendingPosterAction' | 'setPendingPosterAction' | 'prepareClickIntentRef' | 'prepareTraceIdRef' | 'setExpandedSearchGroupKey'> & Pick<ReturnType<typeof useMovieTorrentSearch>, 'searchMovieTorrents'>) {
   // Staged loading: every new result set starts with low-bandwidth thumbnails.
   // High-quality upgrades remain paused until the visible page's initial details settle.
   // Page-by-page staging restarts low-resolution posters before background upgrades.
@@ -35,6 +36,7 @@ export function usePosterEffects({ groupedResults, franchiseGridPage, franchiseG
     posterBackgroundQueueRef.current = posterBackgroundQueueRef.current.filter(job => visibleKeys.has(job.key));
   }, [movieCatalogue, groupedResults, franchiseGridPage]);
   useEffect(() => {
+    if (activeFranchiseSearchMode && franchiseCatalogueSection(activeFranchiseSearchMode)) return;
     // Resolve poster sources only for cards on the page currently being viewed.
     // Page 2+ artwork waits until the user navigates to that page.
     const start = (franchiseGridPage - 1) * franchiseGridPageSize;
@@ -42,7 +44,7 @@ export function usePosterEffects({ groupedResults, franchiseGridPage, franchiseG
       .slice(start, start + franchiseGridPageSize)
       .flatMap(group => group.variants);
     if (visibleItems.length > 0) enqueuePosterBackgroundJobs(visibleItems);
-  }, [groupedResults, franchiseGridPage]);
+  }, [groupedResults, franchiseGridPage, activeFranchiseSearchMode]);
   useEffect(() => {
     let posterCheckTimer: number | undefined;
     let cancelled = false;
@@ -102,8 +104,8 @@ export function usePosterEffects({ groupedResults, franchiseGridPage, franchiseG
     }
   }, [pendingPosterAction, posterFirstPageReady, movieCatalogue, groupedResults, franchiseGridPage]);
   useEffect(() => {
-    if (!movieCatalogue?.results?.length) return;
+    if (!movieCatalogue?.results?.length || movieCatalogue.curatedOrder) return;
     queueOttLookups(movieCatalogue.results.slice(0, franchiseGridPageSize));
-  }, [movieCatalogue?.results]);
+  }, [movieCatalogue?.results, movieCatalogue?.curatedOrder]);
 
 }

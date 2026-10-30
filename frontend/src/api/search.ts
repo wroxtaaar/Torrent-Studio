@@ -1,7 +1,52 @@
-import type { TorrentSearchResult, MarvelCatalogueResponse, TvCataloguePage, MovieCatalogueKey, SearchMediaMetadata, SearchMediaMetadataResponse, ImdbRatingResult, MovieCataloguePage, MovieOttAvailability } from './types.ts';
+import type { TorrentSearchResult, MarvelCatalogueResponse, TvCataloguePage, MovieCatalogueKey, SearchMediaMetadata, SearchMediaMetadataResponse, ImdbRatingResult, MovieCataloguePage, MovieOttAvailability, SectionCacheDocument } from './types.ts';
 import { API_BASE, apiFetch } from './http.ts';
 
+const sectionCacheRequests = new Map<string, Promise<SectionCacheDocument>>();
+
 export const searchApi = {
+  async getSectionCache(section: string): Promise<SectionCacheDocument> {
+    const key = String(section || '').trim().toLowerCase();
+    const existing = sectionCacheRequests.get(key);
+    if (existing) return existing;
+    const request = (async () => {
+      const res = await apiFetch('/api/sections/' + encodeURIComponent(key), {
+        cache: 'no-store',
+      });
+      const body = await res.text();
+      let data: unknown;
+      try {
+        data = body ? JSON.parse(body) : null;
+      } catch {
+        throw new Error('Section cache response is not valid JSON.');
+      }
+      const record = data && typeof data === 'object' && !Array.isArray(data)
+        ? data as Record<string, unknown>
+        : null;
+      if (!res.ok) {
+        const detail = typeof record?.detail === 'string' ? record.detail : '';
+        throw new Error(detail || body || ('Section cache failed (HTTP ' + res.status + ')'));
+      }
+      if (
+        !record ||
+        record.section !== key ||
+        record.metadataSelfContained !== true ||
+        !record.subsections ||
+        typeof record.subsections !== 'object' ||
+        Array.isArray(record.subsections)
+      ) {
+        throw new Error('Section cache response has an invalid document shape.');
+      }
+      return record as unknown as SectionCacheDocument;
+    })();
+    sectionCacheRequests.set(key, request);
+    try {
+      return await request;
+    } catch (error) {
+      if (sectionCacheRequests.get(key) === request) sectionCacheRequests.delete(key);
+      throw error;
+    }
+  },
+
   async searchMediaMetadata(query: string, signal?: AbortSignal): Promise<SearchMediaMetadataResponse> {
     const params = new URLSearchParams({ q: query });
     const res = await fetch(API_BASE + '/api/search/metadata?' + params.toString(), {

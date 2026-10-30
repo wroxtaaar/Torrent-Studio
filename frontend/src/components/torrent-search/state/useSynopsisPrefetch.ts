@@ -4,13 +4,15 @@ import { episodeSeriesTitle, mergeSearchMetadataItems, normalizeSavedOttTitle, s
 import { useSearchMetadataState } from './useSearchMetadataState.ts';
 import { useCatalogueNavigationState } from './useCatalogueNavigationState.ts';
 import { useGroupedResults } from './useGroupedResults.ts';
+import { franchiseCatalogueSection } from '../../../api/sectionCache.ts';
 
-export function useSynopsisPrefetch({ franchiseGridPage, franchiseGridPageSize, groupedResults, searchMetadata, setSearchMetadata, tvMetadataRequestedRef }: Pick<ReturnType<typeof useCatalogueNavigationState>, 'franchiseGridPage' | 'franchiseGridPageSize'> & Pick<ReturnType<typeof useGroupedResults>, 'groupedResults'> & Pick<ReturnType<typeof useSearchMetadataState>, 'searchMetadata' | 'setSearchMetadata' | 'tvMetadataRequestedRef'>) {
+export function useSynopsisPrefetch({ franchiseGridPage, franchiseGridPageSize, groupedResults, searchMetadata, setSearchMetadata, tvMetadataRequestedRef, activeFranchiseSearchMode }: Pick<ReturnType<typeof useCatalogueNavigationState>, 'franchiseGridPage' | 'franchiseGridPageSize' | 'activeFranchiseSearchMode'> & Pick<ReturnType<typeof useGroupedResults>, 'groupedResults'> & Pick<ReturnType<typeof useSearchMetadataState>, 'searchMetadata' | 'setSearchMetadata' | 'tvMetadataRequestedRef'>) {
   // Search cards can come from the prebuilt Marvel/DC/Bollywood/Hollywood
   // catalogues and therefore aren't necessarily related to the text the user
   // typed. Merge their per-title metadata from the persistent VPS JSON rather
   // than relying only on a single broad TMDB search for the original query.
   useEffect(() => {
+    if (activeFranchiseSearchMode && franchiseCatalogueSection(activeFranchiseSearchMode)) return;
     // Synopsis/IMDb are cheap cached reads: load them with the initial cards, not after posters.
     const pageStart = (franchiseGridPage - 1) * franchiseGridPageSize;
     const visibleGroups = groupedResults.slice(pageStart, pageStart + franchiseGridPageSize);
@@ -45,10 +47,11 @@ export function useSynopsisPrefetch({ franchiseGridPage, franchiseGridPageSize, 
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [groupedResults, franchiseGridPage, searchMetadata]);
+  }, [groupedResults, franchiseGridPage, searchMetadata, activeFranchiseSearchMode]);
   // Search TMDB by show name for episode-shaped torrent titles. A broad search for
   // the episode name (e.g. "Escape Plan") cannot resolve "The Rookie" or "NCIS: New Orleans".
   useEffect(() => {
+    if (activeFranchiseSearchMode && franchiseCatalogueSection(activeFranchiseSearchMode)) return;
     // Synopsis/IMDb are cheap cached reads: load them with the initial cards, not after posters.
     const pageStart = (franchiseGridPage - 1) * franchiseGridPageSize;
     const visibleGroups = groupedResults.slice(pageStart, pageStart + franchiseGridPageSize);
@@ -88,6 +91,6 @@ export function useSynopsisPrefetch({ franchiseGridPage, franchiseGridPageSize, 
     });
 
     return () => controller.abort();
-  }, [groupedResults, franchiseGridPage, searchMetadata]);
+  }, [groupedResults, franchiseGridPage, searchMetadata, activeFranchiseSearchMode]);
 
 }

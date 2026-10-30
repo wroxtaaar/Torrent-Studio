@@ -429,6 +429,8 @@ from catalogues.catalogues_tv import router as catalogues_tv_router
 app.include_router(catalogues_tv_router)
 app.include_router(catalogues_movies_router)
 
+from catalogues.section_caches import router as section_caches_router
+app.include_router(section_caches_router)
 
 app.router.add_event_handler("startup", _warm_extra_catalogues_on_startup)
 

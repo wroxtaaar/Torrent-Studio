@@ -1695,13 +1695,14 @@ async def api_tmdb_tv_metadata(tmdb_id: int):
                 "type": kind,
             })
     air_date = str(details.get("first_air_date") or "")
+    year_match = re.match(r"^(\d{4})", air_date)
     poster_path = str(details.get("poster_path") or "")
     backdrop_path = str(details.get("backdrop_path") or "")
     return {
         "id": tmdb_id,
         "tmdbId": tmdb_id,
         "title": str(details.get("name") or ""),
-        "year": int(air_date[:4]) if re.match(r"^\\d{4}", air_date) else None,
+        "year": int(year_match.group(1)) if year_match else None,
         "releaseDate": air_date,
         "overview": str(details.get("overview") or ""),
         "posterUrl": TMDB_IMAGE_BASE + poster_path if poster_path else "",
@@ -1724,7 +1725,7 @@ async def api_tmdb_tv_metadata(tmdb_id: int):
 @router.get("/api/catalogue/tmdb-find/{imdb_id}")
 async def api_find_tmdb_by_imdb_id(imdb_id: str, media_type: str = "movie"):
     """Resolve an IMDb ID to a TMDB ID without searching torrent providers or writing caches."""
-    if not re.fullmatch(r"tt\\d+", str(imdb_id or "").strip()):
+    if not re.fullmatch(r"tt\d+", str(imdb_id or "").strip()):
         raise HTTPException(status_code=400, detail="Invalid IMDb ID")
     kind = "tv" if str(media_type or "").casefold() in {"tv", "series"} else "movie"
     found = await _tmdb_get_json(

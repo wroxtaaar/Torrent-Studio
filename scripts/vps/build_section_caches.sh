@@ -5,9 +5,10 @@
 #   scripts/vps/build_section_caches.sh                 # new-section sources -> split -> enrich -> validate
 #   SKIP_NEW_SOURCES=1 scripts/vps/build_section_caches.sh   # reuse the sources already in the seed
 #   SKIP_ENRICH=1      scripts/vps/build_section_caches.sh   # offline only (split + validate)
+#   SECTION_METADATA_MODE=deep scripts/vps/build_section_caches.sh  # recheck available metadata
 #
 # Needs the app running with provider access (CACHE_ONLY_MODE=false) for the new-sources and enrich steps.
-# HOME_API_BASE is used when set; otherwise the app is looked for on ports 3000 and 10000.
+# HOME_API_BASE is used when set; otherwise the app is looked for on port 3000.
 set -euo pipefail
 
 HOME_DIR="${TS_HOME:-$HOME/torrent-studio-refresh}"
@@ -24,20 +25,18 @@ step() { printf '\n[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
 
 if [ "${SKIP_ENRICH:-0}" != "1" ] || [ "${SKIP_NEW_SOURCES:-0}" != "1" ]; then
   if [ -z "${HOME_API_BASE:-}" ]; then
-    for port in 3000 10000; do
-      if curl -fsS --max-time 5 "http://127.0.0.1:$port/api/health" >/dev/null 2>&1; then
-        HOME_API_BASE="http://127.0.0.1:$port"; break
-      fi
-    done
+    if curl -fsS --max-time 5 "http://127.0.0.1:3000/api/health" >/dev/null 2>&1; then
+      HOME_API_BASE="http://127.0.0.1:3000"
+    fi
   fi
-  [ -n "${HOME_API_BASE:-}" ] || { echo "The app is not answering on ports 3000 or 10000. Start it or set HOME_API_BASE." >&2; exit 2; }
+  [ -n "${HOME_API_BASE:-}" ] || { echo "The app is not answering on port 3000. Start it or set HOME_API_BASE." >&2; exit 2; }
   curl -fsS --max-time 10 "$HOME_API_BASE/api/health" >/dev/null || { echo "Health check failed at $HOME_API_BASE" >&2; exit 2; }
   export HOME_API_BASE
   step "Using the app at $HOME_API_BASE"
 fi
 export REFRESH_SEED_DIR="$SEED_DIR"
 
-BACKUP="$SEED_DIR/backup-sections-$(date +%Y%m%d-%H%M%S)"
+BACKUP="$HOME_DIR/backups/sections-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP"
 for s in $SECTIONS; do [ -f "$SEED_DIR/$s.json" ] && cp "$SEED_DIR/$s.json" "$BACKUP/"; done
 step "Existing section files backed up to $BACKUP"
@@ -52,7 +51,8 @@ step "2/4 Splitting the sources into one metadata file per top section (offline)
 
 if [ "${SKIP_ENRICH:-0}" != "1" ]; then
   step "3/4 Filling missing IDs, ratings and streaming info (TMDB / IMDb metadata only)"
-  "$PY" "$REPO_DIR/scripts/enrich_top_section_metadata.py"
+  "$PY" "$REPO_DIR/scripts/enrich_top_section_metadata.py" \
+    --mode "${SECTION_METADATA_MODE:-missing}"
 fi
 
 step "4/4 Validating the section files"

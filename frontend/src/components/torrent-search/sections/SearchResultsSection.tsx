@@ -10,6 +10,7 @@ import { extractedQuality } from '../helpers.ts';
 import { classicsComparator, ratingValue } from '../classicsSort.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 import { isAnimeCatalogue } from '../yenime.ts';
+import { tvCataloguePageFromSectionCache } from '../../../api/sectionCache.ts';
 
 export function SearchResultsSection({ vm }: { vm: PanelModel }) {
   const isRegionalTvView = ['hollywood', 'bollywood', 'korean', 'pakistani', 'anime'].includes(vm.activeTopSection || '')
@@ -72,11 +73,21 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
               </div>
               {(() => {
                 const goToRegionalPage = async (targetPage: number) => {
-                  if (regionalWebSeriesLoading || targetPage < 1 || targetPage === regionalWebSeriesCatalogue.page) return;
+                  if (
+                    regionalWebSeriesLoading
+                    || targetPage < 1
+                    || targetPage > regionalWebSeriesCatalogue.totalPages
+                    || targetPage === regionalWebSeriesCatalogue.page
+                  ) return;
                   setRegionalWebSeriesLoading(true);
                   setRegionalWebSeriesError('');
                   try {
-                    const nextPage = await api.getTvCatalogue(regionalWebSeriesCatalogue.catalogue, targetPage);
+                    const nextPage = await tvCataloguePageFromSectionCache(
+                      section => api.getSectionCache(section),
+                      regionalWebSeriesCatalogue.catalogue,
+                      targetPage,
+                    );
+                    if (!nextPage) throw new Error('The requested TV subsection is missing from its section cache.');
                     setRegionalWebSeriesCatalogue(nextPage);
                   } catch (error: any) {
                     setRegionalWebSeriesError(String(error?.message || 'Could not load this page.'));
@@ -88,7 +99,7 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
                   <div className="flex items-center justify-between gap-3">
                     <button type="button" disabled={regionalWebSeriesLoading || regionalWebSeriesCatalogue.page <= 1} onClick={() => void goToRegionalPage(regionalWebSeriesCatalogue.page - 1)} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-500 disabled:cursor-not-allowed disabled:opacity-40">← Previous</button>
                     <span className="text-xs text-slate-500">Page {regionalWebSeriesCatalogue.page} of {regionalWebSeriesCatalogue.totalPages}</span>
-                    <button type="button" disabled={regionalWebSeriesLoading} onClick={() => void goToRegionalPage(regionalWebSeriesCatalogue.page + 1)} className="rounded-lg border border-cyan-500/50 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40">Next →</button>
+                    <button type="button" disabled={regionalWebSeriesLoading || regionalWebSeriesCatalogue.page >= regionalWebSeriesCatalogue.totalPages} onClick={() => void goToRegionalPage(regionalWebSeriesCatalogue.page + 1)} className="rounded-lg border border-cyan-500/50 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40">Next →</button>
                   </div>
                 );
               })()}

@@ -45,7 +45,7 @@ export function useOttAvailability() {
         const id = String(movie.id);
         const state = ottAvailabilityRef.current[id];
         const hasData = !!state && state.status !== 'error' && state.status !== 'loading';
-        return !hasData && (ottRetryAttemptsRef.current.get(id) || 0) < 5;
+        return !movie.sectionCacheRecord && !hasData && (ottRetryAttemptsRef.current.get(id) || 0) < 5;
       });
       if (retry.length) queueOttLookups(retry, true);
     }, 30000);
@@ -129,6 +129,11 @@ export function useOttAvailability() {
       if (state) {
         next[movieId] = state;
         changed = true;
+      }
+
+      if (movie.sectionCacheRecord) {
+        ottLiveCheckedRef.current.add(movieId);
+        continue;
       }
 
       if (ottQueuedIdsRef.current.has(movieId)) continue;

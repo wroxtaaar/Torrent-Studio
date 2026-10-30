@@ -24,6 +24,15 @@ export interface TorrentSearchResult {
   overview?: string;
   tmdbId?: number | string | null;
   id?: number | string | null;
+  imdbId?: string;
+  imdbRating?: number | null;
+  imdbRatingStatus?: ImdbRatingResult['status'];
+  imdbVotes?: string;
+  imdbUrl?: string;
+  imdbCheckedAt?: number | string | null;
+  ottAvailability?: MovieCatalogueItem['ottAvailability'];
+  streamingProviders?: TvCatalogueItem['streamingProviders'];
+  providerLink?: string;
 }
 
 
@@ -44,7 +53,9 @@ export interface MarvelCatalogueResponse {
 
 export interface TvCatalogueItem {
   id: number | string;
+  tmdbId?: number | string;
   title: string;
+  sectionCacheRecord?: boolean;
   year?: number | null;
   releaseDate?: string;
   overview?: string;
@@ -56,7 +67,17 @@ export interface TvCatalogueItem {
   imdbId?: string | null;
   imdbListRank?: number;
   imdbUrl?: string | null;
+  imdbCheckedAt?: number | string | null;
   imdbRatingStatus?: ImdbRatingResult['status'];
+  genres?: Array<number | { id?: number; name?: string }>;
+  seriesType?: string;
+  networks?: Array<{
+    id?: number;
+    logo_path?: string | null;
+    name?: string;
+    origin_country?: string;
+  }>;
+  ottAvailability?: MovieCatalogueItem['ottAvailability'];
   originCountry?: string[];
   originalLanguage?: string;
   tmdbUrl?: string;
@@ -95,12 +116,14 @@ export type MovieCatalogueKey =
   | 'trending-hollywood'
   | 'trending-bollywood'
   | 'bollywood-library'
+  | 'popular-pakistani' | 'trending-pakistani' | 'latest-pakistani'
   | 'popular-korean' | 'trending-korean' | 'latest-korean'
   | 'popular-anime' | 'trending-anime' | 'latest-anime';
 
 export interface MovieCatalogueItem {
   id: number | string;
   title: string;
+  sectionCacheRecord?: boolean;
   year?: number | null;
   releaseDate?: string;
   overview?: string;
@@ -159,6 +182,59 @@ export interface MovieCatalogueItem {
   };
 }
 
+export interface SectionCacheRow {
+  id: number | string | null;
+  title: string;
+  year?: number | string | null;
+  releaseDate?: string | null;
+  overview?: string | null;
+  posterUrl?: string | null;
+  backdropUrl?: string | null;
+  rating?: number | null;
+  genres?: Array<number | { id?: number; name?: string }> | null;
+  source?: string | null;
+  tmdbId?: number | string | null;
+  tmdbUrl?: string | null;
+  imdbRatingStatus?: ImdbRatingResult['status'] | null;
+  imdbRating?: number | null;
+  imdbVotes?: string | number | null;
+  imdbId?: string | null;
+  imdbCheckedAt?: number | string | null;
+  imdbUrl?: string | null;
+  ottAvailability?: MovieCatalogueItem['ottAvailability'] | null;
+  streamingProviders?: TvCatalogueItem['streamingProviders'];
+  providerLink?: string | null;
+  originCountry?: string[];
+  originalLanguage?: string;
+  malId?: number | string | null;
+  imdbListRank?: number;
+  seriesType?: string;
+  networks?: TvCatalogueItem['networks'];
+  trendingWeek?: string;
+  trendingRank?: number;
+  trendingWeeks?: string[];
+  directStreamBroken?: boolean;
+}
+
+export interface SectionCacheSubsection {
+  catalogueKey?: string;
+  mediaType: 'movie' | 'tv';
+  pageSize: number;
+  pageCount: number;
+  pageOffsets?: number[];
+  totalResults: number;
+  results: SectionCacheRow[];
+}
+
+export interface SectionCacheDocument {
+  schemaVersion: number;
+  section: string;
+  builtAt?: string;
+  metadataSelfContained: boolean;
+  metadataSources: string[];
+  subsections: Record<string, SectionCacheSubsection>;
+}
+
 export interface SearchMediaMetadata {
   id: number | string;
   tmdbId?: number | string;
@@ -202,6 +278,7 @@ export interface MovieCataloguePage {
   maxSizeGb?: number;
   results: MovieCatalogueItem[];
   attribution?: string;
+  curatedOrder?: boolean;
 }
 
 

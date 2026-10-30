@@ -511,6 +511,74 @@ def test_tmdb_details_endpoint_returns_metadata_by_existing_tmdb_id(monkeypatch)
     assert result["posterUrl"].endswith("/chirp.jpg")
 
 
+def test_tmdb_tv_metadata_endpoint_parses_year_and_returns_in_region_providers(monkeypatch):
+    async def get_json(path, params):
+        if path == "tv/42":
+            assert params == {"language": "en-US"}
+            return {
+                "name": "Example Series",
+                "first_air_date": "2021-08-12",
+                "overview": "A verified TV synopsis.",
+                "poster_path": "/series.jpg",
+                "backdrop_path": "/series-backdrop.jpg",
+                "vote_average": 8.1,
+            }
+        if path == "tv/42/watch/providers":
+            assert params == {}
+            return {"results": {"IN": {
+                "flatrate": [{"provider_id": 8, "provider_name": "Provider"}],
+                "rent": [{"provider_id": 9, "provider_name": "Rental"}],
+            }}}
+        if path == "tv/42/external_ids":
+            return {"imdb_id": "tt0000042"}
+        raise AssertionError(f"Unexpected TMDB path: {path}")
+
+    monkeypatch.setattr(tv, "_tmdb_get_json", get_json)
+    result = asyncio.run(tv.api_tmdb_tv_metadata(42))
+
+    assert result["year"] == 2021
+    assert result["releaseDate"] == "2021-08-12"
+    assert result["imdbId"] == "tt0000042"
+    assert result["ottAvailability"]["region"] == "IN"
+    assert result["ottAvailability"]["streamingProviders"][0]["name"] == "Provider"
+    assert result["ottAvailability"]["rentProviders"][0]["name"] == "Rental"
+
+
+@pytest.mark.parametrize(
+    ("media_type", "result_key", "title_key", "title"),
+    [
+        ("movie", "movie_results", "title", "Example Film"),
+        ("tv", "tv_results", "name", "Example Series"),
+    ],
+)
+def test_tmdb_find_resolves_valid_imdb_ids_for_requested_media_type(
+    monkeypatch, media_type, result_key, title_key, title,
+):
+    async def get_json(path, params):
+        assert path == "find/tt1234567"
+        assert params == {"external_source": "imdb_id"}
+        return {result_key: [{"id": 987, title_key: title}]}
+
+    monkeypatch.setattr(tv, "_tmdb_get_json", get_json)
+    result = asyncio.run(tv.api_find_tmdb_by_imdb_id("tt1234567", media_type=media_type))
+
+    assert result["found"] is True
+    assert result["mediaType"] == media_type
+    assert result["tmdbId"] == 987
+    assert result["title"] == title
+
+
+def test_tmdb_find_rejects_malformed_imdb_ids_before_lookup(monkeypatch):
+    async def unexpected_lookup(*_args, **_kwargs):
+        raise AssertionError("Malformed IDs must not trigger TMDB requests")
+
+    monkeypatch.setattr(tv, "_tmdb_get_json", unexpected_lookup)
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(tv.api_find_tmdb_by_imdb_id("ttnot-an-id", media_type="tv"))
+
+    assert exc.value.status_code == 400
+
+
 def test_explicit_non_persistent_incomplete_refresh_bypasses_cache_only_mode(monkeypatch):
     cache_key = imdb._imdb_rating_cache_key("Chirp", 2024)
     monkeypatch.setattr(imdb, "CACHE_ONLY_MODE", True)

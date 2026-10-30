@@ -49,7 +49,8 @@ export function useVisibleMovieCatalogue({ movieCatalogue, isMarvelEnglishResult
     // These catalogues already carry their intended source ordering; re-sorting
     // them by release date would discard it.
     const catalogueKey = String(movieCatalogue?.catalogue || '');
-    const isRegionalMovieCatalogue = catalogueKey.startsWith('highest-rated-') ||
+    const isRegionalMovieCatalogue = movieCatalogue?.curatedOrder === true ||
+      catalogueKey.startsWith('highest-rated-') ||
       /^(popular|trending|latest)-(bollywood|hollywood|korean|pakistani|anime)$/.test(
       catalogueKey,
     );
