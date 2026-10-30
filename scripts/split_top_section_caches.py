@@ -309,7 +309,7 @@ def main() -> int:
         # entries; recursively walking it promotes episode release titles.
         rows = (
             collect_top_level_results(payload)
-            if filename == "marvel_web_series_catalogue.json"
+            if filename == "marvel_web_series_catalogue.json" or filename in RUNTIME_FILES
             else collect_rows(payload)
         )
         if not rows:
