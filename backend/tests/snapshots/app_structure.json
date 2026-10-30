@@ -348,6 +348,13 @@
     [
      "GET"
     ],
+    "/api/movies/tmdb-metadata/{tmdb_id}",
+    "api_tmdb_movie_metadata"
+   ],
+   [
+    [
+     "GET"
+    ],
     "/api/movies/ott/{movie_id}",
     "api_tmdb_movie_ott_availability"
    ],
@@ -1073,6 +1080,13 @@
     ],
     "/api/movies/catalogue/{catalogue_key}",
     "api_tmdb_movie_catalogue"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/movies/tmdb-metadata/{tmdb_id}",
+    "api_tmdb_movie_metadata"
    ],
    [
     [
