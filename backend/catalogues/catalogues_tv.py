@@ -1719,3 +1719,27 @@ async def api_tmdb_tv_metadata(tmdb_id: int):
         },
         "imdbId": str((await _tmdb_get_json(f"tv/{tmdb_id}/external_ids", {})).get("imdb_id") or ""),
     }
+
+
+@router.get("/api/catalogue/tmdb-find/{imdb_id}")
+async def api_find_tmdb_by_imdb_id(imdb_id: str, media_type: str = "movie"):
+    """Resolve an IMDb ID to a TMDB ID without searching torrent providers or writing caches."""
+    if not re.fullmatch(r"tt\\d+", str(imdb_id or "").strip()):
+        raise HTTPException(status_code=400, detail="Invalid IMDb ID")
+    kind = "tv" if str(media_type or "").casefold() in {"tv", "series"} else "movie"
+    found = await _tmdb_get_json(
+        "find/" + imdb_id.strip(),
+        {"external_source": "imdb_id"},
+    )
+    key = "tv_results" if kind == "tv" else "movie_results"
+    candidates = found.get(key) if isinstance(found, dict) else []
+    if not isinstance(candidates, list) or not candidates:
+        return {"found": False, "mediaType": kind, "imdbId": imdb_id}
+    item = candidates[0]
+    return {
+        "found": True,
+        "mediaType": kind,
+        "imdbId": imdb_id,
+        "tmdbId": valid_id if False else item.get("id"),
+        "title": item.get("name") if kind == "tv" else item.get("title"),
+    }
