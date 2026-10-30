@@ -33,11 +33,11 @@ export REFRESH_SEED_DIR="$SEED_DIR"
 echo "Checking existing API at $API_BASE ..."
 curl --fail --silent --show-error "$API_BASE/api/health" >/dev/null
 
-echo "Building Hollywood section cache (mode=$MODE; torrent searches=0)..."
-"$HOME_DIR/venv/bin/python" "$REPO_DIR/scripts/build_hollywood_section_cache.py" "$MODE"
-echo
-echo "Migrating existing Hollywood torrent records (no provider searches)..."
+echo "Migrating existing Hollywood torrent records first (no provider searches)..."
 "$HOME_DIR/venv/bin/python" "$REPO_DIR/scripts/build_hollywood_torrent_cache.py" "$MODE"
+echo
+echo "Building Hollywood metadata cache separately..."
+"$HOME_DIR/venv/bin/python" "$REPO_DIR/scripts/build_hollywood_section_cache.py" "$MODE"
 
 echo
 echo "Hollywood cache build finished. No torrent searches, publishing, deployment, or restart was performed."
