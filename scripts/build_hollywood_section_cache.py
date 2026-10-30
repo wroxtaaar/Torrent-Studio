@@ -373,6 +373,19 @@ def _imdb_lookup_url(rows: list[dict[str, Any]]) -> tuple[str, dict[str, dict[st
     return f"{API}/api/catalogue/imdb-ratings?{urllib.parse.urlencode(params)}", requested
 
 
+def set_imdb_rating_status(row: dict[str, Any], result_status: str = "unavailable") -> None:
+    """Keep IMDb identity resolution distinct from IMDb rating availability."""
+    imdb_id = str(row.get("imdbId") or "").strip()
+    has_id = bool(VALID_IMDB_ID.fullmatch(imdb_id))
+    has_rating = bool(valid_imdb_rating(row.get("imdbRating")))
+    if has_id and has_rating:
+        row["imdbRatingStatus"] = "found"
+    elif has_id and result_status not in {"unavailable", "rate_limited"}:
+        row["imdbRatingStatus"] = "id_found_no_rating"
+    else:
+        row["imdbRatingStatus"] = result_status or "unavailable"
+
+
 def enrich_imdb(rows: list[dict[str, Any]], subsection: str) -> dict[str, int]:
     url, requested = _imdb_lookup_url(rows)
     if not requested:
@@ -386,7 +399,7 @@ def enrich_imdb(rows: list[dict[str, Any]], subsection: str) -> dict[str, int]:
                 VALID_IMDB_ID.fullmatch(str(row.get("imdbId") or "").strip())
                 and valid_imdb_rating(row.get("imdbRating"))
             ):
-                row["imdbRatingStatus"] = "unavailable"
+                set_imdb_rating_status(row, "unavailable")
         return {"requested": len(requested), "idsResolved": 0, "ratingsFetched": 0}
 
     by_query = {
@@ -410,7 +423,7 @@ def enrich_imdb(rows: list[dict[str, Any]], subsection: str) -> dict[str, int]:
                 VALID_IMDB_ID.fullmatch(str(row.get("imdbId") or "").strip())
                 and valid_imdb_rating(row.get("imdbRating"))
             ):
-                row["imdbRatingStatus"] = "unavailable"
+                set_imdb_rating_status(row, "unavailable")
             continue
         returned_tmdb_id = valid_tmdb_id(result.get("tmdbIdTried"))
         row_tmdb_id = valid_tmdb_id(row.get("tmdbId"))
@@ -426,7 +439,7 @@ def enrich_imdb(rows: list[dict[str, Any]], subsection: str) -> dict[str, int]:
                 VALID_IMDB_ID.fullmatch(str(row.get("imdbId") or "").strip())
                 and valid_imdb_rating(row.get("imdbRating"))
             ):
-                row["imdbRatingStatus"] = "unavailable"
+                set_imdb_rating_status(row, "unavailable")
             continue
         returned_id = str(result.get("imdbId") or "").strip()
         if not VALID_IMDB_ID.fullmatch(str(row.get("imdbId") or "").strip()) and VALID_IMDB_ID.fullmatch(returned_id):
@@ -441,12 +454,7 @@ def enrich_imdb(rows: list[dict[str, Any]], subsection: str) -> dict[str, int]:
                 row[target] = result[source]
         if result.get("checkedAt") is not None:
             row["imdbCheckedAt"] = result["checkedAt"]
-        row["imdbRatingStatus"] = (
-            "found"
-            if VALID_IMDB_ID.fullmatch(str(row.get("imdbId") or "").strip())
-            and valid_imdb_rating(row.get("imdbRating"))
-            else str(result.get("status") or "unavailable")
-        )
+        set_imdb_rating_status(row, str(result.get("status") or "unavailable"))
     log(
         "imdb_enrichment_complete",
         subsection=subsection,
