@@ -38,7 +38,6 @@ REGIONAL_MOVIE = {
     "highest-rated-hollywood": ("highest-rated", "hollywood"),
     "highest-rated-bollywood": ("highest-rated", "bollywood"),
     "popular-korean": ("korean", "movies"),
-    "popular-pakistani": ("pakistani", "movies"),
     "popular-anime": ("anime", "movies"),
 }
 REGIONAL_TV = {
@@ -307,6 +306,10 @@ def main() -> int:
         old_doc = subsection_doc(section, read_json(out_path))
         old_subs = old_doc.get("subsections") if isinstance(old_doc.get("subsections"), dict) else {}
         new_subs = dict(old_subs)
+        removed_subsections: list[str] = []
+        if section == "pakistani" and "movies" in new_subs:
+            new_subs.pop("movies", None)
+            removed_subsections.append("movies")
         section_counts: dict[str, int] = {}
         subs = {sub for sec, sub in incoming if sec == section}
         for sub in sorted(subs):
@@ -336,7 +339,7 @@ def main() -> int:
                 "source": "existing seed JSON files only",
             },
         })
-        totals[section] = {"metadata": section_counts, "torrentWrites": 0}
+        totals[section] = {"metadata": section_counts, "removedSubsections": removed_subsections, "torrentWrites": 0}
         if not args.dry_run and section_counts:
             atomic_write(out_path, old_doc)
 
