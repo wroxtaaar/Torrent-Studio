@@ -194,13 +194,27 @@ def torrent_payload(row: dict[str, Any]) -> dict[str, Any]:
             data.setdefault(key, value)
     return data
 
+def has_catalogue_metadata(row: dict[str, Any]) -> bool:
+    source = row.get("movie") if isinstance(row.get("movie"), dict) else row
+    markers = {
+        "tmdbId", "imdbId", "posterUrl", "backdropUrl", "overview",
+        "synopsis", "releaseDate", "firstAirDate", "imdbRating",
+        "ottAvailability", "tmdbUrl", "imdbUrl",
+    }
+    return bool(markers.intersection(source))
+
 def merge_rows(existing: list[dict[str, Any]], incoming: list[dict[str, Any]], *, metadata: bool) -> list[dict[str, Any]]:
     merged: dict[str, dict[str, Any]] = {}
     order: list[str] = []
+    dropped_non_metadata = 0
     for row in existing + incoming:
         key = identity(row)
-        if not key: continue
+        if not key:
+            continue
         clean = metadata_row(row) if metadata else row
+        if metadata and not has_catalogue_metadata(clean):
+            dropped_non_metadata += 1
+            continue
         if key not in merged:
             merged[key] = dict(clean)
             order.append(key)
