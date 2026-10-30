@@ -43,7 +43,7 @@ Set `SEEDR_SESSION_SECRET` in `.env`, then run:
 docker compose up --build -d
 ```
 
-Open [http://localhost:10000](http://localhost:10000). Health check: [http://localhost:10000/api/health](http://localhost:10000/api/health).
+Open [http://localhost:3000](http://localhost:3000). Health check: [http://localhost:3000/api/health](http://localhost:3000/api/health).
 
 ## Tech stack
 

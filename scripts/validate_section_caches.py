@@ -5,7 +5,7 @@ Offline and read-only. Hard failures (exit code 1): a torrent field or stale str
 a duplicate title, a card with no title. Everything else (no poster, no overview, no TMDB id, no IMDb id)
 is only counted, because those gaps are what the enrichment step fills in on later runs.
 
-    python scripts/validate_section_caches.py [--seed DIR]      (default: REFRESH_SEED_DIR or ~/torrent-studio-refresh/seed)
+    python scripts/validate_section_caches.py [--seed DIR] [--require-all]      (default: REFRESH_SEED_DIR or ~/torrent-studio-refresh/seed)
 """
 from __future__ import annotations
 
@@ -54,13 +54,16 @@ def check_subsection(rows: list) -> tuple[list[str], dict[str, int]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--require-all", action="store_true", help="a missing section file is a failure")
     parser.add_argument("--seed", default=os.getenv("REFRESH_SEED_DIR") or str(Path.home() / "torrent-studio-refresh" / "seed"))
-    seed = Path(parser.parse_args().seed)
+    args = parser.parse_args()
+    seed = Path(args.seed)
     failed = False
     for section in SECTIONS:
         path = seed / f"{section}.json"
         if not path.exists():
             print(f"{section}: MISSING ({path.name})")
+            failed = failed or args.require_all
             continue
         try:
             doc = json.loads(path.read_text(encoding="utf-8"))
