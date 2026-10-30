@@ -26,6 +26,8 @@ TORRENT_KEYS = {
     "releaseGroups", "magnetUrl", "magnet", "infoHash", "hash", "downloadUrl",
     "seeders", "leechers", "indexer", "protocol", "publishDate", "infoUrl",
     "sourceUrl", "descriptorUrl", "guid", "size", "category",
+    # Marvel TV legacy cards embed episode-level streams and provider results.
+    "episodes", "nexStream",
 }
 
 REGIONAL_MOVIE = {
@@ -143,6 +145,23 @@ def metadata_row(row: dict[str, Any]) -> dict[str, Any]:
     clean.pop("catalogueTitle", None)
     clean.pop("mediaTitle", None)
     return clean
+
+def collect_top_level_results(value: Any) -> list[dict[str, Any]]:
+    """Read only top-level results from a catalogue wrapper, never nested episodes."""
+    if not isinstance(value, dict) or not isinstance(value.get("results"), list):
+        return []
+    rows = [
+        metadata_row(row)
+        for row in value["results"]
+        if isinstance(row, dict) and title(row)
+    ]
+    dedup: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        key = identity(row)
+        if key:
+            dedup.setdefault(key, row)
+    return list(dedup.values())
+
 
 def collect_rows(value: Any) -> list[dict[str, Any]]:
     """Collect catalogue metadata records without descending into torrent payloads."""
@@ -285,7 +304,14 @@ def main() -> int:
         if not path:
             continue
         payload = read_json(path)
-        rows = collect_rows(payload)
+        # This legacy Marvel file is a catalogue wrapper whose cards contain
+        # nested episode/torrent payloads. Only its top-level cards are catalogue
+        # entries; recursively walking it promotes episode release titles.
+        rows = (
+            collect_top_level_results(payload)
+            if filename == "marvel_web_series_catalogue.json"
+            else collect_rows(payload)
+        )
         if not rows:
             log("source_empty_or_unrecognized", source=str(path))
             continue
