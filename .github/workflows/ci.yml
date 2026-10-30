@@ -36,6 +36,8 @@ jobs:
       - name: Run tests
         working-directory: backend
         run: python -m pytest -q tests
+      - name: Run script tests (cache builders and section-cache tools)
+        run: python -m pytest -q scripts/tests
 
   frontend:
     runs-on: ubuntu-latest

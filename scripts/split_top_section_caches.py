@@ -20,6 +20,8 @@ from typing import Any
 HOME = Path(os.getenv("TS_HOME") or Path.home() / "torrent-studio-refresh")
 SEED = Path(os.getenv("REFRESH_SEED_DIR") or HOME / "seed").resolve()
 PAGE_SIZE = 18
+# Stream-health fields from older builds; the app no longer reads them (directStreamBroken replaces them).
+LEGACY_STREAM_KEYS = {"nexStream", "nexStreamPlayable", "nexStreamVerified", "nexStreamCheckedAt", "directStreamAvailability"}
 TORRENT_KEYS = {
     "torrentDetails", "torrentMatch", "torrentMatches", "cachedTorrentDetails",
     "torrentReleases", "torrentResults", "torrent", "torrents", "releases",
@@ -122,7 +124,7 @@ def clean_metadata_value(value: Any) -> Any:
         return {
             key: clean_metadata_value(item)
             for key, item in value.items()
-            if not is_torrent_field(str(key)) and key != "nexStream"
+            if not is_torrent_field(str(key)) and key not in LEGACY_STREAM_KEYS
         }
     if isinstance(value, list):
         return [clean_metadata_value(item) for item in value]
@@ -140,6 +142,10 @@ def metadata_row(row: dict[str, Any]) -> dict[str, Any]:
         clean["title"] = str(canonical_title).strip()
     if clean.get("year") in (None, "") and source.get("releaseDate"):
         clean["year"] = str(source["releaseDate"])[:4]
+    # Catalogue rows built from TMDB lists carry the TMDB id as "id" only; store it as tmdbId too so every
+    # section file has one consistent key (in the data, id always equals the id in the row's tmdbUrl).
+    if clean.get("tmdbId") in (None, "") and str(clean.get("id") or "").isdigit() and int(clean["id"]) > 0:
+        clean["tmdbId"] = int(clean["id"])
     clean.pop("catalogueTitle", None)
     clean.pop("mediaTitle", None)
     return clean

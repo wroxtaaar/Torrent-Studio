@@ -10,6 +10,24 @@ assert SPEC and SPEC.loader
 SPEC.loader.exec_module(MODULE)
 
 
+class MetadataRowTests(unittest.TestCase):
+    def test_tmdb_list_id_is_also_stored_as_tmdb_id(self):
+        row = MODULE.metadata_row({"id": 1234, "title": "Film", "posterUrl": "/p.jpg"})
+        self.assertEqual(row["tmdbId"], 1234)
+        kept = MODULE.metadata_row({"id": 1, "tmdbId": 99, "title": "Film"})
+        self.assertEqual(kept["tmdbId"], 99)  # an explicit tmdbId is never replaced
+        self.assertNotIn("tmdbId", MODULE.metadata_row({"id": "abc", "title": "Film"}))
+
+    def test_stale_stream_fields_are_dropped_but_broken_flag_is_kept(self):
+        row = MODULE.metadata_row({
+            "id": 5, "title": "Film", "nexStreamPlayable": False, "nexStreamVerified": False,
+            "directStreamAvailability": {"provider": "VidRift"}, "directStreamBroken": True,
+        })
+        for key in ("nexStreamPlayable", "nexStreamVerified", "directStreamAvailability"):
+            self.assertNotIn(key, row)
+        self.assertTrue(row["directStreamBroken"])
+
+
 class MarvelSeriesSplitterTests(unittest.TestCase):
     def test_legacy_marvel_uses_only_top_level_catalogue_cards(self):
         payload = {
