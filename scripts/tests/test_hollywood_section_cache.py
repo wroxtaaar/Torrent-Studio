@@ -106,6 +106,25 @@ class HollywoodCacheTests(unittest.TestCase):
         self.assertIn("persist=false", called["url"])
         self.assertIn("refresh_incomplete=true", called["url"])
 
+    def test_imdb_id_without_rating_gets_distinct_status(self):
+        movie = {"title": "LARA", "year": 2026, "tmdbId": 1807926}
+        with patch.object(MODULE, "request_json", lambda *args, **kwargs: {"results": [{
+                "query": "LARA (2026)", "status": "found", "imdbId": "tt34224950",
+                "imdbRating": None, "checkedAt": 1761690000,
+            }]}):
+            MODULE.enrich_imdb([movie], "latest")
+        self.assertEqual(movie["imdbId"], "tt34224950")
+        self.assertEqual(movie["imdbRatingStatus"], "id_found_no_rating")
+        self.assertNotIn("imdbRating", movie)
+
+    def test_unmatched_title_keeps_not_found_status(self):
+        movie = {"title": "Unlisted Film", "year": 2026, "tmdbId": 1807926}
+        with patch.object(MODULE, "request_json", lambda *args, **kwargs: {"results": [{
+                "query": "Unlisted Film (2026)", "status": "not_found",
+            }]}):
+            MODULE.enrich_imdb([movie], "latest")
+        self.assertEqual(movie["imdbRatingStatus"], "not_found")
+
     def test_existing_imdb_id_and_rating_are_preserved_after_failed_refresh(self):
         movie = {
             "title": "Chirp", "year": 2024, "imdbId": "tt1234567",
