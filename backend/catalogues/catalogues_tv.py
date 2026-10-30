@@ -1661,3 +1661,61 @@ async def api_tmdb_regional_tv_catalogue(
     }
     _REGIONAL_TV_DISCOVERY_CACHE[cache_key] = (time.monotonic(), result)
     return await _enrich_regional_tv_imdb_ratings(result)
+
+
+@router.get("/api/tv/tmdb-metadata/{tmdb_id}")
+async def api_tmdb_tv_metadata(tmdb_id: int):
+    """Fetch TV metadata and India watch providers without touching catalogue/torrent caches."""
+    if tmdb_id < 1:
+        raise HTTPException(status_code=400, detail="Invalid TMDB TV ID")
+    details = await _tmdb_get_json(f"tv/{tmdb_id}", {"language": "en-US"})
+    providers_payload = await _tmdb_get_json(
+        f"tv/{tmdb_id}/watch/providers", {},
+    )
+    region = (providers_payload.get("results") or {}).get("IN") or {}
+    providers = []
+    seen = set()
+    for kind in ("flatrate", "free", "ads", "rent", "buy"):
+        for item in region.get(kind) or []:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("provider_name") or "").strip()
+            if not name:
+                continue
+            provider_id = item.get("provider_id")
+            identity = str(provider_id if provider_id is not None else name.casefold())
+            if identity in seen:
+                continue
+            seen.add(identity)
+            logo_path = str(item.get("logo_path") or "").strip()
+            providers.append({
+                "providerId": provider_id,
+                "name": name,
+                "logoUrl": "https://image.tmdb.org/t/p/w92" + logo_path if logo_path else "",
+                "type": kind,
+            })
+    air_date = str(details.get("first_air_date") or "")
+    poster_path = str(details.get("poster_path") or "")
+    backdrop_path = str(details.get("backdrop_path") or "")
+    return {
+        "id": tmdb_id,
+        "tmdbId": tmdb_id,
+        "title": str(details.get("name") or ""),
+        "year": int(air_date[:4]) if re.match(r"^\\d{4}", air_date) else None,
+        "releaseDate": air_date,
+        "overview": str(details.get("overview") or ""),
+        "posterUrl": TMDB_IMAGE_BASE + poster_path if poster_path else "",
+        "backdropUrl": "https://image.tmdb.org/t/p/w780" + backdrop_path if backdrop_path else "",
+        "rating": float(details.get("vote_average") or 0),
+        "tmdbUrl": f"https://www.themoviedb.org/tv/{tmdb_id}",
+        "streamingProviders": providers,
+        "ottAvailability": {
+            "status": "streaming" if any(p.get("type") in {"flatrate", "free", "ads"} for p in providers) else "unavailable",
+            "region": "IN",
+            "streamingProviders": [p for p in providers if p.get("type") in {"flatrate", "free", "ads"}],
+            "rentProviders": [p for p in providers if p.get("type") == "rent"],
+            "buyProviders": [p for p in providers if p.get("type") == "buy"],
+            "source": "TMDB",
+        },
+        "imdbId": str((await _tmdb_get_json(f"tv/{tmdb_id}/external_ids", {})).get("imdb_id") or ""),
+    }
