@@ -104,7 +104,42 @@ async def _save_imdb_rating_cache_record(record: dict[str, Any]) -> None:
             logger.warning("Could not persist IMDb rating cache: %s", exc)
 
 
-async def _fetch_imdb_rating_omdb(
+async def _select_imdb_search_candidate(
+    rows: Any,
+    title: str,
+    year: int,
+) -> dict[str, Any] | None:
+    """Select one exact-title OMDb result, allowing a one-year metadata discrepancy.
+
+    A year-tolerance match is accepted only when it is the unique closest candidate.
+    Ambiguous titles are rejected rather than assigning another film's IMDb identity.
+    """
+    target = _normalize_synopsis_match_title(title)
+    candidates: list[tuple[int, dict[str, Any]]] = []
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict):
+            continue
+        candidate_title = str(row.get("Title") or "").strip()
+        candidate_id = str(row.get("imdbID") or "").strip()
+        if not candidate_title or not re.fullmatch(r"tt\d+", candidate_id):
+            continue
+        if _normalize_synopsis_match_title(candidate_title) != target:
+            continue
+        year_match = re.search(r"\b((?:18|19|20|21)\d{2})\b", str(row.get("Year") or ""))
+        candidate_year = int(year_match.group(1)) if year_match else 0
+        if year and (not candidate_year or abs(candidate_year - year) > 1):
+            continue
+        candidates.append((abs(candidate_year - year) if year and candidate_year else 0, row))
+
+    if not candidates:
+        return None
+    best_distance = min(distance for distance, _ in candidates)
+    best = [row for distance, row in candidates if distance == best_distance]
+    unique = {str(row.get("imdbID") or ""): row for row in best}
+    return next(iter(unique.values())) if len(unique) == 1 else None
+
+
+def _fetch_imdb_rating_omdb(
     title: str,
     year: int,
     cache_key: str,
@@ -246,7 +281,10 @@ async def _fetch_imdb_rating_omdb(
         # title search. This avoids ambiguous matches for titles shared by
         # multiple films/series or translated titles.
         direct_match = await lookup_by_tmdb_imdb_id(key)
-        if direct_match and direct_match.get("imdbRating") is not None:
+        if direct_match and re.fullmatch(r"tt\d+", str(direct_match.get("imdbId") or "")):
+            # The TMDB external-ID relationship is authoritative even when IMDb
+            # has not published a rating yet. _fetch_imdb_rating can still ask
+            # MDBList for the rating using this verified IMDb ID.
             _provider_key_success(provider, key)
             return direct_match
 
@@ -277,30 +315,19 @@ async def _fetch_imdb_rating_omdb(
                     continue
                 if search_state != "ok" or not search_payload:
                     return {**base, "status": "unavailable", "reason": "OMDb search failed", "cacheable": False}
-                candidates: list[tuple[int, dict[str, Any]]] = []
-                for row in search_payload.get("Search") or []:
-                    if not isinstance(row, dict):
-                        continue
-                    candidate_title = str(row.get("Title") or "").strip()
-                    candidate_id = str(row.get("imdbID") or "").strip()
-                    if not candidate_title or not re.fullmatch(r"tt\d+", candidate_id):
-                        continue
-                    if _normalize_synopsis_match_title(candidate_title) != target:
-                        continue
-                    year_match = re.search(r"\b((?:18|19|20|21)\d{2})\b", str(row.get("Year") or ""))
-                    candidate_year = int(year_match.group(1)) if year_match else 0
-                    if year and candidate_year and candidate_year != year:
-                        continue
-                    if year and not candidate_year:
-                        continue
-                    candidates.append((0 if year and candidate_year == year else 1, row))
-                if not candidates:
+                selected = _select_imdb_search_candidate(
+                    search_payload.get("Search"), title, year,
+                )
+                if not selected:
                     direct_match = await lookup_by_tmdb_imdb_id(key)
                     if direct_match:
                         return direct_match
-                    return {**base, "status": "not_found", "reason": "OMDb returned no exact title/year match"}
-                candidates.sort(key=lambda item: item[0])
-                selected_id = str(candidates[0][1].get("imdbID") or "").strip()
+                    return {
+                        **base,
+                        "status": "not_found",
+                        "reason": "OMDb returned no unique exact-title match within one year",
+                    }
+                selected_id = str(selected.get("imdbID") or "").strip()
                 payload, details_state = await call_omdb(key, {"i": selected_id, "type": omdb_type})
                 if details_state == "rate_limited":
                     return {**base, "status": "rate_limited", "reason": "OMDb rate limit reached", "cacheable": False}
@@ -320,7 +347,7 @@ async def _fetch_imdb_rating_omdb(
         if (
             not returned_title
             or candidate != target
-            or (year and returned_year != year)
+            or (year and (not returned_year or abs(returned_year - year) > 1))
             or (returned_type and returned_type != wanted_type)
         ):
             # Never display another title's score just because OMDb returned a nearby match.
