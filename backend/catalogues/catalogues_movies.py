@@ -1016,6 +1016,7 @@ def _regional_movie_cache_page_is_usable(payload: dict[str, Any], page: int) -> 
 async def _fetch_paginated_regional_movie_catalogue(
     catalogue_key: str, page: int,
     skip_ids: set[str] | None = None, skip_pages: int = 0,
+    *, cache_write: bool = True,
 ) -> dict[str, Any]:
     """Build stable 18-item display pages from eligible regional movie candidates.
 
@@ -1057,7 +1058,7 @@ async def _fetch_paginated_regional_movie_catalogue(
         ) else None
         if source_payload is not None:
             _record_cache_event("regional_movie_source_page", "memory_hit")
-        if cached and source_payload is None:
+        if cache_write and cached and source_payload is None:
             _tmdb_movie_catalogue_cache.pop(cache_key, None)
         if source_payload is None and not refresh_source_page:
             persistent = _read_tmdb_persistent_cache(cache_key)
@@ -1068,8 +1069,9 @@ async def _fetch_paginated_regional_movie_catalogue(
         if source_payload is None:
             _record_cache_event("regional_movie_source_page", "miss")
             source_payload = await _tmdb_fetch_movie_catalogue(catalogue_key, source_page, True)
-            _tmdb_movie_catalogue_cache[cache_key] = (time.monotonic(), source_payload)
-            _write_tmdb_persistent_cache(cache_key, source_payload)
+            if cache_write:
+                _tmdb_movie_catalogue_cache[cache_key] = (time.monotonic(), source_payload)
+                _write_tmdb_persistent_cache(cache_key, source_payload)
             if refreshed_source_keys is not None:
                 refreshed_source_keys.add(cache_key)
         source_total_pages = min(
@@ -1268,13 +1270,16 @@ async def api_tmdb_movie_catalogue(
     max_size_gb: int = Query(5, ge=1, le=5),
     basic: bool = Query(False),
     live: bool = Query(False),
+    cache_write: bool = Query(True),
 ):
     if catalogue_key in {"highest-rated-hollywood", "highest-rated-bollywood"}:
         return await _highest_rated_movie_curated_page(catalogue_key, page)
     if live and catalogue_key in REGIONAL_MOVIE_CATALOGUE_KEYS:
         # Candidate list for the cache builder: fresh source pages, no cache or paging offsets,
         # NexStream playback marked on each title instead of being used to drop titles.
-        return await _live_regional_candidates(catalogue_key, page)
+        return await _live_regional_candidates(
+            catalogue_key, page, cache_write=cache_write,
+        )
     payload = await _api_tmdb_movie_catalogue(catalogue_key, page, released_only, max_size_gb, basic)
     if (
         released_only
@@ -1286,14 +1291,47 @@ async def api_tmdb_movie_catalogue(
     return payload
 
 
+@router.get("/api/movies/tmdb-metadata/{tmdb_id}")
+async def api_tmdb_movie_metadata(tmdb_id: int):
+    """Fetch TMDB details directly without writing catalogue or metadata caches."""
+    if tmdb_id < 1:
+        raise HTTPException(status_code=422, detail="TMDB movie ID must be positive.")
+    details = await _tmdb_get_json(
+        f"movie/{tmdb_id}", {"language": "en-US"}, request_timeout=6.0,
+    )
+    release_date = str(details.get("release_date") or "").strip()
+    year_match = re.match(r"^(\d{4})", release_date)
+    poster_path = str(details.get("poster_path") or "").strip()
+    backdrop_path = str(details.get("backdrop_path") or "").strip()
+    return {
+        "id": tmdb_id,
+        "tmdbId": tmdb_id,
+        "title": str(details.get("title") or "").strip(),
+        "year": int(year_match.group(1)) if year_match else None,
+        "releaseDate": release_date,
+        "overview": str(details.get("overview") or "").strip(),
+        "posterUrl": TMDB_IMAGE_BASE + poster_path if poster_path else "",
+        "backdropUrl": "https://image.tmdb.org/t/p/w780" + backdrop_path if backdrop_path else "",
+        "rating": float(details.get("vote_average") or 0),
+        "tmdbUrl": f"https://www.themoviedb.org/movie/{tmdb_id}",
+    }
+
+
 _LIVE_REFRESHED_SOURCE_KEYS: set[tuple[str, int]] = set()
 
 
-async def _live_regional_candidates(catalogue_key: str, page: int) -> dict[str, Any]:
+async def _live_regional_candidates(
+    catalogue_key: str, page: int, *, cache_write: bool = True,
+) -> dict[str, Any]:
     source_token = _REGIONAL_MOVIE_SOURCE_FORCE_REFRESH.set(True)
-    refreshed_token = _REGIONAL_MOVIE_SOURCE_REFRESHED_KEYS.set(_LIVE_REFRESHED_SOURCE_KEYS)
+    refreshed_keys = _LIVE_REFRESHED_SOURCE_KEYS if cache_write else set()
+    refreshed_token = _REGIONAL_MOVIE_SOURCE_REFRESHED_KEYS.set(refreshed_keys)
     try:
-        payload = await _fetch_paginated_regional_movie_catalogue(catalogue_key, page)
+        payload = await _fetch_paginated_regional_movie_catalogue(
+            catalogue_key, page, cache_write=cache_write,
+        )
+        if not cache_write:
+            return payload
         return await _enrich_regional_movie_catalogue_metadata(payload)
     finally:
         _REGIONAL_MOVIE_SOURCE_REFRESHED_KEYS.reset(refreshed_token)

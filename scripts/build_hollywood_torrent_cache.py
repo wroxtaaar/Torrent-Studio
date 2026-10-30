@@ -15,8 +15,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
-SEED = Path(os.getenv("REFRESH_SEED_DIR") or ROOT / "backend" / "cache-seed").resolve()
+REFRESH_HOME = Path(os.getenv("TS_HOME") or Path.home() / "torrent-studio-refresh")
+SEED = Path(os.getenv("REFRESH_SEED_DIR") or REFRESH_HOME / "seed").resolve()
 METADATA_PATH = SEED / "hollywood.json"
 LEGACY_PATH = SEED / "latest_hollywood_catalogue.json"
 OUTPUT = SEED / "hollywood-torrents.json"

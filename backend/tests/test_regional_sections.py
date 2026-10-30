@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from catalogues import catalogues_movies as movies
 from catalogues import catalogues_tv as tv
 from core.settings import REGIONAL_MOVIE_CATALOGUE_KEYS
+from metadata import imdb
 
 
 def test_new_regional_movie_catalogue_pages_contain_18_entries(monkeypatch):
@@ -430,3 +431,174 @@ def test_korean_movie_source_filters_out_non_korean_origin(monkeypatch):
     result = asyncio.run(movies._tmdb_fetch_movie_catalogue("popular-korean", 1))
 
     assert [row["title"] for row in result["results"]] == ["Korean Film"]
+
+
+def test_imdb_lookup_endpoint_accepts_non_persistent_incomplete_refresh(monkeypatch):
+    observed = {}
+
+    async def get_rating(title, year, media_type, tmdb_id, *, persist, refresh_incomplete):
+        observed.update({
+            "title": title,
+            "year": year,
+            "media_type": media_type,
+            "tmdb_id": tmdb_id,
+            "persist": persist,
+            "refresh_incomplete": refresh_incomplete,
+        })
+        return {
+            "status": "found", "title": title, "year": year, "mediaType": media_type,
+            "imdbId": "tt1234567", "imdbRating": 7.6, "checkedAt": 1761690000,
+        }
+
+    monkeypatch.setattr(imdb, "_get_imdb_rating_record", get_rating)
+    result = asyncio.run(imdb.api_catalogue_imdb_ratings(
+        titles=["Chirp (2024)"],
+        media_types=["movie"],
+        tmdb_ids=[1807573],
+        persist=False,
+        refresh_incomplete=True,
+    ))
+
+    assert observed == {
+        "title": "Chirp", "year": 2024, "media_type": "movie",
+        "tmdb_id": 1807573, "persist": False, "refresh_incomplete": True,
+    }
+    assert result["results"][0]["imdbId"] == "tt1234567"
+    assert result["results"][0]["imdbRating"] == 7.6
+
+
+def test_incomplete_cached_imdb_record_is_refetched_without_persisting(monkeypatch):
+    cache_key = imdb._imdb_rating_cache_key("Chirp", 2024)
+    monkeypatch.setattr(imdb, "CACHE_ONLY_MODE", False)
+    monkeypatch.setattr(imdb, "CACHE_FIRST", True)
+    monkeypatch.setattr(imdb, "_load_imdb_rating_cache", lambda: {
+        cache_key: {
+            "cacheKey": cache_key, "title": "Chirp", "year": 2024,
+            "status": "found", "imdbId": "tt1234567", "imdbRating": 0,
+            "checkedAt": 1761690000,
+        },
+    })
+    monkeypatch.setattr(imdb, "_IMDB_RATING_INFLIGHT", {})
+    calls = {"fetch": 0, "save": 0}
+
+    async def fetch(title, year, key, media_type, tmdb_id):
+        calls["fetch"] += 1
+        assert tmdb_id == 1807573
+        return {
+            "cacheKey": key, "title": title, "year": year, "mediaType": media_type,
+            "status": "found", "imdbId": "tt1234567", "imdbRating": 7.6,
+            "checkedAt": 1761690000,
+        }
+
+    async def save(_record):
+        calls["save"] += 1
+
+    monkeypatch.setattr(imdb, "_fetch_imdb_rating", fetch)
+    monkeypatch.setattr(imdb, "_save_imdb_rating_cache_record", save)
+    result = asyncio.run(imdb._get_imdb_rating_record(
+        "Chirp", 2024, "movie", 1807573,
+        persist=False, refresh_incomplete=True,
+    ))
+
+    assert result["imdbId"] == "tt1234567"
+    assert calls == {"fetch": 1, "save": 0}
+
+
+def test_live_catalogue_refresh_can_skip_application_cache_writes(monkeypatch):
+    observed = {}
+
+    async def fetch(catalogue_key, page, *, cache_write):
+        observed.update({"catalogue_key": catalogue_key, "page": page, "cache_write": cache_write})
+        return {"catalogue": catalogue_key, "page": page, "results": []}
+
+    async def enrich(*args, **kwargs):
+        raise AssertionError("No-cache refresh must not run cache-writing IMDb/OTT enrichment")
+
+    monkeypatch.setattr(movies, "_fetch_paginated_regional_movie_catalogue", fetch)
+    monkeypatch.setattr(movies, "_enrich_regional_movie_catalogue_metadata", enrich)
+    result = asyncio.run(movies._live_regional_candidates(
+        "latest-hollywood", 1, cache_write=False,
+    ))
+
+    assert observed == {"catalogue_key": "latest-hollywood", "page": 1, "cache_write": False}
+    assert result["catalogue"] == "latest-hollywood"
+
+
+def test_no_cache_live_fetch_leaves_memory_and_disk_catalogue_caches_untouched(monkeypatch):
+    cache_key = ("popular-hollywood|released-v6", 1)
+    original_cache = {cache_key: (0.0, {"results": [{"id": 999, "title": "Cached"}]})}
+    writes = []
+
+    async def fetch_source(catalogue_key, page, released_only):
+        assert catalogue_key == "popular-hollywood"
+        assert page == 1
+        assert released_only is True
+        return {
+            "totalPages": 1,
+            "totalResults": 19,
+            "results": [{"id": index, "title": f"Film {index}"} for index in range(19)],
+        }
+
+    monkeypatch.setattr(movies, "_tmdb_movie_catalogue_cache", original_cache)
+    monkeypatch.setattr(movies, "_read_tmdb_persistent_cache", lambda *args: pytest.fail("No-cache refresh read disk cache"))
+    monkeypatch.setattr(movies, "_write_tmdb_persistent_cache", lambda *args: writes.append(args))
+    monkeypatch.setattr(movies, "_tmdb_fetch_movie_catalogue", fetch_source)
+    refresh_token = movies._REGIONAL_MOVIE_SOURCE_FORCE_REFRESH.set(True)
+    keys_token = movies._REGIONAL_MOVIE_SOURCE_REFRESHED_KEYS.set(set())
+    try:
+        result = asyncio.run(movies._fetch_paginated_regional_movie_catalogue(
+            "popular-hollywood", 1, cache_write=False,
+        ))
+    finally:
+        movies._REGIONAL_MOVIE_SOURCE_REFRESHED_KEYS.reset(keys_token)
+        movies._REGIONAL_MOVIE_SOURCE_FORCE_REFRESH.reset(refresh_token)
+
+    assert len(result["results"]) == 18
+    assert original_cache[cache_key][1]["results"][0]["id"] == 999
+    assert writes == []
+
+
+def test_movie_catalogue_route_passes_cache_write_opt_out(monkeypatch):
+    observed = {}
+
+    async def live_page(catalogue_key, page, *, cache_write):
+        observed.update({"catalogue_key": catalogue_key, "page": page, "cache_write": cache_write})
+        return {"results": []}
+
+    monkeypatch.setattr(movies, "_live_regional_candidates", live_page)
+    asyncio.run(movies.api_tmdb_movie_catalogue(
+        "popular-hollywood",
+        page=1,
+        released_only=True,
+        max_size_gb=5,
+        basic=False,
+        live=True,
+        cache_write=False,
+    ))
+    assert observed == {
+        "catalogue_key": "popular-hollywood", "page": 1, "cache_write": False,
+    }
+
+
+def test_tmdb_details_endpoint_returns_metadata_by_existing_tmdb_id(monkeypatch):
+    async def get_json(path, params, *, request_timeout):
+        assert path == "movie/1807573"
+        assert params == {"language": "en-US"}
+        assert request_timeout == 6.0
+        return {
+            "id": 1807573,
+            "title": "Chirp",
+            "release_date": "2024-06-01",
+            "overview": "A verified synopsis.",
+            "poster_path": "/chirp.jpg",
+            "backdrop_path": "/chirp-backdrop.jpg",
+            "vote_average": 6.2,
+        }
+
+    monkeypatch.setattr(movies, "_tmdb_get_json", get_json)
+    result = asyncio.run(movies.api_tmdb_movie_metadata(1807573))
+
+    assert result["tmdbId"] == 1807573
+    assert result["year"] == 2024
+    assert result["overview"] == "A verified synopsis."
+    assert result["posterUrl"].endswith("/chirp.jpg")

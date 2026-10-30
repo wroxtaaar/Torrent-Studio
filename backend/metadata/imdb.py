@@ -387,7 +387,13 @@ async def _fetch_imdb_rating(
 
 
 async def _get_imdb_rating_record(
-    title: str, year: int, media_type: str = "movie", tmdb_id: int = 0
+    title: str,
+    year: int,
+    media_type: str = "movie",
+    tmdb_id: int = 0,
+    *,
+    persist: bool = True,
+    refresh_incomplete: bool = False,
 ) -> dict[str, Any]:
     normalized_type = "tv" if str(media_type or "movie").casefold() in {"tv", "series"} else "movie"
     cache_key = _imdb_rating_cache_key(title, year, normalized_type)
@@ -401,6 +407,18 @@ async def _get_imdb_rating_record(
             "mediaType": normalized_type, "cacheKey": cache_key,
             "reason": "Not in bundled cache",
         }
+    if refresh_incomplete and cached:
+        cached_has_imdb_id = bool(re.fullmatch(r"tt\d+", str(cached.get("imdbId") or "")))
+        try:
+            cached_rating = float(cached.get("imdbRating"))
+        except (TypeError, ValueError, OverflowError):
+            cached_rating = 0
+        cached_has_rating = (
+            cached.get("status") == "found" and 0 < cached_rating <= 10
+        )
+        cached_has_timestamp = bool(cached.get("checkedAt"))
+        if not cached_has_imdb_id or not cached_has_rating or not cached_has_timestamp:
+            cached = None
     if cached and CACHE_FIRST:
         # Keep successful ratings cache-first, but re-check old misses/partial
         # records when the lookup strategy version changes.
@@ -443,11 +461,14 @@ async def _get_imdb_rating_record(
             return cached
 
     _record_cache_event("imdb_rating", "miss")
+    if not persist:
+        return await _fetch_imdb_rating(title, year, cache_key, normalized_type, tmdb_id)
+
     task = _IMDB_RATING_INFLIGHT.get(cache_key)
     if task is None or task.done():
         async def fetch_and_save() -> dict[str, Any]:
             result = await _fetch_imdb_rating(title, year, cache_key, normalized_type, tmdb_id)
-            if result.get("status") in {"found", "not_found"} and result.get("cacheable", True):
+            if persist and result.get("status") in {"found", "not_found"} and result.get("cacheable", True):
                 result.pop("cacheable", None)
                 await _save_imdb_rating_cache_record(result)
             return result
@@ -481,8 +502,10 @@ async def api_catalogue_imdb_ratings(
     titles: list[str] = Query(..., min_length=1, max_length=80),
     media_types: list[str] = Query(default=[]),
     tmdb_ids: list[int] = Query(default=[]),
+    persist: bool = Query(True),
+    refresh_incomplete: bool = Query(False),
 ):
-    """Return cached IMDb ratings, using TMDB's IMDb ID to resolve ambiguous titles."""
+    """Return IMDb ratings; optional refresh flags support seed builds without cache writes."""
     requested: dict[str, tuple[str, int, str, str, int]] = {}
     for index, raw in enumerate(titles[:80]):
         title, year = _parse_imdb_rating_title(raw)
@@ -501,7 +524,11 @@ async def api_catalogue_imdb_ratings(
 
     results = await asyncio.gather(
         *(
-            _get_imdb_rating_record(title, year, media_type, tmdb_id)
+            _get_imdb_rating_record(
+                title, year, media_type, tmdb_id,
+                persist=persist,
+                refresh_incomplete=refresh_incomplete,
+            )
             for title, year, media_type, _raw, tmdb_id in requested.values()
         ),
         return_exceptions=True,

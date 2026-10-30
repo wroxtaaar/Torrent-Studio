@@ -29,6 +29,7 @@ fi
 
 export HOME_API_BASE="$API_BASE"
 export REFRESH_SEED_DIR="$SEED_DIR"
+export PYTHONUNBUFFERED=1
 
 echo "Checking existing API at $API_BASE ..."
 curl --fail --silent --show-error "$API_BASE/api/health" >/dev/null
