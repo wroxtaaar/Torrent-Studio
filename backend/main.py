@@ -379,6 +379,8 @@ app.include_router(misc_routes_router)
 @app.get("/")
 async def root():
     return {"name": APP_NAME, "status": "ok"}
+
+
 app.router.add_event_handler("startup", start_seedr_cleanup_worker)
 
 from catalogues.catalogues_extra import (

@@ -211,6 +211,8 @@ def test_pakistani_tv_prebuilt_pages_backfill_after_filtering(monkeypatch, tmp_p
 
 
 def test_regional_tv_response_is_enriched_with_imdb_rating(monkeypatch):
+    monkeypatch.setattr(tv, "BACKFILL_MISSING_METADATA", True)
+
     async def get_rating(title, year, media_type, tmdb_id):
         assert (title, year, media_type, tmdb_id) == ("Example Series", 2024, "tv", 12)
         return {
@@ -579,7 +581,7 @@ def test_tmdb_find_rejects_malformed_imdb_ids_before_lookup(monkeypatch):
     assert exc.value.status_code == 400
 
 
-def test_explicit_non_persistent_incomplete_refresh_bypasses_cache_only_mode(monkeypatch):
+def test_explicit_non_persistent_incomplete_refresh_remains_cache_only(monkeypatch):
     cache_key = imdb._imdb_rating_cache_key("Chirp", 2024)
     monkeypatch.setattr(imdb, "CACHE_ONLY_MODE", True)
     monkeypatch.setattr(imdb, "CACHE_FIRST", True)
@@ -611,9 +613,8 @@ def test_explicit_non_persistent_incomplete_refresh_bypasses_cache_only_mode(mon
         persist=False, refresh_incomplete=True,
     ))
 
-    assert result["imdbId"] == "tt1234567"
-    assert result["imdbRating"] == 7.6
-    assert calls == {"fetch": 1, "save": 0}
+    assert result["status"] == "not_found"
+    assert calls == {"fetch": 0, "save": 0}
 
 
 def test_cache_only_mode_still_blocks_ordinary_imdb_lookup(monkeypatch):

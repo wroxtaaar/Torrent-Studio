@@ -7,6 +7,8 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from core.settings import CACHE_ONLY_MODE, log_cache_only_metadata_block
+
 
 # Process-local cache/API diagnostics. Counts reset on each worker restart.
 _CACHE_DIAGNOSTICS_STARTED_AT = time.time()
@@ -104,6 +106,25 @@ class _InstrumentedAsyncClient(httpx.AsyncClient):
     """Count backend HTTP sends, including calls made through client.stream()."""
 
     async def send(self, request: httpx.Request, *args: Any, **kwargs: Any) -> httpx.Response:
+        metadata_providers = {
+            "api.themoviedb.org": "TMDB",
+            "api.watchmode.com": "Watchmode",
+            "api.movieofthenight.com": "OTT",
+            "www.omdbapi.com": "IMDb",
+            "omdbapi.com": "IMDb",
+            "v3.sg.media-imdb.com": "IMDb",
+            "api.tvmaze.com": "TVmaze",
+            "itunes.apple.com": "Apple iTunes",
+            "v3-cinemeta.strem.io": "Cinemeta",
+            "graphql.anilist.co": "AniList",
+        }
+        provider = metadata_providers.get((request.url.host or "").casefold())
+        if CACHE_ONLY_MODE and provider:
+            log_cache_only_metadata_block(provider, enabled=True)
+            raise httpx.RequestError(
+                f"Cache-only mode blocked metadata provider request ({provider})",
+                request=request,
+            )
         try:
             response = await super().send(request, *args, **kwargs)
         except Exception:

@@ -61,7 +61,10 @@ def stored_ttl(seconds: float) -> float:
 # Filling GAPS (titles that have no synopsis / OTT / rating stored yet) is separate from
 # refreshing what is stored. Leave it on to let the app complete its cache over time; turn it
 # off (BACKFILL_MISSING_METADATA=false) for a deployment that must not contact providers at all.
-BACKFILL_MISSING_METADATA = os.getenv("BACKFILL_MISSING_METADATA", "true").strip().casefold() not in {"0", "false", "no", "off"}
+BACKFILL_MISSING_METADATA = (
+    False if CACHE_ONLY_MODE else
+    os.getenv("BACKFILL_MISSING_METADATA", "true").strip().casefold() not in {"0", "false", "no", "off"}
+)
 
 
 # One place for the runtime data directory (Render: mount a disk and set APP_DATA_DIR).
@@ -75,6 +78,21 @@ def data_file(name: str) -> str:
 
 APP_NAME = "Torrent Studio API"
 logger = logging.getLogger("torrent-studio")
+
+
+def log_cache_only_metadata_block(provider: str, *, enabled: bool | None = None) -> bool:
+    """Log and report metadata-provider requests blocked by strict cache-only mode."""
+    if not (CACHE_ONLY_MODE if enabled is None else enabled):
+        return False
+    normalized = str(provider or "").strip().casefold()
+    if normalized in {"imdb", "omdb"}:
+        logger.info("[CACHE-ONLY] IMDb lookup blocked")
+    elif normalized in {"ott", "watchmode", "streaming availability"}:
+        logger.info("[CACHE-ONLY] OTT lookup blocked")
+    else:
+        name = "TMDB" if normalized == "tmdb" else str(provider or "unknown").strip()
+        logger.info("[CACHE-ONLY] Metadata lookup blocked: provider=%s", name)
+    return True
 
 
 # TMDB provides dynamic, paginated movie discovery. Credentials stay server-side;

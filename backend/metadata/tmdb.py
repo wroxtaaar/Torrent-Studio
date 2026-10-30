@@ -31,6 +31,7 @@ from core.settings import (
     WATCHMODE_API_BASE,
     WATCHMODE_API_KEYS,
     logger,
+    log_cache_only_metadata_block,
 )
 
 _PROVIDER_KEY_COOLDOWNS: dict[str, float] = {}
@@ -96,7 +97,10 @@ async def _watchmode_get(path: str, *, params: dict[str, Any] | None = None,
     timeout: httpx.Timeout | float = 10.0, auth_header: bool = True) -> httpx.Response | None:
     """Rotate keys when available, but honor Watchmode's shared rate-limit cooldown."""
     global _WATCHMODE_RATE_LIMITED_UNTIL
-    if CACHE_ONLY_MODE or not WATCHMODE_API_KEYS:
+    if CACHE_ONLY_MODE:
+        log_cache_only_metadata_block("Watchmode", enabled=True)
+        return None
+    if not WATCHMODE_API_KEYS:
         return None
     # Watchmode rate limits and monthly credits are plan/account governed. Once any
     # credential receives 429, pause all credentials in this process instead of
@@ -527,6 +531,9 @@ def _watchmode_provider_rows(rows: list[dict[str, Any]], accepted_types: set[str
 
 async def _streaming_availability_movie_sources(movie_id: int, region: str) -> tuple[list[dict[str, Any]], bool]:
     """Return normalized provider rows and whether the lookup failed."""
+    if CACHE_ONLY_MODE:
+        log_cache_only_metadata_block("OTT", enabled=True)
+        return [], True
     if not STREAMING_AVAILABILITY_API_KEY:
         return [], False
     try:
@@ -611,6 +618,7 @@ async def _tmdb_fetch_movie_ott_availability(movie_id: int, region: str) -> dict
             _record_cache_event("ott", "cache_only_persistent_hit")
             return persistent[1]
         _record_cache_event("ott", "cache_only_miss_blocked")
+        log_cache_only_metadata_block("OTT", enabled=True)
         raise HTTPException(
             status_code=503,
             detail="OTT availability is not present in the local cache; live provider lookups are disabled.",
@@ -759,6 +767,7 @@ async def _tmdb_fetch_movie_ott_availability(movie_id: int, region: str) -> dict
 
 async def _tmdb_get_json(path: str, params: dict[str, Any] | None = None, *, request_timeout: float = 12.0) -> dict[str, Any]:
     if CACHE_ONLY_MODE:
+        log_cache_only_metadata_block("TMDB", enabled=True)
         raise HTTPException(status_code=503, detail="Cache-only mode: live TMDB lookups are disabled.")
     credentials = [("bearer", token) for token in TMDB_READ_ACCESS_TOKENS] + [("api_key", key) for key in TMDB_API_KEYS]
     if not credentials:

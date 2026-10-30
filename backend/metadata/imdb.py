@@ -23,6 +23,7 @@ from core.settings import (
     _split_env_keys,
     env_values,
     logger,
+    log_cache_only_metadata_block,
 )
 from metadata.tmdb import (
     _OMDB_REQUEST_SEMAPHORE,
@@ -111,6 +112,16 @@ async def _fetch_imdb_rating_omdb(
     media_type: str = "movie",
     tmdb_id: int = 0,
 ) -> dict[str, Any]:
+    if CACHE_ONLY_MODE:
+        log_cache_only_metadata_block("IMDb", enabled=True)
+        return {
+            "status": "unavailable",
+            "title": title,
+            "year": year or None,
+            "mediaType": media_type,
+            "cacheKey": cache_key,
+            "reason": "IMDb lookup is disabled in cache-only mode",
+        }
     keys = env_values("OMDB_API_KEYS", "OMDB_API_KEY")
     now = int(time.time())
     normalized_type = "tv" if str(media_type or "movie").casefold() in {"tv", "series"} else "movie"
@@ -399,10 +410,9 @@ async def _get_imdb_rating_record(
     cache_key = _imdb_rating_cache_key(title, year, normalized_type)
     cached = _load_imdb_rating_cache().get(cache_key)
     now = int(time.time())
-    if CACHE_ONLY_MODE and not refresh_incomplete:
-        # Normal requests must remain offline in cache-only mode. An explicit
-        # refresh_incomplete request is an opt-in live lookup used by seed
-        # builders; persist=False keeps that lookup from writing app caches.
+    if CACHE_ONLY_MODE:
+        if not cached or refresh_incomplete:
+            log_cache_only_metadata_block("IMDb", enabled=True)
         _record_cache_event("imdb_rating", "hit" if cached else "miss")
         return cached or {
             "status": "unavailable", "title": title, "year": year or None,

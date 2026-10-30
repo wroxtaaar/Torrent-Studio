@@ -1911,6 +1911,11 @@ def _warm_tmdb_ott_memory_cache() -> None:
 
 
 def _initialize_catalogue_caches() -> None:
+    logger.info(
+        "CACHE_ONLY_MODE=%s BACKFILL_MISSING_METADATA=%s",
+        str(CACHE_ONLY_MODE).lower(),
+        str(BACKFILL_MISSING_METADATA).lower(),
+    )
     # Seed bundled snapshots first; warm OTT entries into memory before serving requests,
     # then normalize the curated catalogue files on disk.
     _seed_bundled_runtime_caches()
@@ -2635,6 +2640,8 @@ async def _enrich_tmdb_persistent_catalogue_synopses() -> None:
 
 def _schedule_tmdb_catalogue_synopsis_enrichment(payload: dict[str, Any] | None = None) -> None:
     global _tmdb_catalogue_synopsis_enrichment_task, _TMDB_CATALOGUE_SYNOPSIS_RESCAN_REQUESTED
+    if CACHE_ONLY_MODE or not BACKFILL_MISSING_METADATA:
+        return
     if payload is not None and not _tmdb_payload_needs_synopsis(payload):
         return
     if not (TMDB_READ_ACCESS_TOKENS or TMDB_API_KEYS):

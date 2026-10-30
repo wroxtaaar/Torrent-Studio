@@ -13,7 +13,7 @@ from typing import Any
 
 import httpx
 
-from core.settings import CACHE_ONLY_MODE, env_values
+from core.settings import CACHE_ONLY_MODE, env_values, log_cache_only_metadata_block
 
 logger = logging.getLogger(__name__)
 MDBLIST_BASE = "https://api.mdblist.com"
@@ -50,7 +50,10 @@ async def mdblist_imdb_rating(media_type: str, *, tmdb_id: int = 0, imdb_id: str
     """IMDb rating through MDBList for a movie ("movie") or series ("tv"); None when it has none or cannot answer."""
     global _cursor, _blocked_until
     keys = mdblist_keys()
-    if CACHE_ONLY_MODE or not keys or time.time() < _blocked_until:
+    if CACHE_ONLY_MODE:
+        log_cache_only_metadata_block("IMDb", enabled=True)
+        return None
+    if not keys or time.time() < _blocked_until:
         return None
     kind = "show" if media_type == "tv" else "movie"
     if imdb_id:
@@ -102,13 +105,16 @@ def parse_list_items(payload: Any, kind: str = "movies") -> list[dict[str, Any]]
 async def mdblist_list_items(list_path: str, kind: str = "movies", limit: int = 100) -> list[dict[str, Any]]:
     """Items of an MDBList list ("user/slug"); [] when not configured, in CACHE_ONLY_MODE, or on any failure."""
     global _cursor
-    keys = mdblist_keys()
-    if CACHE_ONLY_MODE or not keys or time.time() < _blocked_until:
-        return []
     cache_key = f"{list_path}|{kind}|{limit}"
     hit = _LIST_CACHE.get(cache_key)
     if hit and time.time() - hit[0] < 3600:
         return hit[1]
+    if CACHE_ONLY_MODE:
+        log_cache_only_metadata_block("MDBList", enabled=True)
+        return []
+    keys = mdblist_keys()
+    if not keys or time.time() < _blocked_until:
+        return []
     key = keys[_cursor % len(keys)]
     _cursor += 1
     try:

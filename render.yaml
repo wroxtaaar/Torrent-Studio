@@ -11,15 +11,14 @@ services:
     healthCheckPath: /api/health
     autoDeployTrigger: commit
     envVars:
-      # Serve every stored (bundled or runtime) entry as-is; call providers only for missing ones.
+      # Use only self-contained section caches; metadata providers are never called at runtime.
       - key: CACHE_FIRST
         value: "true"
       # The container fetches the newest data bundle from the rolling "cache-data" release at start
       # (see backend/cache-seed/README.md). Set CACHE_BUNDLE_BASE_URL=off to disable.
-      # Hollywood/Bollywood pages 1-3 (18 titles each) come from the cache; later pages call the
-      # live API, so provider calls must stay allowed and the keys below must be set.
-      # "true" would block every provider call (pages 4+ would then fail).
       - key: CACHE_ONLY_MODE
+        value: "true"
+      - key: BACKFILL_MISSING_METADATA
         value: "false"
       # One or more TMDB read access tokens, separated by commas (a TMDB_API_KEY works too, but
       # you only need one kind).

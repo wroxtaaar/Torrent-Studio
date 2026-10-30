@@ -35,6 +35,7 @@ from core.settings import (
     _split_env_keys,
     env_values,
     logger,
+    log_cache_only_metadata_block,
     stored_ttl,
 )
 from core.shared import _MANUAL_TORRENT_SEARCH
@@ -213,6 +214,9 @@ async def _fallback_tvmaze_search(query: str, timeout: httpx.Timeout) -> list[di
     cached = _TVMAZE_SEARCH_CACHE.get(cache_key)
     if cached and time.time() - cached[0] < _WATCHMODE_SEARCH_CACHE_TTL:
         return cached[1]
+    if CACHE_ONLY_MODE:
+        log_cache_only_metadata_block("TVmaze", enabled=True)
+        return []
     try:
         async with _InstrumentedAsyncClient(timeout=timeout, follow_redirects=True) as client:
             response = await client.get("https://api.tvmaze.com/search/shows", params={"q": query})
@@ -255,7 +259,10 @@ async def _fallback_tvmaze_search(query: str, timeout: httpx.Timeout) -> list[di
 async def _fallback_omdb_search(query: str, timeout: httpx.Timeout) -> list[dict[str, Any]]:
     """OMDb metadata fallback; OMDb does not provide streaming availability."""
     keys = env_values("OMDB_API_KEYS", "OMDB_API_KEY")
-    if CACHE_ONLY_MODE or not keys:
+    if CACHE_ONLY_MODE:
+        log_cache_only_metadata_block("IMDb", enabled=True)
+        return []
+    if not keys:
         return []
     target = _availability_normalize_title(query)
     for key in keys:
