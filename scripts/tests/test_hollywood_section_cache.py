@@ -26,14 +26,12 @@ class HollywoodCacheTests(unittest.TestCase):
 
     def test_complete_core_record_is_detected(self):
         self.assertTrue(MODULE.core_complete({
-            "title": "Example", "posterUrl": "/poster", "overview": "Summary",
-            "imdbId": "tt1234567", "imdbRating": 7.5,
+            "id": 603, "title": "Example", "posterUrl": "/poster", "overview": "Summary",
         }))
 
     def test_missing_rating_is_a_gap(self):
         self.assertFalse(MODULE.core_complete({
-            "title": "Example", "posterUrl": "/poster", "overview": "Summary",
-            "imdbId": "tt1234567", "imdbRating": None,
+            "id": 603, "title": "Example", "posterUrl": "/poster", "overview": "",
         }))
 
     def test_identity_prefers_imdb_id(self):
@@ -52,7 +50,7 @@ class HollywoodCacheTests(unittest.TestCase):
     def test_metadata_completeness_uses_api_fields(self):
         self.assertTrue(MODULE.core_complete({
             "id": 603, "title": "The Matrix", "posterUrl": "/poster", "overview": "Summary",
-        })
+        }))
 
 
 if __name__ == "__main__":
