@@ -481,7 +481,7 @@ def test_incomplete_cached_imdb_record_is_refetched_without_persisting(monkeypat
     monkeypatch.setattr(imdb, "_IMDB_RATING_INFLIGHT", {})
     calls = {"fetch": 0, "save": 0}
 
-    async def fetch(title, year, key, media_type, tmdb_id):
+    async def fetch(title, year, key, media_type, tmdb_id, *, allow_live_in_cache_only=False):
         calls["fetch"] += 1
         assert tmdb_id == 1807573
         return {
@@ -617,7 +617,7 @@ def test_explicit_non_persistent_incomplete_refresh_bypasses_cache_only_mode(mon
     monkeypatch.setattr(imdb, "_IMDB_RATING_INFLIGHT", {})
     calls = {"fetch": 0, "save": 0}
 
-    async def fetch(title, year, key, media_type, tmdb_id):
+    async def fetch(title, year, key, media_type, tmdb_id, *, allow_live_in_cache_only=False):
         calls["fetch"] += 1
         assert (title, year, tmdb_id) == ("Chirp", 2024, 1807573)
         return {
