@@ -44,14 +44,25 @@ export function imdbRatingForCatalogueMovie(movie: MovieCatalogueItem): ImdbRati
   // is authoritative for display; don't hide it because the status is stale.
   const rating = Number(movie.imdbRating);
   const hasRating = Number.isFinite(rating) && rating > 0;
-  if (!hasRating && movie.imdbRatingStatus !== 'found' && movie.imdbRatingStatus !== 'not_found') {
+  if (
+    !hasRating &&
+    movie.imdbRatingStatus !== 'found' &&
+    movie.imdbRatingStatus !== 'id_found_no_rating' &&
+    movie.imdbRatingStatus !== 'not_found'
+  ) {
     return undefined;
   }
   return {
     title: movie.title,
     year: movie.year,
     mediaType: 'movie',
-    status: hasRating || movie.imdbRatingStatus !== 'not_found' ? 'found' : 'not_found',
+    status: hasRating
+      ? 'found'
+      : movie.imdbRatingStatus === 'not_found'
+        ? 'not_found'
+        : movie.imdbRatingStatus === 'id_found_no_rating'
+          ? 'id_found_no_rating'
+          : 'found',
     imdbRating: hasRating ? rating : movie.imdbRating,
     imdbVotes: movie.imdbVotes,
     imdbId: movie.imdbId,
