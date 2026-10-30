@@ -481,7 +481,7 @@ def test_incomplete_cached_imdb_record_is_refetched_without_persisting(monkeypat
     monkeypatch.setattr(imdb, "_IMDB_RATING_INFLIGHT", {})
     calls = {"fetch": 0, "save": 0}
 
-    async def fetch(title, year, key, media_type, tmdb_id):
+    async def fetch(title, year, key, media_type, tmdb_id, *, allow_live_in_cache_only=False):
         calls["fetch"] += 1
         assert tmdb_id == 1807573
         return {
@@ -617,7 +617,7 @@ def test_explicit_non_persistent_incomplete_refresh_bypasses_cache_only_mode(mon
     monkeypatch.setattr(imdb, "_IMDB_RATING_INFLIGHT", {})
     calls = {"fetch": 0, "save": 0}
 
-    async def fetch(title, year, key, media_type, tmdb_id):
+    async def fetch(title, year, key, media_type, tmdb_id, *, allow_live_in_cache_only=False):
         calls["fetch"] += 1
         assert (title, year, tmdb_id) == ("Chirp", 2024, 1807573)
         return {
@@ -657,3 +657,33 @@ def test_cache_only_mode_still_blocks_ordinary_imdb_lookup(monkeypatch):
     result = asyncio.run(imdb._get_imdb_rating_record("Chirp", 2024, "movie", 1807573))
 
     assert result is cached
+
+
+
+def test_imdb_search_candidate_accepts_unique_one_year_difference():
+    candidate = {
+        "Title": "Example Film",
+        "Year": "2025",
+        "imdbID": "tt1234567",
+    }
+
+    result = imdb._select_imdb_search_candidate([candidate], "Example Film", 2024)
+
+    assert result is candidate
+
+
+def test_imdb_search_candidate_rejects_ambiguous_near_year_matches():
+    candidates = [
+        {"Title": "Example Film", "Year": "2024", "imdbID": "tt1234567"},
+        {"Title": "Example Film", "Year": "2024", "imdbID": "tt7654321"},
+    ]
+
+    assert imdb._select_imdb_search_candidate(candidates, "Example Film", 2024) is None
+
+
+def test_imdb_search_candidate_rejects_years_more_than_one_year_apart():
+    candidates = [
+        {"Title": "Example Film", "Year": "2026", "imdbID": "tt1234567"},
+    ]
+
+    assert imdb._select_imdb_search_candidate(candidates, "Example Film", 2024) is None

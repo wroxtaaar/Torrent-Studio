@@ -186,7 +186,7 @@ export interface ImdbRatingResult {
   title: string;
   year?: number | null;
   mediaType?: 'movie' | 'tv';
-  status: 'found' | 'not_found' | 'unavailable' | 'rate_limited';
+  status: 'found' | 'id_found_no_rating' | 'not_found' | 'unavailable' | 'rate_limited';
   imdbRating?: number | null;
   imdbVotes?: string | null;
   imdbId?: string | null;

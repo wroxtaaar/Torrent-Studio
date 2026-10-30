@@ -46,11 +46,17 @@ def parse_imdb_rating(payload: Any) -> dict[str, Any] | None:
     return None
 
 
-async def mdblist_imdb_rating(media_type: str, *, tmdb_id: int = 0, imdb_id: str = "") -> dict[str, Any] | None:
-    """IMDb rating through MDBList for a movie ("movie") or series ("tv"); None when it has none or cannot answer."""
+async def mdblist_imdb_rating(
+    media_type: str,
+    *,
+    tmdb_id: int = 0,
+    imdb_id: str = "",
+    allow_live_in_cache_only: bool = False,
+) -> dict[str, Any] | None:
+    """IMDb rating via MDBList; explicit seed refreshes may opt into live calls in cache-only mode."""
     global _cursor, _blocked_until
     keys = mdblist_keys()
-    if CACHE_ONLY_MODE or not keys or time.time() < _blocked_until:
+    if (CACHE_ONLY_MODE and not allow_live_in_cache_only) or not keys or time.time() < _blocked_until:
         return None
     kind = "show" if media_type == "tv" else "movie"
     if imdb_id:
