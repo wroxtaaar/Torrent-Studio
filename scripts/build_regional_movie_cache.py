@@ -21,7 +21,6 @@ CATALOGUES = (
     "popular-bollywood", "trending-bollywood", "latest-bollywood",
     "popular-hollywood", "trending-hollywood", "latest-hollywood",
     "popular-korean",
-    "popular-pakistani",
     "popular-anime",
 )
 # Target for the TV catalogues. Movie catalogues use FINAL_PER_CATALOGUE below.
@@ -64,7 +63,7 @@ MAX_CANDIDATES = int(os.getenv("REGIONAL_CACHE_MAX_CANDIDATES", "450"))
 ARCHIVE = BASE / "regional_movie_trending_archive.json"
 ORDER = ("highest-rated-hollywood", "highest-rated-bollywood",
           "popular-bollywood", "popular-hollywood", "latest-bollywood", "latest-hollywood",
-          "trending-bollywood", "trending-hollywood", "popular-korean", "popular-pakistani", "popular-anime")
+          "trending-bollywood", "trending-hollywood", "popular-korean", "popular-anime")
 
 # Ordered IMDb source lists are kept in the same manifest consumed by the API.
 MANIFEST_PATH = Path(__file__).resolve().parents[1] / "backend" / "cache-seed" / "highest_rated_catalogues.json"
