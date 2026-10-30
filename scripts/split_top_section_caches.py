@@ -25,8 +25,7 @@ TORRENT_KEYS = {
     "torrentReleases", "torrentResults", "torrent", "torrents", "releases",
     "releaseGroups", "magnetUrl", "magnet", "infoHash", "hash", "downloadUrl",
     "seeders", "leechers", "indexer", "protocol", "publishDate", "infoUrl",
-    "sourceUrl", "descriptorUrl", "guid", "size", "category", "nexStream",
-    "episodes",
+    "sourceUrl", "descriptorUrl", "guid", "size", "category", "episodes",
 }
 
 REGIONAL_MOVIE = {
@@ -102,7 +101,7 @@ def identity(row: dict[str, Any]) -> str:
     if isinstance(row.get("movie"), dict):
         row = row["movie"]
     imdb = str(row.get("imdbId") or "").strip().lower()
-    if re.fullmatch(r"tt\\d+", imdb):
+    if re.fullmatch(r"tt\d+", imdb):
         return "imdb:" + imdb
     tmdb = row.get("tmdbId") or row.get("id")
     if tmdb not in (None, "") and str(tmdb).isdigit():
@@ -119,28 +118,21 @@ def is_torrent_field(key: str) -> bool:
         "torrentresult", "seeders", "leechers", "downloadurl",
     ))
 
+def clean_metadata_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: clean_metadata_value(item)
+            for key, item in value.items()
+            if not is_torrent_field(str(key)) and key != "nexStream"
+        }
+    if isinstance(value, list):
+        return [clean_metadata_value(item) for item in value]
+    return value
+
 def metadata_row(row: dict[str, Any]) -> dict[str, Any]:
     """Return a catalogue card, stripping torrent payloads and release wrappers."""
     source = row.get("movie") if isinstance(row.get("movie"), dict) else row
-    clean: dict[str, Any] = {}
-    for key, value in source.items():
-        if is_torrent_field(str(key)):
-            continue
-        if isinstance(value, dict):
-            nested = {
-                k: v for k, v in value.items()
-                if not is_torrent_field(str(k))
-            }
-            clean[key] = nested
-        elif isinstance(value, list):
-            clean[key] = [
-                {k: v for k, v in item.items() if not is_torrent_field(str(k))}
-                if isinstance(item, dict) else item
-                for item in value
-            ]
-        else:
-            clean[key] = value
-
+    clean = clean_metadata_value(source)
     canonical_title = (
         source.get("catalogueTitle") or source.get("mediaTitle")
         or source.get("name") or source.get("title")
