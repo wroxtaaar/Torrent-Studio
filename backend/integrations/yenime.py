@@ -1,4 +1,5 @@
 import re
+import time
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -6,6 +7,8 @@ from fastapi import APIRouter, HTTPException, Query
 router = APIRouter()
 
 ANILIST_GRAPHQL_URL = "https://graphql.anilist.co"
+_MAL_CACHE: dict[tuple[str, int | None], tuple[float, dict]] = {}  # resolved answers only
+_MAL_CACHE_SECONDS = 30 * 24 * 3600
 KNOWN_MAL_IDS = {
     "fullmetal alchemist brotherhood": 5114,
 }
@@ -82,6 +85,11 @@ async def fetch_anilist_mal_resolution(title: str, year: int | None, timeout_sec
     if known:
         return {"status": "resolved", "malId": known, "source": "catalogue", "title": title}
 
+    cache_key = (normalize_anime_title(title), year)
+    hit = _MAL_CACHE.get(cache_key)
+    if hit and time.time() - hit[0] < _MAL_CACHE_SECONDS:
+        return hit[1]  # a resolved title is not looked up again
+
     query = """
     query($search: String) {
       Page(page: 1, perPage: 10) {
@@ -100,7 +108,10 @@ async def fetch_anilist_mal_resolution(title: str, year: int | None, timeout_sec
         response.raise_for_status()
         payload = response.json()
         candidates = (((payload.get("data") or {}).get("Page") or {}).get("media") or [])
-        return resolve_mal_from_anilist_candidates(title, year, candidates)
+        result = resolve_mal_from_anilist_candidates(title, year, candidates)
+        if result.get("status") == "resolved":
+            _MAL_CACHE[cache_key] = (time.time(), result)
+        return result
     except (httpx.HTTPError, ValueError, TypeError) as exc:
         return {"status": "unavailable", "malId": None, "source": "AniList", "message": f"Automatic MAL ID resolution is unavailable: {exc}"}
 

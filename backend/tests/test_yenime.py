@@ -82,3 +82,42 @@ def test_episode_selection_is_preserved_in_url():
     yenime = _load_yenime_module()
     assert yenime.build_yenime_url(16498, 12, "sub") == "https://player.yenime.net/anime/mal/16498/12"
     assert yenime.build_yenime_url(16498, 12, "dub") == "https://player.yenime.net/anime/mal/16498/12?dub=1"
+
+
+def test_resolved_mal_id_is_looked_up_only_once(monkeypatch):
+    import asyncio
+
+    import integrations.yenime as yenime
+
+    calls = []
+    media = [{"idMal": 5114, "synonyms": [], "title": {"romaji": "Hagane no Renkinjutsushi", "english": "Fullmetal Alchemist: Brotherhood", "native": ""}, "startDate": {"year": 2009}}]
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"data": {"Page": {"media": media}}}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def post(self, *args, **kwargs):
+            calls.append(1)
+            return FakeResponse()
+
+    monkeypatch.setattr(yenime.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(yenime, "KNOWN_MAL_IDS", {})
+    yenime._MAL_CACHE.clear()
+    first = asyncio.run(yenime.fetch_anilist_mal_resolution("Fullmetal Alchemist Brotherhood", 2009))
+    second = asyncio.run(yenime.fetch_anilist_mal_resolution("Fullmetal Alchemist Brotherhood", 2009))
+    assert first["status"] == "resolved" and first["malId"] == 5114
+    assert second == first and len(calls) == 1
+    yenime._MAL_CACHE.clear()
