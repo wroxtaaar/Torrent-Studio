@@ -602,3 +602,58 @@ def test_tmdb_details_endpoint_returns_metadata_by_existing_tmdb_id(monkeypatch)
     assert result["year"] == 2024
     assert result["overview"] == "A verified synopsis."
     assert result["posterUrl"].endswith("/chirp.jpg")
+
+
+def test_explicit_non_persistent_incomplete_refresh_bypasses_cache_only_mode(monkeypatch):
+    cache_key = imdb._imdb_rating_cache_key("Chirp", 2024)
+    monkeypatch.setattr(imdb, "CACHE_ONLY_MODE", True)
+    monkeypatch.setattr(imdb, "CACHE_FIRST", True)
+    monkeypatch.setattr(imdb, "_load_imdb_rating_cache", lambda: {
+        cache_key: {
+            "cacheKey": cache_key, "title": "Chirp", "year": 2024,
+            "status": "not_found", "imdbRating": None, "checkedAt": 1761690000,
+        },
+    })
+    monkeypatch.setattr(imdb, "_IMDB_RATING_INFLIGHT", {})
+    calls = {"fetch": 0, "save": 0}
+
+    async def fetch(title, year, key, media_type, tmdb_id):
+        calls["fetch"] += 1
+        assert (title, year, tmdb_id) == ("Chirp", 2024, 1807573)
+        return {
+            "cacheKey": key, "title": title, "year": year, "mediaType": media_type,
+            "status": "found", "imdbId": "tt1234567", "imdbRating": 7.6,
+            "checkedAt": 1761690000,
+        }
+
+    async def save(_record):
+        calls["save"] += 1
+
+    monkeypatch.setattr(imdb, "_fetch_imdb_rating", fetch)
+    monkeypatch.setattr(imdb, "_save_imdb_rating_cache_record", save)
+    result = asyncio.run(imdb._get_imdb_rating_record(
+        "Chirp", 2024, "movie", 1807573,
+        persist=False, refresh_incomplete=True,
+    ))
+
+    assert result["imdbId"] == "tt1234567"
+    assert result["imdbRating"] == 7.6
+    assert calls == {"fetch": 1, "save": 0}
+
+
+def test_cache_only_mode_still_blocks_ordinary_imdb_lookup(monkeypatch):
+    cache_key = imdb._imdb_rating_cache_key("Chirp", 2024)
+    cached = {
+        "cacheKey": cache_key, "title": "Chirp", "year": 2024,
+        "status": "not_found", "imdbRating": None,
+    }
+    monkeypatch.setattr(imdb, "CACHE_ONLY_MODE", True)
+    monkeypatch.setattr(imdb, "_load_imdb_rating_cache", lambda: {cache_key: cached})
+
+    async def unexpected_fetch(*args, **kwargs):
+        raise AssertionError("ordinary cache-only lookup must not call providers")
+
+    monkeypatch.setattr(imdb, "_fetch_imdb_rating", unexpected_fetch)
+    result = asyncio.run(imdb._get_imdb_rating_record("Chirp", 2024, "movie", 1807573))
+
+    assert result is cached
