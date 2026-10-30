@@ -43,5 +43,17 @@ class HollywoodCacheTests(unittest.TestCase):
         )
 
 
+    def test_metadata_cache_strips_torrent_fields(self):
+        row = {"id": 603, "title": "The Matrix", "torrentMatch": {"infoHash": "abc"},
+               "torrentMatches": [{"infoHash": "abc"}], "torrentDetails": {"results": []}}
+        cleaned = MODULE.metadata_only(row)
+        self.assertEqual(cleaned, {"id": 603, "title": "The Matrix"})
+
+    def test_metadata_completeness_uses_api_fields(self):
+        self.assertTrue(MODULE.core_complete({
+            "id": 603, "title": "The Matrix", "posterUrl": "/poster", "overview": "Summary",
+        })
+
+
 if __name__ == "__main__":
     unittest.main()
