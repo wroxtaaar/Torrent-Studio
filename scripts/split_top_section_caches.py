@@ -87,9 +87,13 @@ def atomic_write(path: Path, value: Any) -> None:
         raise
 
 def title(row: dict[str, Any]) -> str:
+    if isinstance(row.get("movie"), dict):
+        row = row["movie"]
     return str(row.get("title") or row.get("name") or "").strip()
 
 def identity(row: dict[str, Any]) -> str:
+    if isinstance(row.get("movie"), dict):
+        row = row["movie"]
     imdb = str(row.get("imdbId") or "").strip().lower()
     if re.fullmatch(r"tt\d+", imdb):
         return "imdb:" + imdb
