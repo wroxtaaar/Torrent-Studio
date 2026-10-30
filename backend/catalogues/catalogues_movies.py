@@ -1509,17 +1509,6 @@ async def _api_tmdb_movie_catalogue(
     if catalogue_key in {"highest-rated-hollywood", "highest-rated-bollywood"}:
         return await _highest_rated_movie_curated_page(catalogue_key, page)
 
-    if catalogue_key == "popular-pakistani":
-        cache_key = ("popular-pakistani|curated-25-v1", page)
-        cached = _tmdb_movie_catalogue_cache.get(cache_key)
-        if cached and time.monotonic() - cached[0] < TMDB_CATALOGUE_CACHE_SECONDS:
-            enriched = await _enrich_regional_movie_catalogue_metadata(cached[1], include_ott=True)
-            return {**enriched, "basic": basic}
-        curated = await _pakistani_movie_curated_page(page, basic=basic)
-        curated = await _enrich_regional_movie_catalogue_metadata(curated, include_ott=True)
-        _tmdb_movie_catalogue_cache[cache_key] = (time.monotonic(), curated)
-        return curated
-
     if catalogue_key == "popular-korean" and released_only:
         cache_key = ("popular-korean|curated-imdb-v1", page)
         cached = _tmdb_movie_catalogue_cache.get(cache_key)
@@ -1536,8 +1525,7 @@ async def _api_tmdb_movie_catalogue(
         "popular-bollywood", "trending-bollywood", "latest-bollywood",
         "popular-hollywood", "trending-hollywood", "latest-hollywood",
         "popular-korean",
-        "popular-pakistani",
-        "popular-anime",
+            "popular-anime",
         "highest-rated-hollywood", "highest-rated-bollywood",
     }
     if catalogue_key not in allowed:
