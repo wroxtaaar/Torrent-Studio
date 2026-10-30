@@ -126,7 +126,19 @@ def collect_rows(value: Any) -> list[dict[str, Any]]:
     return list(dedup.values())
 
 def metadata_row(row: dict[str, Any]) -> dict[str, Any]:
-    return {k: v for k, v in row.items() if k not in TORRENT_KEYS}
+    # Some legacy torrent-match files wrap the actual catalogue card in "movie".
+    # Store the card itself in the metadata document, never the wrapper.
+    source = row.get("movie") if isinstance(row.get("movie"), dict) else row
+    return {k: v for k, v in source.items() if k not in TORRENT_KEYS}
+
+
+def media_type(section: str, subsection: str) -> str:
+    key = f"{section}-{subsection}".casefold().replace("_", "-")
+    if section == "highest-rated" and subsection == "tv":
+        return "tv"
+    if subsection in {"series", "anime", "tv", "web-series", "webseries", "television"}:
+        return "tv"
+    return "movie"
 
 def torrent_payload(row: dict[str, Any]) -> dict[str, Any]:
     data = {k: v for k, v in row.items() if k in TORRENT_KEYS}
@@ -210,7 +222,7 @@ def main() -> int:
                 if not rows and isinstance(node.get("results"), list):
                     rows = [r for r in node["results"] if isinstance(r, dict) and title(r)]
             if rows:
-                incoming[target].extend(rows)
+                incoming[target].extend(metadata_row(row) for row in rows)
                 source_report.append({"source": "regional_tv_prebuilt_cache.json", "catalogue": key, "records": len(rows)})
 
     # Legacy franchise, classics and regional source files.
@@ -223,7 +235,7 @@ def main() -> int:
         if not rows:
             log("source_empty_or_unrecognized", source=str(path))
             continue
-        incoming[target].extend(rows)
+        incoming[target].extend(metadata_row(row) for row in rows)
         for row in rows:
             data = torrent_payload(row)
             if data:
@@ -251,7 +263,7 @@ def main() -> int:
             rows = merge_rows(previous_rows, incoming[(section, sub)], metadata=True)
             new_subs[sub] = {
                 "catalogueKey": sub,
-                "mediaType": "tv" if sub in {"series", "anime", "tv"} else "movie",
+                "mediaType": media_type(section, sub),
                 "pageSize": PAGE_SIZE,
                 "pageCount": (len(rows) + PAGE_SIZE - 1) // PAGE_SIZE,
                 "totalResults": len(rows),
