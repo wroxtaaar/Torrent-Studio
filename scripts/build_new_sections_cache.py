@@ -33,7 +33,6 @@ MOVIE_TARGETS = {
     "highest-rated-hollywood": None,
     "highest-rated-bollywood": None,
     "popular-korean": 54,
-    "popular-pakistani": 54,
     "popular-anime": 54,
 }
 TV_TARGETS = {
