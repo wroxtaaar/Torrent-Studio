@@ -261,7 +261,24 @@ def main() -> int:
                     continue
                 section_counts["records"] += 1
                 tmdb_id = valid_id(row.get("tmdbId") or row.get("id"))
-                if tmdb_id and not row.get("tmdbId"):
+                imdb_id = str(row.get("imdbId") or "").strip()
+                if not tmdb_id and VALID_IMDB.fullmatch(imdb_id):
+                    try:
+                        resolved = request_json(
+                            API + "/api/catalogue/tmdb-find/" + imdb_id
+                            + "?" + urllib.parse.urlencode({"media_type": kind})
+                        )
+                        tmdb_id = valid_id(resolved.get("tmdbId")) if resolved.get("found") else 0
+                        if tmdb_id:
+                            row["tmdbId"] = tmdb_id
+                            section_counts["metadataFieldsFilled"] += 1
+                            log("tmdb_id_resolved", section=section, subsection=subsection,
+                                title=row.get("title"), imdbId=imdb_id, tmdbId=tmdb_id)
+                    except Exception as exc:
+                        log("tmdb_id_resolution_failed", section=section, subsection=subsection,
+                            title=row.get("title"), imdbId=imdb_id, error=str(exc))
+                    time.sleep(float(os.getenv("SECTION_METADATA_DELAY_SECONDS", "0.15")))
+                elif tmdb_id and not row.get("tmdbId"):
                     row["tmdbId"] = tmdb_id
                     section_counts["metadataFieldsFilled"] += 1
 
