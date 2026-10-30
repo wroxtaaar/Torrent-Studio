@@ -139,7 +139,7 @@ async def _select_imdb_search_candidate(
     return next(iter(unique.values())) if len(unique) == 1 else None
 
 
-def _fetch_imdb_rating_omdb(
+async def _fetch_imdb_rating_omdb(
     title: str,
     year: int,
     cache_key: str,
