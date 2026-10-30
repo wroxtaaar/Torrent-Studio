@@ -104,7 +104,7 @@ async def _save_imdb_rating_cache_record(record: dict[str, Any]) -> None:
             logger.warning("Could not persist IMDb rating cache: %s", exc)
 
 
-async def _select_imdb_search_candidate(
+def _select_imdb_search_candidate(
     rows: Any,
     title: str,
     year: int,
