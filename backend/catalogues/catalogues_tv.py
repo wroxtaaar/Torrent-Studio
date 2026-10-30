@@ -1740,6 +1740,6 @@ async def api_find_tmdb_by_imdb_id(imdb_id: str, media_type: str = "movie"):
         "found": True,
         "mediaType": kind,
         "imdbId": imdb_id,
-        "tmdbId": valid_id if False else item.get("id"),
+        "tmdbId": item.get("id"),
         "title": item.get("name") if kind == "tv" else item.get("title"),
     }
