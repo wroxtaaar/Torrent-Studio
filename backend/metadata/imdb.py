@@ -399,8 +399,10 @@ async def _get_imdb_rating_record(
     cache_key = _imdb_rating_cache_key(title, year, normalized_type)
     cached = _load_imdb_rating_cache().get(cache_key)
     now = int(time.time())
-    if CACHE_ONLY_MODE:
-        # Never call OMDb/TMDB; serve whatever is stored, however old.
+    if CACHE_ONLY_MODE and not refresh_incomplete:
+        # Normal requests must remain offline in cache-only mode. An explicit
+        # refresh_incomplete request is an opt-in live lookup used by seed
+        # builders; persist=False keeps that lookup from writing app caches.
         _record_cache_event("imdb_rating", "hit" if cached else "miss")
         return cached or {
             "status": "unavailable", "title": title, "year": year or None,
