@@ -35,7 +35,11 @@ curl --fail --silent --show-error "$API_BASE/api/health" >/dev/null
 
 echo "Building Hollywood section cache (mode=$MODE; torrent searches=0)..."
 "$HOME_DIR/venv/bin/python" "$REPO_DIR/scripts/build_hollywood_section_cache.py" "$MODE"
+echo
+echo "Migrating existing Hollywood torrent records (no provider searches)..."
+"$HOME_DIR/venv/bin/python" "$REPO_DIR/scripts/build_hollywood_torrent_cache.py" "$MODE"
 
 echo
-echo "Hollywood cache build finished. No publishing, deployment, or restart was performed."
-echo "Output: $SEED_DIR/hollywood.json"
+echo "Hollywood cache build finished. No torrent searches, publishing, deployment, or restart was performed."
+echo "Metadata: $SEED_DIR/hollywood.json"
+echo "Torrents: $SEED_DIR/hollywood-torrents.json"
