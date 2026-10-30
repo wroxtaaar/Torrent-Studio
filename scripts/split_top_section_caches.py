@@ -25,7 +25,7 @@ TORRENT_KEYS = {
     "torrentReleases", "torrentResults", "torrent", "torrents", "releases",
     "releaseGroups", "magnetUrl", "magnet", "infoHash", "hash", "downloadUrl",
     "seeders", "leechers", "indexer", "protocol", "publishDate", "infoUrl",
-    "sourceUrl", "descriptorUrl", "guid", "size", "category", "episodes",
+    "sourceUrl", "descriptorUrl", "guid", "size", "category",
 }
 
 REGIONAL_MOVIE = {
