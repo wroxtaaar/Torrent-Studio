@@ -341,6 +341,20 @@
     [
      "GET"
     ],
+    "/api/tv/tmdb-metadata/{tmdb_id}",
+    "api_tmdb_tv_metadata"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/catalogue/tmdb-find/{imdb_id}",
+    "api_find_tmdb_by_imdb_id"
+   ],
+   [
+    [
+     "GET"
+    ],
     "/api/movies/catalogue/{catalogue_key}",
     "api_tmdb_movie_catalogue"
    ],
@@ -1073,6 +1087,20 @@
     ],
     "/api/tv/catalogue/{catalogue_key}",
     "api_tmdb_regional_tv_catalogue"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/tv/tmdb-metadata/{tmdb_id}",
+    "api_tmdb_tv_metadata"
+   ],
+   [
+    [
+     "GET"
+    ],
+    "/api/catalogue/tmdb-find/{imdb_id}",
+    "api_find_tmdb_by_imdb_id"
    ],
    [
     [
