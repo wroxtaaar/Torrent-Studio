@@ -20,6 +20,7 @@ const MOVIE_CATALOGUE_SECTIONS: Partial<Record<MovieCatalogueKey, SectionCacheLo
   marvel: { section: 'marvel', subsection: 'movies' },
   'dc-live-action': { section: 'dc', subsection: 'live-action' },
   'dc-animated': { section: 'dc', subsection: 'animated' },
+  classics: { section: 'favourites', subsection: 'movies' },
   'highest-rated-hollywood': { section: 'highest-rated', subsection: 'hollywood' },
   'highest-rated-bollywood': { section: 'highest-rated', subsection: 'bollywood' },
   'latest-hollywood': { section: 'hollywood', subsection: 'latest' },
@@ -214,6 +215,18 @@ export function franchiseCatalogueSection(mode: string): SectionCacheLocation | 
   return FRANCHISE_SECTION_MODES[mode] || null;
 }
 
+export async function franchiseSectionDocumentFromCache(
+  loadSectionCache: (section: string) => Promise<SectionCacheDocument>,
+  mode: string,
+): Promise<{ location: SectionCacheLocation; document: SectionCacheDocument } | null> {
+  const location = franchiseCatalogueSection(mode);
+  if (!location) return null;
+  return {
+    location,
+    document: await loadSectionCache(location.section),
+  };
+}
+
 export function franchiseRowsFromSection(
   document: SectionCacheDocument,
   subsectionName: string,
@@ -223,6 +236,7 @@ export function franchiseRowsFromSection(
   return subsection.results.map(row => {
     const tmdbId = sectionRowTmdbId(row);
     return {
+      sectionCacheRecord: true,
       title: row.title,
       mediaTitle: row.title,
       size: 0,

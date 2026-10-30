@@ -7,7 +7,7 @@ import { CachedFranchiseSearchMode, persistImdbRatings, persistSearchAvailabilit
 import { readPosterTitleCache } from './posterCache.ts';
 import { lowQualityPosterUrl } from './posterUrls.ts';
 import { isDefaultClassicsSort } from './classicsSort.ts';
-import { franchiseCatalogueSection, franchiseRowsFromSection } from '../../api/sectionCache.ts';
+import { franchiseCatalogueSection, franchiseRowsFromSection, franchiseSectionDocumentFromCache } from '../../api/sectionCache.ts';
 import { CachedFranchiseKey, FranchiseTmdbKey, RegionalCatalogueGroup, RegionalCatalogueMode, RegionalTvGroup, RegionalTvMode } from './types.ts';
 import { useNexStreamState } from './state/useNexStreamState.ts';
 import { useSearchMetadataState } from './state/useSearchMetadataState.ts';
@@ -401,8 +401,12 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       setCatalogueBuildProgress(`Loading page ${page} of the ${mode.replace(/-/g, ' ')} catalogue…`);
     }
     try {
-      if (sectionLocation) {
-        const document = await api.getSectionCache(sectionLocation.section);
+      const sectionCache = await franchiseSectionDocumentFromCache(
+        section => api.getSectionCache(section),
+        mode,
+      );
+      if (sectionCache) {
+        const { location: sectionLocation, document } = sectionCache;
         if (isStale()) return;
         const subsection = document.subsections[sectionLocation.subsection];
         const allResults = franchiseRowsFromSection(document, sectionLocation.subsection);
@@ -546,6 +550,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
         tmdbId: Number(show.id) || undefined,
         imdbRating: show.imdbRating,
         imdbRatingStatus: show.imdbRatingStatus,
+        sectionCacheRecord: show.sectionCacheRecord,
       }));
     const fromNexStream = (nexStreamResults || [])
       .map((item: any) => ({ title: item.title, year: item.date ? String(item.date).slice(0, 4) : null }));

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import searchLimits from '../../../../search_limits.json';
-import { groupTorrentResults, normalizeGroupTitle, releaseDateSortValue, torrentGroupReleaseYear, torrentQualityDetails } from '../grouping.ts';
+import { filterTorrentSearchResults, groupTorrentResults, normalizeGroupTitle, releaseDateSortValue, torrentGroupReleaseYear } from '../grouping.ts';
 import { useCatalogueNavigationState } from './useCatalogueNavigationState.ts';
 import { useSearchInputState } from './useSearchInputState.ts';
 import { ClassicsSort, classicsComparator, ratingValue } from '../classicsSort.ts';
@@ -12,24 +12,10 @@ export function useGroupedResults({ results, resolutionFilter, sizeSort, timeSor
     // to this memo: the manual-search handler has its own separate scope.
     const minSeedrFriendlySize = searchLimits.minSizeMb * 1024 * 1024;
     const maxSeedrFriendlySize = searchLimits.maxSizeGb * 1024 * 1024 * 1024;
-    // Exclude theatrical/unfinished releases regardless of provider. Keep the
-    // tokens bounded so words such as "timestamp" are not mistaken for TS.
-    const lowQualityRelease = /(?:^|[\s._()[\]-])(?:cam(?:rip)?|hdcam|hd[ ._-]?cam|telesync|tele[ ._-]?sync|ts[ ._-]?(?:md|ac3|hd)?|telecine|dvdscr|dvd[ ._-]?scr|screener|workprint)(?:$|[\s._()[\]-])/i;
-    const sorted = results.filter(result => {
-      const size = Number(result.size) || 0;
-      const seeders = Number(result.seeders);
-      if (!Number.isFinite(seeders) || seeders <= 0) return false;
-      if (size < minSeedrFriendlySize || size > maxSeedrFriendlySize) return false;
-      const releaseText = `${String(result.title || '')} ${String(result.quality || '')}`;
-      const qualityText = `${String(result.quality || '')} ${String(result.title || '')}`;
-      if (/(?:^|[^a-z0-9])3[ ._-]*d(?:$|[^a-z0-9])/i.test(qualityText)) return false;
-      if (lowQualityRelease.test(releaseText)) return false;
-      if (resolutionFilter) {
-        const quality = torrentQualityDetails(result).label;
-        const pattern = resolutionFilter === '720p' ? /(?:^|[^0-9])720p(?:[^0-9]|$)/i : /(?:^|[^0-9])1080p(?:[^0-9]|$)/i;
-        if (!pattern.test(quality)) return false;
-      }
-      return true;
+    const sorted = filterTorrentSearchResults(results, {
+      minSizeBytes: minSeedrFriendlySize,
+      maxSizeBytes: maxSeedrFriendlySize,
+      resolutionFilter,
     });
     sorted.sort((a, b) => {
       const aSize = Number(a.size) || 0;

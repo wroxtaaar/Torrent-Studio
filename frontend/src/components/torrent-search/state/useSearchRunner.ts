@@ -2,7 +2,7 @@ import React from 'react';
 import { api, ImdbRatingResult, MarvelCatalogueResponse, TorrentSearchResult } from '../../../api/client.ts';
 import { setHighQualityPostersReady } from '../../MovieCards.tsx';
 import { episodeSeriesTitle, groupTorrentResults, imdbRatingKey, mergeSearchMetadataItems, normalizeGroupTitle, normalizeSavedOttTitle, releaseDateSortValue, torrentMediaIdentity, torrentResultKey } from '../grouping.ts';
-import { franchiseCatalogueSection, franchiseRowsFromSection, sectionRowTmdbId } from '../../../api/sectionCache.ts';
+import { franchiseCatalogueSection, franchiseRowsFromSection, franchiseSectionDocumentFromCache, sectionRowTmdbId } from '../../../api/sectionCache.ts';
 import { normalizeSavedOttProviders } from '../ottProviders.ts';
 import { readFranchisePageCache, readPersistentSearchAvailability, readPersistentSearchMetadata, writeFranchisePageCache } from '../persistentCaches.ts';
 import { useNexStreamState } from './useNexStreamState.ts';
@@ -189,9 +189,12 @@ export function useSearchRunner({ setFranchiseGridPage, setActiveFranchiseSearch
 
       let data: TorrentSearchResult[];
       if (searchMode) {
-        const sectionLocation = franchiseCatalogueSection(searchMode);
-        if (sectionLocation) {
-          const document = await api.getSectionCache(sectionLocation.section);
+        const sectionCache = await franchiseSectionDocumentFromCache(
+          section => api.getSectionCache(section),
+          searchMode,
+        );
+        if (sectionCache) {
+          const { location: sectionLocation, document } = sectionCache;
           if (generation !== searchGenerationRef.current || controller.signal.aborted) return;
           const subsection = document.subsections[sectionLocation.subsection];
           const allResults = franchiseRowsFromSection(document, sectionLocation.subsection);

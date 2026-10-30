@@ -259,6 +259,30 @@ export function torrentQualityDetails(result: TorrentSearchResult): { key: strin
   return { key: label.toLowerCase().replace(/[^a-z0-9]+/g, '-'), label, rank };
 }
 
+export function filterTorrentSearchResults(
+  results: TorrentSearchResult[],
+  options: { minSizeBytes: number; maxSizeBytes: number; resolutionFilter: string | null },
+): TorrentSearchResult[] {
+  const lowQualityRelease = /(?:^|[\s._()[\]-])(?:cam(?:rip)?|hdcam|hd[ ._-]?cam|telesync|tele[ ._-]?sync|ts[ ._-]?(?:md|ac3|hd)?|telecine|dvdscr|dvd[ ._-]?scr|screener|workprint)(?:$|[\s._()[\]-])/i;
+  return results.filter(result => {
+    if (result.sectionCacheRecord) return true;
+    const size = Number(result.size) || 0;
+    const seeders = Number(result.seeders);
+    if (!Number.isFinite(seeders) || seeders <= 0) return false;
+    if (size < options.minSizeBytes || size > options.maxSizeBytes) return false;
+    const releaseText = `${String(result.title || '')} ${String(result.quality || '')}`;
+    const qualityText = `${String(result.quality || '')} ${String(result.title || '')}`;
+    if (/(?:^|[^a-z0-9])3[ ._-]*d(?:$|[^a-z0-9])/i.test(qualityText)) return false;
+    if (lowQualityRelease.test(releaseText)) return false;
+    if (options.resolutionFilter) {
+      const quality = torrentQualityDetails(result).label;
+      const pattern = options.resolutionFilter === '720p' ? /(?:^|[^0-9])720p(?:[^0-9]|$)/i : /(?:^|[^0-9])1080p(?:[^0-9]|$)/i;
+      if (!pattern.test(quality)) return false;
+    }
+    return true;
+  });
+}
+
 export function groupTorrentResults(results: TorrentSearchResult[]): TorrentQualityGroup[] {
   const titleBuckets = new Map<string, Array<{ result: TorrentSearchResult; identity: ReturnType<typeof torrentMediaIdentity> }>>();
   for (const result of results) {

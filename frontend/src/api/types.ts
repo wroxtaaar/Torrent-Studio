@@ -1,4 +1,5 @@
 export interface TorrentSearchResult {
+  sectionCacheRecord?: boolean;
   guid?: string;
   title: string;
   mediaTitle?: string;
@@ -108,6 +109,7 @@ export type MovieCatalogueKey =
   | 'marvel'
   | 'dc-live-action'
   | 'dc-animated'
+  | 'classics'
   | 'highest-rated-hollywood' | 'highest-rated-bollywood'
   | 'latest-hollywood'
   | 'latest-bollywood'
