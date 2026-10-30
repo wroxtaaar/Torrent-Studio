@@ -119,8 +119,7 @@ def test_removed_regional_movie_catalogues_are_not_served():
     removed = (
         "trending-korean",
         "latest-korean",
-        "trending-pakistani",
-        "latest-pakistani",
+        "popular-pakistani",
     )
     assert not set(removed).intersection(REGIONAL_MOVIE_CATALOGUE_KEYS)
     for catalogue_key in removed:
@@ -134,98 +133,6 @@ def test_removed_anime_tv_modes_are_not_served():
         with pytest.raises(HTTPException) as exc:
             asyncio.run(tv.api_tmdb_regional_tv_catalogue(catalogue_key, page=1))
         assert exc.value.status_code == 404
-
-
-def test_pakistani_movies_reject_indian_origin_and_keep_pakistani_english_titles(monkeypatch):
-    async def get_json(path, params):
-        return {
-            "page": 1,
-            "total_pages": 1,
-            "total_results": 3,
-            "results": [
-                {
-                    "id": 1,
-                    "title": "Pakistani English Film",
-                    "original_language": "en",
-                    "origin_country": ["PK"],
-                    "release_date": "2024-01-01",
-                },
-                {
-                    "id": 2,
-                    "title": "Pakistani Punjabi Film",
-                    "original_language": "pa",
-                    "origin_country": ["PK"],
-                    "release_date": "2024-01-01",
-                },
-                {
-                    "id": 3,
-                    "title": "Unrelated English Film",
-                    "original_language": "en",
-                    "origin_country": ["US"],
-                    "release_date": "2024-01-01",
-                },
-                {
-                    "id": 4,
-                    "title": "Hindi Bollywood Film",
-                    "original_language": "hi",
-                    "origin_country": ["IN"],
-                    "release_date": "2024-01-01",
-                },
-                {
-                    "id": 5,
-                    "title": "Cross-border Film",
-                    "original_language": "ur",
-                    "origin_country": ["PK", "IN"],
-                    "release_date": "2024-01-01",
-                },
-            ],
-        }
-
-    monkeypatch.setattr(movies, "_tmdb_get_json", get_json)
-    result = asyncio.run(movies._tmdb_fetch_movie_catalogue("popular-pakistani", 1))
-
-    assert [row["title"] for row in result["results"]] == [
-        "Pakistani English Film",
-        "Pakistani Punjabi Film",
-    ]
-
-
-def test_pakistani_trending_archive_filters_indian_entries(monkeypatch):
-    monkeypatch.setattr(movies, "_tmdb_movie_catalogue_cache", {})
-    monkeypatch.setattr(movies, "_read_regional_movie_trending_archive", lambda: {
-        "weeks": [{
-            "weekOf": "2025-01-01",
-            "catalogues": {
-                "trending-pakistani": [
-                    {"id": 1, "title": "Pakistani Film", "originCountry": ["PK"]},
-                    {"id": 2, "title": "Indian Film", "originCountry": ["IN"], "originalLanguage": "hi"},
-                ],
-            },
-        }],
-    })
-
-    result = movies._regional_movie_trending_archive_page("trending-pakistani", 1)
-
-    assert [row["title"] for row in result["results"]] == ["Pakistani Film"]
-
-
-def test_pakistani_prebuilt_movies_filter_indian_entries(monkeypatch, tmp_path):
-    monkeypatch.setattr(movies, "REGIONAL_MOVIE_PREBUILT_CACHE_PATH", tmp_path / "prebuilt.json")
-    monkeypatch.setattr(movies, "_CACHE_SEED_DIR", tmp_path)
-    monkeypatch.setattr(movies, "read_json_cached", lambda path: {
-        "catalogues": {
-            "popular-pakistani": {
-                "final": [
-                    {"id": 1, "title": "Pakistani Film", "originCountry": ["PK"]},
-                    {"id": 2, "title": "Indian Film", "originCountry": ["IN"], "originalLanguage": "hi"},
-                ],
-            },
-        },
-    })
-
-    result = movies._prebuilt_final_page("popular-pakistani", 1)
-
-    assert [row["title"] for row in result["results"]] == ["Pakistani Film"]
 
 
 def test_pakistani_tv_catalogue_uses_fixed_curated_drama_order(monkeypatch, tmp_path):
