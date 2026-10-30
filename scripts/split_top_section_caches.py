@@ -52,10 +52,8 @@ LEGACY_FILES = {
     "latest_hollywood_catalogue.json": ("hollywood", "latest"),
     "latest_bollywood_catalogue.json": ("bollywood", "latest"),
     "marvel_catalogue.json": ("marvel", "movies"),
-    "marvel_hindi_catalogue.json": ("marvel", "hindi-movies"),
     "marvel_web_series_catalogue.json": ("marvel", "series"),
     "dc_live_action_catalogue.json": ("dc", "live-action"),
-    "dc_live_action_hindi_catalogue.json": ("dc", "hindi-live-action"),
     "dc_animated_catalogue.json": ("dc", "animated"),
     "classics_catalogue.json": ("favourites", "movies"),
     "classics_web_series_tv_catalogue.json": ("favourites", "series"),
@@ -311,6 +309,14 @@ def main() -> int:
         if section == "pakistani" and "movies" in new_subs:
             new_subs.pop("movies", None)
             removed_subsections.append("movies")
+        obsolete = {
+            "marvel": ("hindi-movies",),
+            "dc": ("hindi-live-action",),
+        }.get(section, ())
+        for subsection in obsolete:
+            if subsection in new_subs:
+                new_subs.pop(subsection, None)
+                removed_subsections.append(subsection)
         section_counts: dict[str, int] = {}
         subs = {sub for sec, sub in incoming if sec == section}
         for sub in sorted(subs):
