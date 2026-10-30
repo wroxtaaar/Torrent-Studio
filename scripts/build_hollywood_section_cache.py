@@ -36,7 +36,8 @@ SUBSECTIONS = {
     "trending": "trending-hollywood",
     "latest": "latest-hollywood",
 }
-CORE_FIELDS = ("title", "posterUrl", "overview", "imdbId", "imdbRating")
+CORE_FIELDS = ("id", "title", "posterUrl", "overview")
+TORRENT_FIELDS = {"torrentDetails", "torrentMatch", "torrentMatches", "cachedTorrentDetails"}
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -91,9 +92,14 @@ def empty(value: Any) -> bool:
     return value is None or value == "" or value == [] or value == {}
 
 
+def metadata_only(row: dict[str, Any]) -> dict[str, Any]:
+    """Keep torrent payloads exclusively in the paired *-torrents.json file."""
+    return {key: value for key, value in row.items() if key not in TORRENT_FIELDS}
+
+
 def merge_missing(old: dict[str, Any], fresh: dict[str, Any]) -> dict[str, Any]:
-    result = dict(old)
-    for key, value in fresh.items():
+    result = metadata_only(old)
+    for key, value in metadata_only(fresh).items():
         if empty(result.get(key)) and not empty(value):
             result[key] = value
     return result
@@ -132,12 +138,7 @@ def fetch_catalogue(key: str, existing: list[dict[str, Any]], mode: str) -> tupl
             if mode == "missing" and previous:
                 row = merge_missing(previous, fresh)
             else:
-                row = dict(fresh)
-                if previous:
-                    # Deep refreshes metadata, but keeps any already-scanned torrent data.
-                    for field in ("torrentDetails", "torrentMatch", "torrentMatches", "cachedTorrentDetails"):
-                        if field in previous and field not in row:
-                            row[field] = previous[field]
+                row = metadata_only(fresh)
             rows.append(row)
         total_pages = int(payload.get("totalPages") or page)
         if page >= total_pages or not page_rows:
@@ -149,7 +150,7 @@ def fetch_catalogue(key: str, existing: list[dict[str, Any]], mode: str) -> tupl
     if mode == "missing":
         # Preserve old records if the API's current page set is temporarily shorter.
         present = {title_key(row) for row in rows}
-        rows.extend(row for row in existing if title_key(row) not in present)
+        rows.extend(metadata_only(row) for row in existing if title_key(row) not in present)
     return rows, {
         "catalogue": key,
         "pageCount": int(first.get("totalPages") or max(1, (len(rows) + PAGE_SIZE - 1) // PAGE_SIZE)),
@@ -203,7 +204,8 @@ def main() -> int:
         "builtAt": datetime.now(timezone.utc).isoformat(),
         "mode": args.mode,
         "subsections": result_sections,
-        "safety": {"torrentSearches": 0, "source": "existing Torrent Studio movie catalogue API"},
+        "safety": {"torrentSearches": 0, "torrentDataStoredSeparately": True,
+                   "source": "existing Torrent Studio movie catalogue API"},
     })
     atomic_write(OUTPUT, document)
     print(json.dumps({"event": "hollywood_section_cache_written", "path": str(OUTPUT), "mode": args.mode, "subsections": report, "torrent_searches": 0}, ensure_ascii=False), flush=True)
