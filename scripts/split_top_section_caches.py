@@ -3,7 +3,7 @@
 
 Migration only: reads existing metadata seed JSON files, performs no API calls,
 no provider searches, and no publishing/deployment. It never reads or writes
- torrent files. Existing metadata output is preserved and merged by identity.
+torrent payloads. Existing metadata output is sanitized and merged by identity.
 """
 from __future__ import annotations
 
@@ -22,8 +22,13 @@ SEED = Path(os.getenv("REFRESH_SEED_DIR") or HOME / "seed").resolve()
 PAGE_SIZE = 18
 TORRENT_KEYS = {
     "torrentDetails", "torrentMatch", "torrentMatches", "cachedTorrentDetails",
-    "torrentReleases", "torrentResults", "releases", "releaseGroups",
+    "torrentReleases", "torrentResults", "torrent", "torrents", "releases",
+    "releaseGroups", "magnetUrl", "magnet", "infoHash", "hash", "downloadUrl",
+    "seeders", "leechers", "indexer", "protocol", "publishDate", "infoUrl",
+    "sourceUrl", "descriptorUrl", "guid", "size", "category", "nexStream",
+    "episodes",
 }
+
 REGIONAL_MOVIE = {
     "popular-hollywood": ("hollywood", "popular"),
     "trending-hollywood": ("hollywood", "trending"),
@@ -88,13 +93,16 @@ def atomic_write(path: Path, value: Any) -> None:
 def title(row: dict[str, Any]) -> str:
     if isinstance(row.get("movie"), dict):
         row = row["movie"]
-    return str(row.get("title") or row.get("name") or "").strip()
+    return str(
+        row.get("catalogueTitle") or row.get("mediaTitle")
+        or row.get("title") or row.get("name") or ""
+    ).strip()
 
 def identity(row: dict[str, Any]) -> str:
     if isinstance(row.get("movie"), dict):
         row = row["movie"]
     imdb = str(row.get("imdbId") or "").strip().lower()
-    if re.fullmatch(r"tt\d+", imdb):
+    if re.fullmatch(r"tt\\d+", imdb):
         return "imdb:" + imdb
     tmdb = row.get("tmdbId") or row.get("id")
     if tmdb not in (None, "") and str(tmdb).isdigit():
@@ -103,19 +111,72 @@ def identity(row: dict[str, Any]) -> str:
     year = row.get("year") or str(row.get("releaseDate") or "")[:4]
     return f"title:{clean}:{year}" if clean else ""
 
+def is_torrent_field(key: str) -> bool:
+    low = key.casefold()
+    exact = {item.casefold() for item in TORRENT_KEYS}
+    return low in exact or any(token in low for token in (
+        "magnet", "infohash", "torrentmatch", "torrentrelease",
+        "torrentresult", "seeders", "leechers", "downloadurl",
+    ))
+
+def metadata_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Return a catalogue card, stripping torrent payloads and release wrappers."""
+    source = row.get("movie") if isinstance(row.get("movie"), dict) else row
+    clean: dict[str, Any] = {}
+    for key, value in source.items():
+        if is_torrent_field(str(key)):
+            continue
+        if isinstance(value, dict):
+            nested = {
+                k: v for k, v in value.items()
+                if not is_torrent_field(str(k))
+            }
+            clean[key] = nested
+        elif isinstance(value, list):
+            clean[key] = [
+                {k: v for k, v in item.items() if not is_torrent_field(str(k))}
+                if isinstance(item, dict) else item
+                for item in value
+            ]
+        else:
+            clean[key] = value
+
+    canonical_title = (
+        source.get("catalogueTitle") or source.get("mediaTitle")
+        or source.get("name") or source.get("title")
+    )
+    if canonical_title:
+        clean["title"] = str(canonical_title).strip()
+    if clean.get("year") in (None, "") and source.get("releaseDate"):
+        clean["year"] = str(source["releaseDate"])[:4]
+    clean.pop("catalogueTitle", None)
+    clean.pop("mediaTitle", None)
+    return clean
+
 def collect_rows(value: Any) -> list[dict[str, Any]]:
-    """Collect title records from legacy shapes (results/pages/final/items/catalogue)."""
+    """Collect catalogue metadata records without descending into torrent payloads."""
     found: list[dict[str, Any]] = []
     seen_objects: set[int] = set()
+    metadata_markers = {
+        "tmdbId", "imdbId", "posterUrl", "backdropUrl", "overview",
+        "synopsis", "releaseDate", "firstAirDate", "catalogueTitle",
+        "mediaTitle", "imdbRating",
+    }
+
     def walk(node: Any) -> None:
         if isinstance(node, dict):
-            if id(node) in seen_objects: return
+            if id(node) in seen_objects:
+                return
             seen_objects.add(id(node))
-            if title(node) and any(k in node for k in ("id", "tmdbId", "imdbId", "posterUrl", "overview", "year", "releaseDate")):
-                found.append(node)
-            for child in node.values(): walk(child)
+            if title(node) and metadata_markers.intersection(node):
+                found.append(metadata_row(node))
+            for key, child in node.items():
+                if not is_torrent_field(str(key)):
+                    walk(child)
         elif isinstance(node, list):
-            for child in node: walk(child)
+            for child in node:
+                walk(child)
+
     walk(value)
     dedup: dict[str, dict[str, Any]] = {}
     for row in found:
@@ -123,13 +184,6 @@ def collect_rows(value: Any) -> list[dict[str, Any]]:
         if key:
             dedup.setdefault(key, row)
     return list(dedup.values())
-
-def metadata_row(row: dict[str, Any]) -> dict[str, Any]:
-    # Some legacy torrent-match files wrap the actual catalogue card in "movie".
-    # Store the card itself in the metadata document, never the wrapper.
-    source = row.get("movie") if isinstance(row.get("movie"), dict) else row
-    return {k: v for k, v in source.items() if k not in TORRENT_KEYS}
-
 
 def media_type(section: str, subsection: str) -> str:
     key = f"{section}-{subsection}".casefold().replace("_", "-")
