@@ -388,6 +388,8 @@ async def _fetch_imdb_rating(
     cache_key: str,
     media_type: str = "movie",
     tmdb_id: int = 0,
+    *,
+    allow_live_in_cache_only: bool = False,
 ) -> dict[str, Any]:
     """OMDb first; MDBList (IMDb rating by TMDB/IMDb id) when OMDb has no rating or cannot answer."""
     record = await _fetch_imdb_rating_omdb(title, year, cache_key, media_type, tmdb_id)
@@ -395,7 +397,9 @@ async def _fetch_imdb_rating(
         return record
     found = await mdblist_imdb_rating(
         "tv" if str(media_type or "movie").casefold() in {"tv", "series"} else "movie",
-        tmdb_id=tmdb_id, imdb_id=str(record.get("imdbId") or ""),
+        tmdb_id=tmdb_id,
+        imdb_id=str(record.get("imdbId") or ""),
+        allow_live_in_cache_only=allow_live_in_cache_only,
     )
     if not found:
         return record
@@ -491,7 +495,10 @@ async def _get_imdb_rating_record(
 
     _record_cache_event("imdb_rating", "miss")
     if not persist:
-        return await _fetch_imdb_rating(title, year, cache_key, normalized_type, tmdb_id)
+        return await _fetch_imdb_rating(
+            title, year, cache_key, normalized_type, tmdb_id,
+            allow_live_in_cache_only=refresh_incomplete,
+        )
 
     task = _IMDB_RATING_INFLIGHT.get(cache_key)
     if task is None or task.done():
