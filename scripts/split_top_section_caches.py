@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Split existing Torrent Studio seed catalogues into one metadata/torrent pair per top section.
+"""Split existing seed catalogues into metadata-only JSON files per top section.
 
-Migration only: reads existing seed JSON files, performs no API calls, no provider
-searches, and no publishing/deployment. Existing output records are preserved and
-merged by IMDb/TMDB identity before source rows are added.
+Migration only: reads existing metadata seed JSON files, performs no API calls,
+no provider searches, and no publishing/deployment. It never reads or writes
+ torrent files. Existing metadata output is preserved and merged by identity.
 """
 from __future__ import annotations
 
@@ -46,7 +46,6 @@ REGIONAL_TV = {
 LEGACY_FILES = {
     "latest_hollywood_catalogue.json": ("hollywood", "latest"),
     "latest_bollywood_catalogue.json": ("bollywood", "latest"),
-    "bollywood_torrent_matched_catalogue.json": ("bollywood", "torrent-matched"),
     "marvel_catalogue.json": ("marvel", "movies"),
     "marvel_hindi_catalogue.json": ("marvel", "hindi-movies"),
     "marvel_web_series_catalogue.json": ("marvel", "series"),
@@ -188,7 +187,6 @@ def main() -> int:
         raise SystemExit(f"Seed directory not found: {SEED}")
 
     incoming: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
-    torrent_incoming: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     source_report: list[dict[str, Any]] = []
 
     # Regional movie cache: extract the curated final lists, not intermediate candidates.
@@ -202,9 +200,6 @@ def main() -> int:
                 continue
             pair = target
             incoming[pair].extend(r for r in rows if isinstance(r, dict) and title(r))
-            for row in rows:
-                if isinstance(row, dict) and torrent_payload(row):
-                    torrent_incoming[pair].append({"movie": metadata_row(row), "torrentData": torrent_payload(row)})
             source_report.append({"source": "regional_movie_prebuilt_cache.json", "catalogue": key, "records": len(rows)})
 
     # Regional TV cache stores pages[].results.
@@ -236,10 +231,6 @@ def main() -> int:
             log("source_empty_or_unrecognized", source=str(path))
             continue
         incoming[target].extend(metadata_row(row) for row in rows)
-        for row in rows:
-            data = torrent_payload(row)
-            if data:
-                torrent_incoming[target].append({"movie": metadata_row(row), "torrentData": data})
         source_report.append({"source": str(path.relative_to(SEED)), "records": len(rows)})
 
     # Existing Hollywood pair and prior section outputs are inputs too; preserve their data.
@@ -280,48 +271,19 @@ def main() -> int:
             "safety": {
                 "torrentSearches": 0,
                 "torrentDataStoredSeparately": True,
+                "torrentFilesTouched": False,
                 "activeApplicationCacheWrites": 0,
                 "source": "existing seed JSON files only",
             },
         })
-        totals[section] = section_counts
+        totals[section] = {"metadata": section_counts, "torrentWrites": 0}
         if not args.dry_run and section_counts:
             atomic_write(out_path, old_doc)
 
-        torrent_path = SEED / f"{section}-torrents.json"
-        old_torrent_doc = read_json(torrent_path)
-        if not isinstance(old_torrent_doc, dict):
-            old_torrent_doc = {"schemaVersion": 1, "section": section, "subsections": {}}
-        old_torrent_subs = old_torrent_doc.get("subsections") if isinstance(old_torrent_doc.get("subsections"), dict) else {}
-        new_torrent_subs = dict(old_torrent_subs)
-        torrent_counts: dict[str, int] = {}
-        for sec, sub in sorted(torrent_incoming):
-            if sec != section: continue
-            old_node = new_torrent_subs.get(sub) or {}
-            old_rows = old_node.get("results") if isinstance(old_node, dict) else []
-            old_rows = old_rows if isinstance(old_rows, list) else []
-            rows = merge_rows(old_rows, torrent_incoming[(sec, sub)], metadata=False)
-            new_torrent_subs[sub] = {
-                "catalogueKey": sub,
-                "builtAt": now,
-                "totalResults": len(rows),
-                "results": rows,
-            }
-            torrent_counts[sub] = len(rows)
-        old_torrent_doc.update({
-            "schemaVersion": 1,
-            "section": section,
-            "builtAt": now,
-            "mode": "legacy-migration",
-            "subsections": new_torrent_subs,
-            "safety": {"torrentSearches": 0, "source": "existing cached torrent fields only"},
-        })
-        if not args.dry_run and torrent_counts:
-            atomic_write(torrent_path, old_torrent_doc)
-        totals[section] = {"metadata": section_counts, "torrent": torrent_counts}
 
     log("section_split_complete", seed=str(SEED), dryRun=args.dry_run, sections=totals, sources=source_report,
-        filesWritten=0 if args.dry_run else sum(1 for v in totals.values() if any(v.get(k) for k in ("metadata", "torrent"))))
+        filesWritten=0 if args.dry_run else sum(1 for v in totals.values() if v.get("metadata")),
+        torrentFilesRead=0, torrentFilesWritten=0, torrentSearches=0)
     return 0
 
 if __name__ == "__main__":
