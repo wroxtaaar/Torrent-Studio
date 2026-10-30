@@ -196,21 +196,11 @@ def collect_rows(value: Any) -> list[dict[str, Any]]:
     return list(dedup.values())
 
 def media_type(section: str, subsection: str) -> str:
-    key = f"{section}-{subsection}".casefold().replace("_", "-")
     if section == "highest-rated" and subsection == "tv":
         return "tv"
     if subsection in {"series", "anime", "tv", "web-series", "webseries", "television"}:
         return "tv"
     return "movie"
-
-def torrent_payload(row: dict[str, Any]) -> dict[str, Any]:
-    data = {k: v for k, v in row.items() if k in TORRENT_KEYS}
-    # Legacy torrent-matched files sometimes use provider-specific field names.
-    for key, value in row.items():
-        low = key.casefold()
-        if any(token in low for token in ("torrent", "magnet", "seed", "release", "provider")):
-            data.setdefault(key, value)
-    return data
 
 def has_catalogue_metadata(row: dict[str, Any]) -> bool:
     source = row.get("movie") if isinstance(row.get("movie"), dict) else row
@@ -224,14 +214,12 @@ def has_catalogue_metadata(row: dict[str, Any]) -> bool:
 def merge_rows(existing: list[dict[str, Any]], incoming: list[dict[str, Any]], *, metadata: bool) -> list[dict[str, Any]]:
     merged: dict[str, dict[str, Any]] = {}
     order: list[str] = []
-    dropped_non_metadata = 0
     for row in existing + incoming:
         key = identity(row)
         if not key:
             continue
         clean = metadata_row(row) if metadata else row
         if metadata and not has_catalogue_metadata(clean):
-            dropped_non_metadata += 1
             continue
         if key not in merged:
             merged[key] = dict(clean)
@@ -266,8 +254,6 @@ def main() -> int:
 
     incoming: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     source_report: list[dict[str, Any]] = []
-
-    # Regional movie cache: extract the curated final lists, not intermediate candidates.
     regional = read_json(SEED / "runtime" / "regional_movie_prebuilt_cache.json")
     if isinstance(regional, dict):
         catalogues = regional.get("catalogues") or {}
@@ -276,11 +262,8 @@ def main() -> int:
             rows = node.get("final") if isinstance(node, dict) else []
             if not isinstance(rows, list) or not rows:
                 continue
-            pair = target
-            incoming[pair].extend(r for r in rows if isinstance(r, dict) and title(r))
+            incoming[target].extend(r for r in rows if isinstance(r, dict) and title(r))
             source_report.append({"source": "regional_movie_prebuilt_cache.json", "catalogue": key, "records": len(rows)})
-
-    # Regional TV cache stores pages[].results.
     regional_tv = read_json(SEED / "regional_tv_prebuilt_cache.json")
     if isinstance(regional_tv, dict):
         catalogues = regional_tv.get("catalogues") or {}
@@ -288,8 +271,7 @@ def main() -> int:
             node = catalogues.get(key) if isinstance(catalogues, dict) else None
             rows: list[dict[str, Any]] = []
             if isinstance(node, dict):
-                pages = node.get("pages") or []
-                for page in pages:
+                for page in node.get("pages") or []:
                     if isinstance(page, dict) and isinstance(page.get("results"), list):
                         rows.extend(r for r in page["results"] if isinstance(r, dict) and title(r))
                 if not rows and isinstance(node.get("results"), list):
@@ -297,16 +279,11 @@ def main() -> int:
             if rows:
                 incoming[target].extend(metadata_row(row) for row in rows)
                 source_report.append({"source": "regional_tv_prebuilt_cache.json", "catalogue": key, "records": len(rows)})
-
-    # Legacy franchise, classics and regional source files.
     for filename, target in {**LEGACY_FILES, **RUNTIME_FILES}.items():
         path = source_for_file(filename)
         if not path:
             continue
         payload = read_json(path)
-        # This legacy Marvel file is a catalogue wrapper whose cards contain
-        # nested episode/torrent payloads. Only its top-level cards are catalogue
-        # entries; recursively walking it promotes episode release titles.
         rows = (
             collect_top_level_results(payload)
             if filename == "marvel_web_series_catalogue.json" or filename in RUNTIME_FILES
@@ -317,8 +294,6 @@ def main() -> int:
             continue
         incoming[target].extend(metadata_row(row) for row in rows)
         source_report.append({"source": str(path.relative_to(SEED)), "records": len(rows)})
-
-    # Existing Hollywood pair and prior section outputs are inputs too; preserve their data.
     section_names = sorted({section for section, _ in incoming} | {
         p.stem for p in SEED.glob("*.json") if p.stem in {
             "hollywood", "bollywood", "marvel", "dc", "highest-rated",
@@ -339,7 +314,9 @@ def main() -> int:
         section_counts: dict[str, int] = {}
         subs = {sub for sec, sub in incoming if sec == section}
         for sub in sorted(subs):
-            previous_rows = get_existing_rows(old_doc, sub)
+            # The old Marvel series subsection contains torrent release cards.
+            # Rebuild it from clean catalogue sources instead of merging those rows.
+            previous_rows = [] if section == "marvel" and sub == "series" else get_existing_rows(old_doc, sub)
             rows = merge_rows(previous_rows, incoming[(section, sub)], metadata=True)
             new_subs[sub] = {
                 "catalogueKey": sub,
@@ -352,24 +329,15 @@ def main() -> int:
             }
             section_counts[sub] = len(rows)
         old_doc.update({
-            "schemaVersion": 1,
-            "section": section,
-            "builtAt": now,
-            "mode": "legacy-migration",
-            "subsections": new_subs,
-            "safety": {
-                "torrentSearches": 0,
-                "torrentDataStoredSeparately": True,
-                "torrentFilesTouched": False,
-                "activeApplicationCacheWrites": 0,
-                "source": "existing seed JSON files only",
-            },
+            "schemaVersion": 1, "section": section, "builtAt": now,
+            "mode": "legacy-migration", "subsections": new_subs,
+            "safety": {"torrentSearches": 0, "torrentDataStoredSeparately": True,
+                       "torrentFilesTouched": False, "activeApplicationCacheWrites": 0,
+                       "source": "existing seed JSON files only"},
         })
         totals[section] = {"metadata": section_counts, "removedSubsections": removed_subsections, "torrentWrites": 0}
         if not args.dry_run and section_counts:
             atomic_write(out_path, old_doc)
-
-
     log("section_split_complete", seed=str(SEED), dryRun=args.dry_run, sections=totals, sources=source_report,
         filesWritten=0 if args.dry_run else sum(1 for v in totals.values() if v.get("metadata")),
         torrentFilesRead=0, torrentFilesWritten=0, torrentSearches=0)
