@@ -69,13 +69,14 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
   };
   useEffect(() => {
     const current = window.history.state || {};
+    if (current.tab && current.tab !== 'search') return;
     if (!current.torrentStudio) {
-      window.history.replaceState({ ...current, torrentStudio: true, tab: 'search', searchView: navigationSnapshot }, '', window.location.href);
+      window.history.replaceState({ ...current, torrentStudio: true, tab: current.tab || 'search', searchView: navigationSnapshot }, '', window.location.href);
     } else if (!current.searchView) {
-      window.history.replaceState({ ...current, tab: 'search', searchView: navigationSnapshot }, '', window.location.href);
+      window.history.replaceState({ ...current, tab: current.tab || 'search', searchView: navigationSnapshot }, '', window.location.href);
     } else if (restoringNavigationRef.current) {
       restoringNavigationRef.current = false;
-      window.history.replaceState({ ...current, tab: 'search', searchView: navigationSnapshot }, '', window.location.href);
+      window.history.replaceState({ ...current, tab: current.tab || 'search', searchView: navigationSnapshot }, '', window.location.href);
     } else {
       window.history.pushState({ ...current, torrentStudio: true, tab: 'search', searchView: navigationSnapshot }, '', window.location.href);
     }
