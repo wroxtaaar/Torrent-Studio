@@ -232,10 +232,13 @@ async def search_titles(
         if local:
             _record_cache_event("nexstream_search", "local_fallback_served", len(local))
             return {"success": True, "type": media_type, "results": local, "source": "bundled-cache"}
+        logging.getLogger(__name__).warning(
+            "Title search for %r (%s) failed upstream: HTTP %s %s", query, media_type, exc.status_code, exc.detail
+        )
         if CACHE_ONLY_MODE and exc.status_code in (502, 503):
             raise HTTPException(
                 status_code=503,
-                detail="Live title search is unavailable and no cached title matches your search.",
+                detail=f"Live title search is unavailable ({exc.detail}) and no cached title matches your search.",
             ) from exc
         raise
 

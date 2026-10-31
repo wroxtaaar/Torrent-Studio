@@ -58,6 +58,7 @@ def test_search_in_cache_only_mode_reports_unavailable_not_a_connection_error(mo
         asyncio.run(nexstream.search_titles(query="Nothing Cached", media_type="tv", force_refresh=True))
     assert caught.value.status_code == 503
     assert "no cached title" in caught.value.detail
+    assert "Could not connect to TMDB" in caught.value.detail
 
 
 def test_live_search_opts_out_of_the_cache_only_block(monkeypatch):
