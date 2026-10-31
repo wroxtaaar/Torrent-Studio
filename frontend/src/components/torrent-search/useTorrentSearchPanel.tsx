@@ -48,6 +48,11 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
   const { persistMovieTorrentCache } = useMovieTorrentCache({ movieTorrentDetailsCacheRef });
 
   const { isSearching, setIsSearching, isPresetCatalogueAction, setIsPresetCatalogueAction, searched, setSearched, error, setError, catalogueBuildProgress, setCatalogueBuildProgress, movieCatalogue, setMovieCatalogue, movieCatalogueSearchText, setMovieCatalogueSearchText, releasedOnly, tmdbFranchiseKey, setTmdbFranchiseKey, openCachedLanguageMenu, setOpenCachedLanguageMenu, activeTopSection, setActiveTopSection, dcContentTab, setDcContentTab, regionalContentTabs, setRegionalContentTabs, marvelContentTab, setMarvelContentTab, classicsContentTab, setClassicsContentTab, classicsSort, setClassicsSort, catalogueSort, setCatalogueSort, activeFranchiseSearchMode, setActiveFranchiseSearchMode, franchisePageRequestRef, franchisePageGenerationRef, franchiseLoadedPagesRef, franchiseGridPage, setFranchiseGridPage, prepareBuildPendingRef, previousPosterPageRef, posterFirstPageReady, setPosterFirstPageReady, posterFirstPageReadyRef, catalogueExpectedTitles, setCatalogueExpectedTitles, franchiseGridPageSize, openRegionalCatalogueMenu, setOpenRegionalCatalogueMenu, regionalCatalogueModes, setRegionalCatalogueModes, openRegionalTvMenu, setOpenRegionalTvMenu, regionalTvModes, setRegionalTvModes, isClearingTmdbCache, setIsClearingTmdbCache, tmdbCacheMessage, setTmdbCacheMessage, streamingOnly, ottAvailability, setOttAvailability, ottAvailabilityRef, ottQueueRef, ottQueuedIdsRef, ottLookupGenerationRef, ottLiveCheckedRef, ottRetryAttemptsRef, queueOttLookups, ottAvailabilityForMovie, marvelFilmFilter, setMarvelFilmFilter, isMarvelEnglishResults, setIsMarvelEnglishResults, showMarvelWebSeries, setShowMarvelWebSeries, isDcLiveActionEnglishResults, setIsDcLiveActionEnglishResults } = useCatalogueNavigationState();
+  useEffect(() => persistSearchMetadata(searchMetadata), [searchMetadata]);
+  useEffect(() => persistSearchAvailability(searchAvailabilityByGroup), [searchAvailabilityByGroup]);
+  useEffect(() => persistImdbRatings(imdbRatingsByKey), [imdbRatingsByKey]);
+  const renderFranchisePagination = (total: number) => total > franchiseGridPageSize ? <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2"><button type="button" disabled={franchiseGridPage <= 1} onClick={() => navigateFranchisePage(Math.max(1, franchiseGridPage - 1))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-200 disabled:opacity-40">← Previous</button><span className="text-xs text-slate-400">Page {franchiseGridPage} of {Math.max(1, Math.ceil(total / franchiseGridPageSize))} · {total} titles</span><button type="button" disabled={franchiseGridPage >= Math.ceil(total / franchiseGridPageSize)} onClick={() => navigateFranchisePage(Math.min(Math.ceil(total / franchiseGridPageSize), franchiseGridPage + 1))} className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-40">Next →</button></div> : null;
+  const { regionalWebSeriesCatalogue, setRegionalWebSeriesCatalogue, regionalWebSeriesLoading, setRegionalWebSeriesLoading, regionalWebSeriesError, setRegionalWebSeriesError, showDcWebSeries, setShowDcWebSeries, dcWebSeriesCatalogue, setDcWebSeriesCatalogue, dcWebSeriesLoading, setDcWebSeriesLoading, dcWebSeriesError, setDcWebSeriesError, dcWebSeriesRequestGenerationRef, marvelWebSeriesCatalogue, setMarvelWebSeriesCatalogue, marvelWebSeriesLoading, setMarvelWebSeriesLoading, marvelWebSeriesError, setMarvelWebSeriesError } = useWebSeriesState();
   // Keep meaningful Search-panel screens in the native browser history. The
   // snapshot contains navigation state only; catalogue/search caches remain in
   // React memory, so Back restores the exact view without repeating API calls.
@@ -59,6 +64,11 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     regionalContentTabs,
     marvelContentTab,
     classicsContentTab,
+    activeFranchiseSearchMode,
+    showMarvelWebSeries,
+    showDcWebSeries,
+    regionalCatalogueModes,
+    regionalTvModes,
     franchiseGridPage,
     expandedSearchGroupKey,
     nexStreamEpisodePicker,
@@ -100,7 +110,9 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     }
   }, [
     activeTopSection, dcContentTab, regionalContentTabs, marvelContentTab,
-    classicsContentTab, franchiseGridPage, expandedSearchGroupKey,
+    classicsContentTab, activeFranchiseSearchMode, showMarvelWebSeries,
+    showDcWebSeries, regionalCatalogueModes, regionalTvModes,
+    franchiseGridPage, expandedSearchGroupKey,
     nexStreamEpisodePicker, nexStreamPlayer, nexStreamSelectedSeason,
     yenime.yenimeEpisodePicker, yenime.yenimePlayer, yenime.yenimeSelectedSeason,
   ]);
@@ -115,6 +127,11 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       setRegionalContentTabs(view.regionalContentTabs ?? { bollywood: null, hollywood: null, korean: null, pakistani: null, anime: null });
       setMarvelContentTab(view.marvelContentTab ?? null);
       setClassicsContentTab(view.classicsContentTab ?? 'movies');
+      setActiveFranchiseSearchMode(view.activeFranchiseSearchMode ?? null);
+      setShowMarvelWebSeries(view.showMarvelWebSeries ?? false);
+      setShowDcWebSeries(view.showDcWebSeries ?? false);
+      setRegionalCatalogueModes(view.regionalCatalogueModes ?? regionalCatalogueModes);
+      setRegionalTvModes(view.regionalTvModes ?? regionalTvModes);
       setFranchiseGridPage(view.franchiseGridPage ?? 1);
       setExpandedSearchGroupKey(view.expandedSearchGroupKey ?? null);
       setNexStreamEpisodePicker(view.nexStreamEpisodePicker ?? null);
@@ -135,11 +152,6 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     window.addEventListener('popstate', restore);
     return () => window.removeEventListener('popstate', restore);
   }, []);
-  useEffect(() => persistSearchMetadata(searchMetadata), [searchMetadata]);
-  useEffect(() => persistSearchAvailability(searchAvailabilityByGroup), [searchAvailabilityByGroup]);
-  useEffect(() => persistImdbRatings(imdbRatingsByKey), [imdbRatingsByKey]);
-  const renderFranchisePagination = (total: number) => total > franchiseGridPageSize ? <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2"><button type="button" disabled={franchiseGridPage <= 1} onClick={() => navigateFranchisePage(Math.max(1, franchiseGridPage - 1))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-200 disabled:opacity-40">← Previous</button><span className="text-xs text-slate-400">Page {franchiseGridPage} of {Math.max(1, Math.ceil(total / franchiseGridPageSize))} · {total} titles</span><button type="button" disabled={franchiseGridPage >= Math.ceil(total / franchiseGridPageSize)} onClick={() => navigateFranchisePage(Math.min(Math.ceil(total / franchiseGridPageSize), franchiseGridPage + 1))} className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-40">Next →</button></div> : null;
-  const { regionalWebSeriesCatalogue, setRegionalWebSeriesCatalogue, regionalWebSeriesLoading, setRegionalWebSeriesLoading, regionalWebSeriesError, setRegionalWebSeriesError, showDcWebSeries, setShowDcWebSeries, dcWebSeriesCatalogue, setDcWebSeriesCatalogue, dcWebSeriesLoading, setDcWebSeriesLoading, dcWebSeriesError, setDcWebSeriesError, dcWebSeriesRequestGenerationRef, marvelWebSeriesCatalogue, setMarvelWebSeriesCatalogue, marvelWebSeriesLoading, setMarvelWebSeriesLoading, marvelWebSeriesError, setMarvelWebSeriesError } = useWebSeriesState();
   useEffect(() => {
     if (!openCachedLanguageMenu) return;
 
