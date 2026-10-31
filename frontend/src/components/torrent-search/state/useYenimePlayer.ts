@@ -195,8 +195,9 @@ export function useYenimePlayer() {
     yenimeRequest, yenimePlayer, yenimeEpisodePicker, yenimeSeasons, yenimeEpisodes,
     yenimeSelectedSeason, yenimeEpisodesLoading, yenimeEpisodesError, yenimeProvider,
     yenimeEpisodesStatus,
-    setYenimePlayer, setYenimeRequest, setYenimeSelectedSeason, setYenimeProvider,
-    openYenimeRequest, switchToYenimePlayer, closeYenime, closeYenimeEpisodePicker,
+    setYenimePlayer, setYenimeRequest, setYenimeEpisodePicker, setYenimeSelectedSeason,
+    setYenimeSeasons, setYenimeEpisodes, setYenimeEpisodesError, setYenimeEpisodesStatus,
+    setYenimeProvider, openYenimeRequest, switchToYenimePlayer, closeYenime, closeYenimeEpisodePicker,
     loadYenimeEpisodes, launchYenime,
   };
 }
