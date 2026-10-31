@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Play } from 'lucide-react';
-import { TorrentPlayerShell } from '../TorrentPlayerShell.tsx';
+import { TorrentPlayerShell, type TorrentPlayerShellProvider } from '../TorrentPlayerShell.tsx';
 import { TvShowCard } from '../TvShowCard.tsx';
 import { imdbRatingKey } from '../grouping.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
@@ -121,7 +121,7 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
               loadingLabel={'Loading ' + nexStreamPlayer.sourceName + ' player…'}
               closeLabel={'Close ' + nexStreamPlayer.sourceName + ' player'}
               onClose={() => setNexStreamPlayer(null)}
-              providers={[
+              providers={([
                 ...(nexStreamPlayer.anime ? [{ label: 'Yenime', active: false, onSelect: () => {
                   const player = nexStreamPlayer;
                   setNexStreamPlayer(null);
@@ -129,7 +129,7 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
                 } }] : []),
                 { label: 'VidRift', active: nexStreamPlayer.sourceName === 'VidRift', onSelect: () => { if (nexStreamPlayer.sourceName !== 'VidRift') void switchNexStreamProvider(nexStreamPlayer, 'vidrift'); } },
                 { label: 'NexStream', active: nexStreamPlayer.sourceName === 'NexStream', onSelect: () => { if (nexStreamPlayer.sourceName !== 'NexStream') void switchNexStreamProvider(nexStreamPlayer, 'nexstream'); } },
-              ]}
+              ] as TorrentPlayerShellProvider[])}
             >
               <iframe
                 id="nexstream-player-frame"
