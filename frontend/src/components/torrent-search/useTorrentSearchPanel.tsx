@@ -52,6 +52,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
   // snapshot contains navigation state only; catalogue/search caches remain in
   // React memory, so Back restores the exact view without repeating API calls.
   const restoringNavigationRef = useRef(false);
+  const previousPlayerRef = useRef(false);
   const navigationSnapshot = {
     activeTopSection,
     dcContentTab,
@@ -76,6 +77,15 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     yenimeEpisodesStatus: yenime.yenimeEpisodesStatus,
   };
   useEffect(() => {
+    const hasPlayer = Boolean(nexStreamPlayer || yenime.yenimePlayer);
+    const hadPlayer = previousPlayerRef.current;
+    previousPlayerRef.current = hasPlayer;
+    if (hadPlayer && !hasPlayer && !restoringNavigationRef.current) {
+      // Closing playback returns to the picker/section entry already in the
+      // stack, rather than adding a new entry that would reopen the player.
+      window.history.back();
+      return;
+    }
     const current = window.history.state || {};
     if (current.tab && current.tab !== 'search') return;
     if (!current.torrentStudio) {
@@ -99,6 +109,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       const view = event.state?.torrentStudio ? event.state.searchView : null;
       if (!view) return;
       restoringNavigationRef.current = true;
+      previousPlayerRef.current = false;
       setActiveTopSection(view.activeTopSection ?? null);
       setDcContentTab(view.dcContentTab ?? 'movies');
       setRegionalContentTabs(view.regionalContentTabs ?? { bollywood: null, hollywood: null, korean: null, pakistani: null, anime: null });
