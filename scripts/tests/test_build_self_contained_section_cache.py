@@ -1,5 +1,8 @@
 import importlib.util
 import json
+import subprocess
+import sys
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,6 +12,7 @@ SPEC = importlib.util.spec_from_file_location("build_self_contained_section_cach
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
 SPEC.loader.exec_module(MODULE)
+ROOT = Path(__file__).resolve().parents[2]
 
 
 class SelfContainedSectionCacheTests(unittest.TestCase):
@@ -280,6 +284,114 @@ class SelfContainedSectionCacheTests(unittest.TestCase):
         self.assertIn('--output-dir "$REFRESH_SEED_DIR"', script)
         self.assertIn("--require-all", script)
         self.assertIn("--require-self-contained", script)
+
+    def test_bundle_builder_repairs_legacy_hollywood_and_keeps_all_persistent_caches(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            seed = root / "seed"
+            runtime = seed / "runtime"
+            runtime.mkdir(parents=True)
+
+            for name, payload in (
+                ("tmdb_movie_catalogue_cache.json", {"catalogues": {}}),
+                ("tmdb_search_metadata_cache.json", {"results": []}),
+                ("imdb_rating_cache.json", {"results": []}),
+                ("tmdb_ott_availability_cache.json", {"items": {}}),
+                ("yenime_mal_resolution_cache.json", {
+                    "version": 2,
+                    "entries": {},
+                    "tmdbMappings": {
+                        "101": {
+                            "tmdbId": 101,
+                            "malId": 5114,
+                            "title": "Keep this mapping",
+                            "source": "AniList",
+                            "resolvedAt": "test",
+                        },
+                    },
+                    "cooldownUntil": 0,
+                }),
+                ("nexstream_episode_metadata_cache.json", {
+                    "shows": {
+                        "202": {
+                            "tmdbId": 202,
+                            "episodesBySeason": {"1": [{"episodeNumber": 1, "name": "Keep this episode"}]},
+                        },
+                    },
+                }),
+            ):
+                (runtime / name).write_text(json.dumps(payload), encoding="utf-8")
+
+            for section in MODULE.SECTIONS:
+                # This reproduces the production failure: legacy Hollywood lacks the API marker.
+                document = {
+                    "section": section,
+                    "subsections": {
+                        "movies": {
+                            "mediaType": "movie",
+                            "results": [
+                                {"id": 101, "title": f"{section} curated first"},
+                                {"id": 102, "title": f"{section} curated second"},
+                            ],
+                        },
+                    },
+                }
+                (seed / f"{section}.json").write_text(json.dumps(document), encoding="utf-8")
+
+            regional_tv = {
+                catalogue_key: {
+                    "pages": [{
+                        "page": 1,
+                        "results": [{"id": 9000 + index, "title": f"Regional {catalogue_key}"}],
+                    }],
+                }
+                for index, catalogue_key in enumerate(MODULE.REGIONAL_TV_CATALOGUES)
+            }
+            (seed / "regional_tv_prebuilt_cache.json").write_text(
+                json.dumps({"catalogues": regional_tv}),
+                encoding="utf-8",
+            )
+            (seed / "poster_map.json").write_text("[]", encoding="utf-8")
+
+            preserved_paths = (
+                runtime / "yenime_mal_resolution_cache.json",
+                runtime / "nexstream_episode_metadata_cache.json",
+            )
+            preserved_bytes = {path: path.read_bytes() for path in preserved_paths}
+            output = root / "out"
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "make_cache_bundle.py"),
+                    str(seed),
+                    str(output),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            manifest = json.loads((output / "cache-bundle.json").read_text(encoding="utf-8"))
+            with tarfile.open(output / manifest["bundle"], "r:gz") as archive:
+                names = set(archive.getnames())
+                for section in MODULE.SECTIONS:
+                    section_path = f"{section}.json"
+                    self.assertIn(section_path, names)
+                    bundled = json.load(archive.extractfile(section_path))
+                    self.assertEqual(bundled["section"], section)
+                    self.assertIs(bundled["metadataSelfContained"], True)
+                    self.assertIsInstance(bundled["subsections"], dict)
+                    self.assertEqual(
+                        [row["title"] for row in bundled["subsections"]["movies"]["results"]],
+                        [f"{section} curated first", f"{section} curated second"],
+                    )
+                for path in preserved_paths:
+                    member = path.relative_to(seed).as_posix()
+                    self.assertIn(member, names)
+                    self.assertEqual(archive.extractfile(member).read(), preserved_bytes[path])
+
+            for path, contents in preserved_bytes.items():
+                self.assertEqual(path.read_bytes(), contents)
 
     def test_failed_imdb_cache_result_does_not_replace_good_values(self):
         row = {

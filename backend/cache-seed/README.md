@@ -75,6 +75,9 @@ GitHub never stores refreshed data in `main`'s history. Instead:
    nine section files, preserving the persistent episode and MAL mapping caches. It uploads the
    bundle to the rolling release `cache-data` (old assets are replaced, so size stays flat) and
    calls the Render deploy hook.
+   `scripts/make_cache_bundle.py` repeats the self-contained shape check and repairs legacy
+   section documents from those same local caches before packaging, protecting runs launched by
+   an older copy of the VPS publisher script.
 2. When the Render container starts, `maintenance/fetch_cache_bundle.py` downloads the bundle,
    verifies the checksum, refuses anything unsafe or not valid JSON, and overlays it on the seed
    baked into the image. If anything fails it prints why and the baked seed is used.

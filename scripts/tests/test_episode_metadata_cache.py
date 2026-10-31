@@ -373,6 +373,23 @@ class EpisodeMetadataCacheTests(unittest.TestCase):
         (self.seed / "unrelated.json").unlink()
         runtime = self.seed / "runtime"
         runtime.mkdir()
+        for filename, payload in (
+            ("tmdb_movie_catalogue_cache.json", {"catalogues": {}}),
+            ("tmdb_search_metadata_cache.json", {"results": []}),
+            ("imdb_rating_cache.json", {"results": []}),
+            ("tmdb_ott_availability_cache.json", {"items": {}}),
+        ):
+            (runtime / filename).write_text(json.dumps(payload), encoding="utf-8")
+        catalogue_keys = (
+            "hollywood-popular", "hollywood-trending", "hollywood-latest",
+            "indian-popular", "indian-trending", "indian-latest",
+        )
+        (self.seed / "regional_tv_prebuilt_cache.json").write_text(json.dumps({
+            "catalogues": {
+                key: {"pages": [{"page": 1, "results": [{"id": 700, "title": key}]}]}
+                for key in catalogue_keys
+            },
+        }), encoding="utf-8")
         mal_cache = runtime / "yenime_mal_resolution_cache.json"
         mal_cache.write_text(json.dumps({
             "version": 2,
