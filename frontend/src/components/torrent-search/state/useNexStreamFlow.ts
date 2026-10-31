@@ -10,7 +10,7 @@ import { buildVidRiftMovieUrl, buildVidRiftTvUrl, validTmdbId } from '../vidrift
 
 export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearchGenerationRef, setNexStreamSearchMode, setNexStreamLoadingTitle, setNexStreamLoading, setNexStreamError, setNexStreamResults, setNexStreamPlayer, setNexStreamEpisodePrefetchStatus, setNexStreamSeasons, setNexStreamEpisodes, setNexStreamSelectedSeason, setNexStreamEpisodesError, setNexStreamEpisodesStatus, setNexStreamEpisodesLoading, setNexStreamEpisodePicker, setNexStreamResolvingId, error }: Pick<ReturnType<typeof useNexStreamState>, 'nexStreamSearchControllerRef' | 'nexStreamSearchGenerationRef' | 'setNexStreamSearchMode' | 'setNexStreamLoadingTitle' | 'setNexStreamLoading' | 'setNexStreamError' | 'setNexStreamResults' | 'setNexStreamPlayer' | 'setNexStreamEpisodePrefetchStatus' | 'setNexStreamSeasons' | 'setNexStreamEpisodes' | 'setNexStreamSelectedSeason' | 'setNexStreamEpisodesError' | 'setNexStreamEpisodesStatus' | 'setNexStreamEpisodesLoading' | 'setNexStreamEpisodePicker' | 'setNexStreamResolvingId'> & Pick<ReturnType<typeof useCatalogueNavigationState>, 'error'>) {
   const episodeLoadGenerationRef = useRef(0);
-  const searchNexStreamTitles = async (titleQuery: string, mediaType: 'movie' | 'tv' = 'movie') => {
+  const searchNexStreamTitles = async (titleQuery: string, mediaType: 'movie' | 'tv' = 'movie', forceRefresh = false) => {
     nexStreamSearchControllerRef.current?.abort();
     const controller = new AbortController();
     nexStreamSearchControllerRef.current = controller;
@@ -24,7 +24,7 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
     try {
       const types: Array<'movie' | 'tv'> = [mediaType];
       const cachedNexResults = readLocalCache<NexStreamTitle[]>(NEXSTREAM_SEARCH_CACHE_KEY, mediaType + ':' + String(titleQuery || '').trim().toLowerCase());
-      if (cachedNexResults) {
+      if (cachedNexResults && !forceRefresh) {
         setNexStreamResults(cachedNexResults);
         if (mediaType === 'tv') {
           setNexStreamEpisodePrefetchStatus({});
@@ -37,7 +37,7 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
         return;
       }
       const responses = await Promise.allSettled(types.map(async type => {
-        const params = new URLSearchParams({ query: titleQuery, type });
+        const params = new URLSearchParams({ query: titleQuery, type, ...(forceRefresh ? { force_refresh: 'true' } : {}) });
         const response = await fetch('/api/nexstream/search?' + params.toString(), {
           headers: { Accept: 'application/json' },
           credentials: 'same-origin',
