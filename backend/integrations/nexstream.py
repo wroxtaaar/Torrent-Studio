@@ -244,7 +244,8 @@ async def search_titles(
 
 
 def _live_title_search_allowed() -> bool:
-    """Typed searches may reach TMDB even in cache-only mode (they cannot be precomputed)."""
+    """A typed title search, and the episode list of a show picked from it, may reach TMDB even in
+    cache-only mode: neither can be precomputed. Episode lists are stored after the first lookup."""
     return os.getenv("LIVE_TITLE_SEARCH", "true").strip().casefold() not in {"0", "false", "no", "off"}
 
 
@@ -310,11 +311,15 @@ _TMDB_SEARCH_BASES = (TMDB_API_BASE, "https://api.tmdb.org/3")
 
 
 async def _tmdb_search_get(client, endpoint: str, params: dict, headers: dict):
-    """GET /search/<endpoint>, retrying TMDB's official alternate host if the first is unreachable."""
+    return await _tmdb_get_with_fallback(client, f"/search/{endpoint}", params, headers)
+
+
+async def _tmdb_get_with_fallback(client, path: str, params: dict, headers: dict):
+    """GET a TMDB path, retrying TMDB's official alternate host if the first is unreachable."""
     last_error: httpx.RequestError | None = None
     for base in _TMDB_SEARCH_BASES:
         try:
-            return await client.get(f"{base}/search/{endpoint}", params=params, headers=headers)
+            return await client.get(f"{base}{path}", params=params, headers=headers)
         except httpx.RequestError as error:
             logging.getLogger(__name__).warning("TMDB search via %s failed: %s: %s", base, type(error).__name__, error)
             last_error = error
@@ -571,7 +576,7 @@ async def get_tv_episodes(
         for item in known_seasons
     ):
         raise HTTPException(status_code=404, detail=f"Season {season} is not available for TMDB show {tmdb_id}.")
-    if CACHE_ONLY_MODE:
+    if CACHE_ONLY_MODE and not _live_title_search_allowed():
         _record_cache_event("nexstream_episode_metadata", "cache_only_miss_blocked")
         log_cache_only_metadata_block("TMDB")
         raise HTTPException(
@@ -583,13 +588,15 @@ async def get_tv_episodes(
     if not api_keys and not bearer_tokens:
         raise HTTPException(status_code=503, detail="TMDB authentication is not configured.")
 
-    async with _InstrumentedAsyncClient(timeout=httpx.Timeout(12.0), follow_redirects=True) as client:
+    async with _InstrumentedAsyncClient(
+        timeout=httpx.Timeout(12.0), follow_redirects=True, allow_in_cache_only=_live_title_search_allowed()
+    ) as client:
         async def tmdb_get(path: str):
             last_status = None
             connection_errors = 0
             for key in api_keys:
                 try:
-                    response = await client.get(f"{TMDB_API_BASE}{path}", params={"api_key": key}, headers={"Accept": "application/json"})
+                    response = await _tmdb_get_with_fallback(client, path, {"api_key": key}, {"Accept": "application/json"})
                 except httpx.RequestError:
                     connection_errors += 1
                     continue
@@ -600,7 +607,7 @@ async def get_tv_episodes(
                     raise HTTPException(status_code=429, detail="TMDB rate limit reached. Try again shortly.")
             for token in bearer_tokens:
                 try:
-                    response = await client.get(f"{TMDB_API_BASE}{path}", headers={"Accept": "application/json", "Authorization": f"Bearer {token}"})
+                    response = await _tmdb_get_with_fallback(client, path, {}, {"Accept": "application/json", "Authorization": f"Bearer {token}"})
                 except httpx.RequestError:
                     connection_errors += 1
                     continue

@@ -124,6 +124,7 @@ def test_cache_only_miss_returns_specific_error_without_http_client(monkeypatch,
     caplog.set_level("INFO", logger="torrent-studio")
     monkeypatch.setattr(nexstream, "_NEXSTREAM_EPISODE_CACHE_PATH", tmp_path / "missing.json")
     monkeypatch.setattr(nexstream, "CACHE_ONLY_MODE", True)
+    monkeypatch.setenv("LIVE_TITLE_SEARCH", "false")
 
     def unexpected_client(*_args, **_kwargs):
         raise AssertionError("TMDB client must not be constructed on a strict cache miss")
@@ -151,6 +152,7 @@ def test_cached_no_seasons_is_distinct_from_missing_cache(monkeypatch, tmp_path)
     }), encoding="utf-8")
     monkeypatch.setattr(nexstream, "_NEXSTREAM_EPISODE_CACHE_PATH", cache_path)
     monkeypatch.setattr(nexstream, "CACHE_ONLY_MODE", True)
+    monkeypatch.setenv("LIVE_TITLE_SEARCH", "false")
 
     result = asyncio.run(nexstream.get_tv_episodes(101, 1))
     assert result["status"] == "no_seasons"
@@ -220,3 +222,27 @@ def test_http_429_is_reported_as_rate_limit(monkeypatch, tmp_path):
 
     assert exc.value.status_code == 429
     assert "rate limit" in exc.value.detail
+
+
+def test_cache_only_episode_miss_goes_live_for_a_searched_show(monkeypatch, tmp_path):
+    monkeypatch.setattr(nexstream, "_NEXSTREAM_EPISODE_CACHE_PATH", tmp_path / "episodes.json")
+    monkeypatch.setattr(nexstream, "_NEXSTREAM_EPISODE_CACHE_LOCK", nexstream.threading.RLock())
+    monkeypatch.setattr(nexstream, "CACHE_ONLY_MODE", True)
+    monkeypatch.delenv("LIVE_TITLE_SEARCH", raising=False)
+    monkeypatch.setattr(nexstream, "_env_values", lambda *n: ["tok"] if "TMDB_READ_ACCESS_TOKENS" in n else [])
+    seen = {}
+
+    def responses(url, kwargs):
+        if "/season/1" in url:
+            return FakeResponse(200, {"episodes": [{"episode_number": 1, "name": "Pilot"}]})
+        return FakeResponse(200, _show_payload((1,)))
+
+    class Client(FakeClient):
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
+            super().__init__(responses)
+
+    monkeypatch.setattr(nexstream, "_InstrumentedAsyncClient", Client)
+    result = asyncio.run(nexstream.get_tv_episodes(tmdb_id=65579, season=1))
+    assert result["status"] == "ready" and result["episodes"][0]["name"] == "Pilot"
+    assert seen["allow_in_cache_only"] is True
