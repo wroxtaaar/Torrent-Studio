@@ -6,13 +6,16 @@ URLs are returned to the browser; no direct media URLs are exposed by this adapt
 import json
 import logging
 import os
+import re
 import tempfile
 import threading
 import time
+import unicodedata
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
+from core.json_cache import read_json_cached
 from core.cache_diagnostics import _InstrumentedAsyncClient, _record_cache_event
 from fastapi import APIRouter, HTTPException, Query
 from core.settings import CACHE_ONLY_MODE, _CACHE_SEED_DIR, data_file, log_cache_only_metadata_block, stored_ttl
@@ -220,6 +223,87 @@ async def search_titles(
     if cached is not None:
         return cached
 
+    try:
+        return await _search_tmdb_live(query, media_type, endpoint, cache_key)
+    except HTTPException as exc:
+        # TMDB unreachable, rejected, or not configured: answer from the bundled catalogue
+        # rows instead of showing an error, whenever they contain a match.
+        local = _local_title_results(query, media_type)
+        if local:
+            _record_cache_event("nexstream_search", "local_fallback_served", len(local))
+            return {"success": True, "type": media_type, "results": local, "source": "bundled-cache"}
+        if CACHE_ONLY_MODE and exc.status_code in (502, 503):
+            raise HTTPException(
+                status_code=503,
+                detail="Live title search is unavailable and no cached title matches your search.",
+            ) from exc
+        raise
+
+
+def _live_title_search_allowed() -> bool:
+    """Typed searches may reach TMDB even in cache-only mode (they cannot be precomputed)."""
+    return os.getenv("LIVE_TITLE_SEARCH", "true").strip().casefold() not in {"0", "false", "no", "off"}
+
+
+_SEARCH_WORD = re.compile(r"[a-z0-9]+")
+
+
+def _title_words(text: str) -> list[str]:
+    return _SEARCH_WORD.findall(unicodedata.normalize("NFKD", str(text or "")).casefold())
+
+
+def _local_title_results(query: str, media_type: str, limit: int = 12) -> list[dict]:
+    """Match the query against the titles stored in the bundled section caches."""
+    words = _title_words(query)
+    if not words:
+        return []
+    wanted = "movie" if media_type == "movie" else "tv"
+    found: dict[int, tuple[int, dict]] = {}
+    try:
+        files = sorted(Path(_CACHE_SEED_DIR).glob("*.json"))
+    except OSError:
+        return []
+    for path in files:
+        try:
+            document = read_json_cached(path)
+        except (OSError, ValueError):
+            continue
+        subsections = document.get("subsections") if isinstance(document, dict) else None
+        if not isinstance(subsections, dict):
+            continue
+        for subsection in subsections.values():
+            if not isinstance(subsection, dict) or subsection.get("mediaType") != wanted:
+                continue
+            for row in subsection.get("results") or []:
+                if not isinstance(row, dict):
+                    continue
+                raw_id = row.get("tmdbId") or row.get("id")
+                try:
+                    tmdb_id = int(raw_id)
+                except (TypeError, ValueError):
+                    continue
+                title = row.get("title") or row.get("name") or ""
+                title_words = _title_words(title)
+                if tmdb_id <= 0 or not title_words or tmdb_id in found:
+                    continue
+                if not all(any(t.startswith(w) for t in title_words) for w in words):
+                    continue
+                # Exact title first, then titles starting with the query, then the rest.
+                rank = 0 if title_words == words else 1 if title_words[: len(words)] == words else 2
+                date = str(row.get("releaseDate") or row.get("firstAirDate") or row.get("year") or "")
+                found[tmdb_id] = (rank, {
+                    "id": tmdb_id,
+                    "title": str(title),
+                    "date": date,
+                    "overview": str(row.get("overview") or "")[:400],
+                    "poster": row.get("posterUrl") or None,
+                    "type": wanted,
+                })
+    ordered = sorted(found.values(), key=lambda item: (item[0], item[1]["title"].casefold()))
+    return [row for _, row in ordered[:limit]]
+
+
+async def _search_tmdb_live(query: str, media_type: str, endpoint: str, cache_key: str) -> dict:
     api_keys = _env_values("TMDB_API_KEYS", "TMDB_API_KEY")
     bearer_tokens = _env_values("TMDB_READ_ACCESS_TOKENS", "TMDB_READ_ACCESS_TOKEN", "TMDB_BEARER_TOKEN")
     if not api_keys and not bearer_tokens:
@@ -233,7 +317,9 @@ async def search_titles(
     last_status = None
     connection_errors = 0
 
-    async with _InstrumentedAsyncClient(timeout=httpx.Timeout(12.0), follow_redirects=True) as client:
+    async with _InstrumentedAsyncClient(
+        timeout=httpx.Timeout(12.0), follow_redirects=True, allow_in_cache_only=_live_title_search_allowed()
+    ) as client:
         # A broken connection for one credential must not prevent trying the others.
         for key in api_keys:
             try:

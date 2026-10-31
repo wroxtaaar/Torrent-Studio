@@ -105,6 +105,12 @@ def _record_upstream_request(url: Any, status_code: int | None = None, failed: b
 class _InstrumentedAsyncClient(httpx.AsyncClient):
     """Count backend HTTP sends, including calls made through client.stream()."""
 
+    def __init__(self, *args: Any, allow_in_cache_only: bool = False, **kwargs: Any) -> None:
+        # A user-typed title search cannot be precomputed, so one caller may opt out of the
+        # cache-only metadata block. Everything else stays blocked.
+        self._allow_in_cache_only = allow_in_cache_only
+        super().__init__(*args, **kwargs)
+
     async def send(self, request: httpx.Request, *args: Any, **kwargs: Any) -> httpx.Response:
         metadata_providers = {
             "api.themoviedb.org": "TMDB",
@@ -119,7 +125,7 @@ class _InstrumentedAsyncClient(httpx.AsyncClient):
             "graphql.anilist.co": "AniList",
         }
         provider = metadata_providers.get((request.url.host or "").casefold())
-        if CACHE_ONLY_MODE and provider:
+        if CACHE_ONLY_MODE and provider and not self._allow_in_cache_only:
             log_cache_only_metadata_block(provider, enabled=True)
             raise httpx.RequestError(
                 f"Cache-only mode blocked metadata provider request ({provider})",
