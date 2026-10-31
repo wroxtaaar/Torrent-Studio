@@ -46,6 +46,66 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
   const { searchMetadata, setSearchMetadata, searchMetadataStatus, setSearchMetadataStatus, imdbRatingsByKey, setImdbRatingsByKey, imdbRatingRequestedRef, imdbRetryTick, setImdbRetryTick, imdbInFlightRef, imdbRetryCountRef, tvMetadataRequestedRef, searchAvailabilityByGroup, setSearchAvailabilityByGroup, selectedQualityByGroup, setSelectedQualityByGroup } = useSearchMetadataState();
   const { expandedSearchGroupKey, setExpandedSearchGroupKey, movieTorrentPreviewGroup, setMovieTorrentPreviewGroup, movieTorrentPreviewCatalogueId, setMovieTorrentPreviewCatalogueId, pendingPosterAction, setPendingPosterAction, movieTorrentPreviewPosterUrl, setMovieTorrentPreviewPosterUrl, cataloguePosterUrlsRef, searchPosterUrlsRef, movieTorrentPickerGroups, setMovieTorrentPickerGroups, movieTorrentSearchLoading, setMovieTorrentSearchLoading, movieTorrentSearchTitle, setMovieTorrentSearchTitle, movieTorrentSearchError, setMovieTorrentSearchError, selectedMovieTorrentQualityByGroup, setSelectedMovieTorrentQualityByGroup, movieTorrentSearchControllerRef, movieTorrentSearchGenerationRef, prepareClickIntentRef, prepareTraceIdRef, movieTorrentDetailsCacheRef } = useMoviePreviewState();
   const { persistMovieTorrentCache } = useMovieTorrentCache({ movieTorrentDetailsCacheRef });
+
+  // Keep meaningful Search-panel screens in the native browser history. The
+  // snapshot contains navigation state only; catalogue/search caches remain in
+  // React memory, so Back restores the exact view without repeating API calls.
+  const restoringNavigationRef = useRef(false);
+  const navigationSnapshot = {
+    activeTopSection,
+    dcContentTab,
+    regionalContentTabs,
+    marvelContentTab,
+    classicsContentTab,
+    franchiseGridPage,
+    expandedSearchGroupKey,
+    nexStreamEpisodePicker,
+    nexStreamPlayer,
+    nexStreamSelectedSeason,
+    yenimeEpisodePicker: yenime.yenimeEpisodePicker,
+    yenimePlayer: yenime.yenimePlayer,
+    yenimeSelectedSeason: yenime.yenimeSelectedSeason,
+  };
+  useEffect(() => {
+    const current = window.history.state || {};
+    if (!current.torrentStudio) {
+      window.history.replaceState({ ...current, torrentStudio: true, tab: 'search', searchView: navigationSnapshot }, '', window.location.href);
+    } else if (!current.searchView) {
+      window.history.replaceState({ ...current, tab: 'search', searchView: navigationSnapshot }, '', window.location.href);
+    } else if (restoringNavigationRef.current) {
+      restoringNavigationRef.current = false;
+      window.history.replaceState({ ...current, tab: 'search', searchView: navigationSnapshot }, '', window.location.href);
+    } else {
+      window.history.pushState({ ...current, torrentStudio: true, tab: 'search', searchView: navigationSnapshot }, '', window.location.href);
+    }
+  }, [
+    activeTopSection, dcContentTab, regionalContentTabs, marvelContentTab,
+    classicsContentTab, franchiseGridPage, expandedSearchGroupKey,
+    nexStreamEpisodePicker, nexStreamPlayer, nexStreamSelectedSeason,
+    yenime.yenimeEpisodePicker, yenime.yenimePlayer, yenime.yenimeSelectedSeason,
+  ]);
+  useEffect(() => {
+    const restore = (event: PopStateEvent) => {
+      const view = event.state?.torrentStudio ? event.state.searchView : null;
+      if (!view) return;
+      restoringNavigationRef.current = true;
+      setActiveTopSection(view.activeTopSection ?? null);
+      setDcContentTab(view.dcContentTab ?? 'movies');
+      setRegionalContentTabs(view.regionalContentTabs ?? { bollywood: null, hollywood: null, korean: null, pakistani: null, anime: null });
+      setMarvelContentTab(view.marvelContentTab ?? null);
+      setClassicsContentTab(view.classicsContentTab ?? 'movies');
+      setFranchiseGridPage(view.franchiseGridPage ?? 1);
+      setExpandedSearchGroupKey(view.expandedSearchGroupKey ?? null);
+      setNexStreamEpisodePicker(view.nexStreamEpisodePicker ?? null);
+      setNexStreamPlayer(view.nexStreamPlayer ?? null);
+      setNexStreamSelectedSeason(view.nexStreamSelectedSeason ?? 1);
+      yenime.setYenimeEpisodePicker(view.yenimeEpisodePicker ?? null);
+      yenime.setYenimePlayer(view.yenimePlayer ?? null);
+      yenime.setYenimeSelectedSeason(view.yenimeSelectedSeason ?? 1);
+    };
+    window.addEventListener('popstate', restore);
+    return () => window.removeEventListener('popstate', restore);
+  }, []);
   const { isSearching, setIsSearching, isPresetCatalogueAction, setIsPresetCatalogueAction, searched, setSearched, error, setError, catalogueBuildProgress, setCatalogueBuildProgress, movieCatalogue, setMovieCatalogue, movieCatalogueSearchText, setMovieCatalogueSearchText, releasedOnly, tmdbFranchiseKey, setTmdbFranchiseKey, openCachedLanguageMenu, setOpenCachedLanguageMenu, activeTopSection, setActiveTopSection, dcContentTab, setDcContentTab, regionalContentTabs, setRegionalContentTabs, marvelContentTab, setMarvelContentTab, classicsContentTab, setClassicsContentTab, classicsSort, setClassicsSort, catalogueSort, setCatalogueSort, activeFranchiseSearchMode, setActiveFranchiseSearchMode, franchisePageRequestRef, franchisePageGenerationRef, franchiseLoadedPagesRef, franchiseGridPage, setFranchiseGridPage, prepareBuildPendingRef, previousPosterPageRef, posterFirstPageReady, setPosterFirstPageReady, posterFirstPageReadyRef, catalogueExpectedTitles, setCatalogueExpectedTitles, franchiseGridPageSize, openRegionalCatalogueMenu, setOpenRegionalCatalogueMenu, regionalCatalogueModes, setRegionalCatalogueModes, openRegionalTvMenu, setOpenRegionalTvMenu, regionalTvModes, setRegionalTvModes, isClearingTmdbCache, setIsClearingTmdbCache, tmdbCacheMessage, setTmdbCacheMessage, streamingOnly, ottAvailability, setOttAvailability, ottAvailabilityRef, ottQueueRef, ottQueuedIdsRef, ottLookupGenerationRef, ottLiveCheckedRef, ottRetryAttemptsRef, queueOttLookups, ottAvailabilityForMovie, marvelFilmFilter, setMarvelFilmFilter, isMarvelEnglishResults, setIsMarvelEnglishResults, showMarvelWebSeries, setShowMarvelWebSeries, isDcLiveActionEnglishResults, setIsDcLiveActionEnglishResults } = useCatalogueNavigationState();
   useEffect(() => persistSearchMetadata(searchMetadata), [searchMetadata]);
   useEffect(() => persistSearchAvailability(searchAvailabilityByGroup), [searchAvailabilityByGroup]);
