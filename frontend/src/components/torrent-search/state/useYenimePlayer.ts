@@ -9,7 +9,7 @@ export type YenimePlayerRequest = {
   episode: number;
   season: number;
   tmdbId?: number;
-  type: 'sub' | 'dub';
+  type: 'dub' | 'dub';
   url: string;
 };
 
@@ -18,7 +18,7 @@ export function useYenimePlayer() {
     title: string;
     malId: string;
     episode: string;
-    type: 'sub' | 'dub';
+    type: 'dub' | 'dub';
     error: string;
     resolving: boolean;
   } | null>(null);
@@ -85,7 +85,7 @@ export function useYenimePlayer() {
       title,
       malId: existingMalId?.toString() || '',
       episode: String(Number(episode) > 0 ? Number(episode) : 1),
-      type: 'sub',
+      type: 'dub',
       error: '',
       resolving: !existingMalId,
     });
@@ -127,13 +127,13 @@ export function useYenimePlayer() {
 
     const launchResolvedMalId = (malId: number) => {
       try {
-        const url = buildYenimeUrl(malId, validEpisode, 'sub');
+        const url = buildYenimeUrl(malId, validEpisode, 'dub');
         if (generation !== generationRef.current) return;
         setYenimeRequest(null);
-        setYenimePlayer({ title, malId, episode: validEpisode, season, tmdbId: tmdbId || undefined, type: 'sub', url });
+        setYenimePlayer({ title, malId, episode: validEpisode, season, tmdbId: tmdbId || undefined, type: 'dub', url });
       } catch (error: unknown) {
         if (generation !== generationRef.current) return;
-        setYenimeRequest({ title, malId: String(malId), episode: String(validEpisode), type: 'sub', resolving: false, error: error instanceof Error ? error.message : 'Could not open Yenime.' });
+        setYenimeRequest({ title, malId: String(malId), episode: String(validEpisode), type: 'dub', resolving: false, error: error instanceof Error ? error.message : 'Could not open Yenime.' });
       }
     };
 
@@ -142,7 +142,7 @@ export function useYenimePlayer() {
       return;
     }
 
-    setYenimeRequest({ title, malId: '', episode: String(validEpisode), type: 'sub', resolving: true, error: '' });
+    setYenimeRequest({ title, malId: '', episode: String(validEpisode), type: 'dub', resolving: true, error: '' });
     void api.resolveYenimeMalId(title, year, null, tmdbId).then(result => {
       if (generation !== generationRef.current) return;
       if (result.status === 'resolved' && result.malId) {
@@ -153,7 +153,7 @@ export function useYenimePlayer() {
         title,
         malId: '',
         episode: String(validEpisode),
-        type: 'sub',
+        type: 'dub',
         resolving: false,
         error: result.status === 'ambiguous'
           ? 'Multiple matches were found. Enter the correct MAL ID manually.'
@@ -161,7 +161,7 @@ export function useYenimePlayer() {
       });
     }).catch((error: unknown) => {
       if (generation !== generationRef.current) return;
-      setYenimeRequest({ title, malId: '', episode: String(validEpisode), type: 'sub', resolving: false, error: error instanceof Error ? error.message : 'Could not resolve the MAL ID automatically.' });
+      setYenimeRequest({ title, malId: '', episode: String(validEpisode), type: 'dub', resolving: false, error: error instanceof Error ? error.message : 'Could not resolve the MAL ID automatically.' });
     });
   };
 
@@ -177,16 +177,13 @@ export function useYenimePlayer() {
     setYenimeEpisodesStatus(null);
   };
 
-  const launchYenime = (malIdText: string, episodeText: string, type: 'sub' | 'dub') => {
+  const launchYenime = (malIdText: string, episodeText: string, type: 'dub' | 'dub') => {
     if (!yenimeRequest) return;
     try {
       const malId = Number(malIdText);
       const episode = Number(episodeText);
       const url = buildYenimeUrl(malId, episode, type);
       const tmdbId = yenimeEpisodePicker?.tmdbId;
-      setYenimeRequest(null);
-      setYenimeEpisodePicker(null);
-      setYenimeEpisodes([]);
       setYenimeProvider('yenime');
       setYenimePlayer({ title: yenimeRequest.title, malId, episode, season: yenimeSelectedSeason, tmdbId, type, url });
     } catch (error: unknown) {
