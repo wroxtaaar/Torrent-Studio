@@ -92,3 +92,26 @@ def test_live_search_opts_out_of_the_cache_only_block(monkeypatch):
 
     monkeypatch.setenv("LIVE_TITLE_SEARCH", "false")
     assert nexstream._live_title_search_allowed() is False
+
+
+def test_search_retries_the_alternate_tmdb_host(monkeypatch):
+    import httpx
+
+    calls = []
+
+    class Response:
+        status_code = 200
+
+        def json(self):
+            return {"results": []}
+
+    class Client:
+        async def get(self, url, **_kwargs):
+            calls.append(url)
+            if "themoviedb" in url:
+                raise httpx.RequestError("down")
+            return Response()
+
+    response = asyncio.run(nexstream._tmdb_search_get(Client(), "tv", {}, {}))
+    assert response.status_code == 200
+    assert calls[0].startswith("https://api.themoviedb.org") and calls[1].startswith("https://api.tmdb.org")

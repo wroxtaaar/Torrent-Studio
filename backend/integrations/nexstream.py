@@ -306,6 +306,22 @@ def _local_title_results(query: str, media_type: str, limit: int = 12) -> list[d
     return [row for _, row in ordered[:limit]]
 
 
+_TMDB_SEARCH_BASES = (TMDB_API_BASE, "https://api.tmdb.org/3")
+
+
+async def _tmdb_search_get(client, endpoint: str, params: dict, headers: dict):
+    """GET /search/<endpoint>, retrying TMDB's official alternate host if the first is unreachable."""
+    last_error: httpx.RequestError | None = None
+    for base in _TMDB_SEARCH_BASES:
+        try:
+            return await client.get(f"{base}/search/{endpoint}", params=params, headers=headers)
+        except httpx.RequestError as error:
+            logging.getLogger(__name__).warning("TMDB search via %s failed: %s: %s", base, type(error).__name__, error)
+            last_error = error
+    assert last_error is not None
+    raise last_error
+
+
 async def _search_tmdb_live(query: str, media_type: str, endpoint: str, cache_key: str) -> dict:
     api_keys = _env_values("TMDB_API_KEYS", "TMDB_API_KEY")
     bearer_tokens = _env_values("TMDB_READ_ACCESS_TOKENS", "TMDB_READ_ACCESS_TOKEN", "TMDB_BEARER_TOKEN")
@@ -319,6 +335,7 @@ async def _search_tmdb_live(query: str, media_type: str, endpoint: str, cache_ke
     payload = None
     last_status = None
     connection_errors = 0
+    last_error: Exception | None = None
 
     async with _InstrumentedAsyncClient(
         timeout=httpx.Timeout(12.0), follow_redirects=True, allow_in_cache_only=_live_title_search_allowed()
@@ -326,13 +343,12 @@ async def _search_tmdb_live(query: str, media_type: str, endpoint: str, cache_ke
         # A broken connection for one credential must not prevent trying the others.
         for key in api_keys:
             try:
-                response = await client.get(
-                    f"{TMDB_API_BASE}/search/{endpoint}",
-                    params={**params, "api_key": key},
-                    headers={"Accept": "application/json"},
+                response = await _tmdb_search_get(
+                    client, endpoint, {**params, "api_key": key}, {"Accept": "application/json"}
                 )
-            except httpx.RequestError:
+            except httpx.RequestError as error:
                 connection_errors += 1
+                last_error = error
                 continue
 
             last_status = response.status_code
@@ -345,13 +361,13 @@ async def _search_tmdb_live(query: str, media_type: str, endpoint: str, cache_ke
         if payload is None:
             for token in bearer_tokens:
                 try:
-                    response = await client.get(
-                        f"{TMDB_API_BASE}/search/{endpoint}",
-                        params=params,
-                        headers={"Accept": "application/json", "Authorization": f"Bearer {token}"},
+                    response = await _tmdb_search_get(
+                        client, endpoint, params,
+                        {"Accept": "application/json", "Authorization": f"Bearer {token}"},
                     )
-                except httpx.RequestError:
+                except httpx.RequestError as error:
                     connection_errors += 1
+                    last_error = error
                     continue
 
                 last_status = response.status_code
@@ -365,7 +381,8 @@ async def _search_tmdb_live(query: str, media_type: str, endpoint: str, cache_ke
         if last_status in (401, 403):
             raise HTTPException(status_code=502, detail="TMDB rejected the configured credentials.")
         if connection_errors and last_status is None:
-            raise HTTPException(status_code=502, detail="Could not connect to TMDB title search.")
+            reason = type(last_error).__name__ if last_error is not None else "unknown error"
+            raise HTTPException(status_code=502, detail=f"Could not connect to TMDB title search ({reason}).")
         raise HTTPException(status_code=502, detail="TMDB title search failed.")
 
     results = []
