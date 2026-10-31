@@ -1,4 +1,9 @@
-import hashlib, io, json, sys, tarfile, threading
+import hashlib
+import io
+import json
+import sys
+import tarfile
+import threading
 from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
@@ -217,15 +222,11 @@ def test_bundle_with_invalid_section_document_is_rejected_before_install(tmp_pat
 
 def test_cache_publisher_uploads_immutable_bundle_before_replacing_manifest():
     publisher = (ROOT / "scripts/vps/refresh_and_publish.sh").read_text(encoding="utf-8")
-    immutable_upload = publisher.index('gh release upload cache-data "$IMMUTABLE_BUNDLE"')
-    legacy_upload = publisher.index("gh release upload cache-data out/cache-bundle.tar.gz")
-    manifest_upload = publisher.index("gh release upload cache-data out/cache-bundle.json")
+    publish_helper = (ROOT / "scripts/publish_cache_bundle.py").read_text(encoding="utf-8")
+    publisher_call = publisher.index("repo/scripts/publish_cache_bundle.py")
     deploy_hook = publisher.index('curl -fsS -X POST "$RENDER_DEPLOY_HOOK"')
 
-    assert immutable_upload < legacy_upload < manifest_upload < deploy_hook
-
-
-def test_bundle_manifest_names_an_immutable_versioned_archive():
-    bundler = (ROOT / "scripts/make_cache_bundle.py").read_text(encoding="utf-8")
-    assert 'immutable_bundle_name = f"cache-bundle-{version}.tar.gz"' in bundler
-    assert '"bundle": immutable_bundle_name' in bundler
+    assert publisher_call < deploy_hook
+    assert 'asset_name = manifest["bundle"]' in publish_helper
+    assert 'str(immutable_bundle)' in publish_helper
+    assert "required_names = {manifest_path.name, legacy_bundle_path.name, asset_name}" in publish_helper

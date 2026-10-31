@@ -416,6 +416,10 @@ class EpisodeMetadataCacheTests(unittest.TestCase):
             archived = json.load(bundle.extractfile("runtime/yenime_mal_resolution_cache.json"))
         self.assertEqual(archived["tmdbMappings"]["101"]["malId"], 5114)
 
+        manifest = json.loads((output / "cache-bundle.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["bundle"], f"cache-bundle-{manifest['version']}.tar.gz")
+        self.assertTrue((output / manifest["bundle"]).is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

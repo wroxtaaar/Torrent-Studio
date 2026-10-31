@@ -73,8 +73,10 @@ GitHub never stores refreshed data in `main`'s history. Instead:
    immutable archive before replacing the rolling manifest, so concurrent Render startups never
    pair a newly replaced archive with a stale manifest. The section migration writes only the
    nine section files, preserving the persistent episode and MAL mapping caches. It uploads the
-   bundle to the rolling release `cache-data` (old assets are replaced, so size stays flat) and
-   calls the Render deploy hook.
+   bundle to the rolling release `cache-data` using `scripts/publish_cache_bundle.py`. That
+   publisher takes the immutable asset name directly from the manifest, verifies its checksum and
+   GitHub release presence before replacing the legacy archive and rolling manifest, then confirms
+   all three release assets exist. It calls the Render deploy hook only after those checks pass.
    `scripts/make_cache_bundle.py` repeats the self-contained shape check and repairs legacy
    section documents from those same local caches before packaging, protecting runs launched by
    an older copy of the VPS publisher script.

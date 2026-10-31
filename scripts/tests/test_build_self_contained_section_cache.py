@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import json
 import subprocess
@@ -13,6 +14,13 @@ MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC and SPEC.loader
 SPEC.loader.exec_module(MODULE)
 ROOT = Path(__file__).resolve().parents[2]
+PUBLISH_SPEC = importlib.util.spec_from_file_location(
+    "publish_cache_bundle",
+    ROOT / "scripts" / "publish_cache_bundle.py",
+)
+PUBLISH_MODULE = importlib.util.module_from_spec(PUBLISH_SPEC)
+assert PUBLISH_SPEC and PUBLISH_SPEC.loader
+PUBLISH_SPEC.loader.exec_module(PUBLISH_MODULE)
 
 
 class SelfContainedSectionCacheTests(unittest.TestCase):
@@ -267,13 +275,13 @@ class SelfContainedSectionCacheTests(unittest.TestCase):
             for path, contents in preserved.items():
                 self.assertEqual(path.read_bytes(), contents)
 
-    def test_publisher_builds_and_validates_before_bundle_upload_for_every_operation(self):
+    def test_publisher_builds_validates_and_uses_manifest_asset_publisher(self):
         publisher = SCRIPT.parent / "vps" / "refresh_and_publish.sh"
         script = publisher.read_text(encoding="utf-8")
         builder_call = script.index("repo/scripts/build_self_contained_section_cache.py")
         validator_call = script.index("repo/scripts/validate_section_caches.py")
         bundle_call = script.index("repo/scripts/make_cache_bundle.py")
-        upload_call = script.index("gh release upload")
+        upload_call = script.index("repo/scripts/publish_cache_bundle.py")
 
         self.assertLess(builder_call, validator_call)
         self.assertLess(validator_call, bundle_call)
@@ -392,6 +400,103 @@ class SelfContainedSectionCacheTests(unittest.TestCase):
 
             for path, contents in preserved_bytes.items():
                 self.assertEqual(path.read_bytes(), contents)
+
+            calls = []
+            release_assets = set()
+
+            def fake_runner(command, **_kwargs):
+                calls.append(command)
+                if command[:3] == ["gh", "release", "upload"]:
+                    release_assets.add(Path(command[4]).name)
+                    return subprocess.CompletedProcess(command, 0)
+                if command[:3] == ["gh", "release", "view"]:
+                    return subprocess.CompletedProcess(
+                        command,
+                        0,
+                        stdout="".join(f"{name}\n" for name in sorted(release_assets)),
+                        stderr="",
+                    )
+                raise AssertionError(f"Unexpected publisher command: {command}")
+
+            uploaded_assets = PUBLISH_MODULE.publish_cache_bundle(
+                output / "cache-bundle.json",
+                output / "cache-bundle.tar.gz",
+                "wroxtaaar/Torrent-Studio",
+                runner=fake_runner,
+            )
+            immutable_upload = next(
+                call for call in calls
+                if call[:3] == ["gh", "release", "upload"] and "--clobber" not in call
+            )
+            self.assertEqual(Path(immutable_upload[4]).name, manifest["bundle"])
+            self.assertEqual(
+                uploaded_assets,
+                {manifest["bundle"], "cache-bundle.tar.gz", "cache-bundle.json"},
+            )
+
+    def test_publisher_uploads_the_exact_filename_named_by_generated_manifest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / "out"
+            output.mkdir()
+            version = "20261031T073047Z-ce0c8825"
+            archive_name = f"cache-bundle-{version}.tar.gz"
+            archive_bytes = b"immutable-test-archive"
+            (output / archive_name).write_bytes(archive_bytes)
+            (output / "cache-bundle.tar.gz").write_bytes(b"legacy-archive")
+            manifest_path = output / "cache-bundle.json"
+            manifest_path.write_text(json.dumps({
+                "version": version,
+                "sha256": hashlib.sha256(archive_bytes).hexdigest(),
+                "bundle": archive_name,
+            }), encoding="utf-8")
+
+            calls = []
+            release_assets = set()
+
+            def fake_runner(command, **_kwargs):
+                calls.append(command)
+                if command[:3] == ["gh", "release", "upload"]:
+                    release_assets.add(Path(command[4]).name)
+                    return subprocess.CompletedProcess(command, 0)
+                if command[:3] == ["gh", "release", "view"]:
+                    return subprocess.CompletedProcess(
+                        command,
+                        0,
+                        stdout="".join(f"{name}\n" for name in sorted(release_assets)),
+                        stderr="",
+                    )
+                raise AssertionError(f"Unexpected publisher command: {command}")
+
+            result = PUBLISH_MODULE.publish_cache_bundle(
+                manifest_path,
+                output / "cache-bundle.tar.gz",
+                "wroxtaaar/Torrent-Studio",
+                runner=fake_runner,
+            )
+
+            immutable_uploads = [
+                call for call in calls
+                if call[:3] == ["gh", "release", "upload"] and "--clobber" not in call
+            ]
+            self.assertEqual(len(immutable_uploads), 1)
+            self.assertEqual(Path(immutable_uploads[0][4]).name, archive_name)
+            self.assertEqual(
+                result,
+                {archive_name, "cache-bundle.tar.gz", "cache-bundle.json"},
+            )
+            legacy_index = next(
+                i for i, call in enumerate(calls)
+                if call[:3] == ["gh", "release", "upload"]
+                and Path(call[4]).name == "cache-bundle.tar.gz"
+            )
+            manifest_index = next(
+                i for i, call in enumerate(calls)
+                if call[:3] == ["gh", "release", "upload"]
+                and Path(call[4]).name == "cache-bundle.json"
+            )
+            self.assertLess(calls.index(immutable_uploads[0]), legacy_index)
+            self.assertLess(legacy_index, manifest_index)
 
     def test_failed_imdb_cache_result_does_not_replace_good_values(self):
         row = {

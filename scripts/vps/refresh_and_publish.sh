@@ -57,17 +57,16 @@ fi
   --require-self-contained
 
 rm -rf out; ./venv/bin/python repo/scripts/make_cache_bundle.py "$REFRESH_SEED_DIR" out
-VERSION="$(./venv/bin/python -c 'import json; print(json.load(open("out/cache-bundle.json"))["version"])')"
-IMMUTABLE_BUNDLE="out/cache-bundle-${VERSION}.tar.gz"
 
 gh release view cache-data -R "$REPO" >/dev/null 2>&1 || \
   gh release create cache-data -R "$REPO" --title "Cache data (rolling)" \
     --notes "Rolling cache manifest with immutable, versioned cache bundle assets."
-# Publish the immutable target first. Keep the legacy fixed-name archive refreshed for older app
-# versions, then update the rolling manifest last so it never points at a missing bundle.
-gh release upload cache-data "$IMMUTABLE_BUNDLE" -R "$REPO"
-gh release upload cache-data out/cache-bundle.tar.gz -R "$REPO" --clobber
-gh release upload cache-data out/cache-bundle.json -R "$REPO" --clobber
+# The publisher reads the exact bundle filename from the manifest, verifies its checksum and
+# release presence, then updates the legacy asset and manifest in that order.
+./venv/bin/python repo/scripts/publish_cache_bundle.py \
+  --manifest out/cache-bundle.json \
+  --legacy-bundle out/cache-bundle.tar.gz \
+  --repository "$REPO"
 
 curl -fsS -X POST "$RENDER_DEPLOY_HOOK" >/dev/null && echo "Render deploy triggered"
 }
