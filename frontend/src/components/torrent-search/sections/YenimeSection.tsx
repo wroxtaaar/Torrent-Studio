@@ -24,7 +24,6 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
         setYenimeRequest(current => current ? { ...current, error: 'This anime has no valid TMDB ID for VidRift playback.' } : current);
         return;
       }
-      closeYenimeEpisodePicker();
       void vm.playWithNexStream({
         id: tmdbId,
         title: yenimeEpisodePicker?.title || yenimeRequest?.title || 'Anime',
@@ -37,7 +36,7 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
 
   return (
     <>
-      {yenimeEpisodePicker && yenimeRequest && (
+      {yenimeEpisodePicker && yenimeRequest && !yenimePlayer && (
         <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/80 p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Choose an anime episode">
           <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl">
             <div className="flex items-start justify-between gap-3 border-b border-slate-800 px-5 py-4">
@@ -55,7 +54,7 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
             </div>
 
             <div className="border-b border-slate-800 px-4 py-3">
-              <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
+              <div className="grid gap-3">
                 <label className="text-sm text-slate-300">Season
                   <select
                     value={yenimeSelectedSeason}
@@ -71,20 +70,11 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
                       : <option value={1}>Season 1</option>}
                   </select>
                 </label>
-                <label className="text-sm text-slate-300">MAL ID
-                  <input
-                    value={yenimeRequest.malId}
-                    onChange={event => setYenimeRequest(current => current ? { ...current, malId: event.target.value, error: '' } : current)}
-                    inputMode="numeric"
-                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
-                    placeholder="Manual override"
-                  />
-                </label>
               </div>
               <div className="mt-3 flex items-center justify-between gap-3">
                 {yenimeRequest.resolving
                   ? <div className="flex items-center gap-2 text-xs text-violet-200"><Loader2 className="h-3.5 w-3.5 animate-spin" />Resolving MAL ID…</div>
-                  : <div className="text-xs text-slate-500">Automatic MAL resolution · manual override available</div>}
+                  : <div className="text-xs text-slate-500">Automatic MAL ID verification</div>}
                 <div className="flex gap-2" role="group" aria-label="Audio type">
                   {(['sub', 'dub'] as const).map(type => (
                     <button key={type} type="button" onClick={() => setYenimeRequest(current => current ? { ...current, type, error: '' } : current)} className={yenimeRequest.type === type ? 'rounded-lg bg-violet-500 px-3 py-1.5 text-xs font-bold text-white' : 'rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-bold text-slate-300 hover:bg-slate-800'}>{type.toUpperCase()}</button>
@@ -136,7 +126,7 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
           </div>
         </div>
       )}
-      {yenimeRequest && !yenimeEpisodePicker && (
+      {yenimeRequest && !yenimeEpisodePicker && !yenimePlayer && (
         <div className="fixed inset-0 z-[10001] flex items-center justify-center bg-black/85 p-4">
           <form
             onSubmit={event => {
@@ -153,10 +143,7 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
               <button type="button" onClick={closeYenime} className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Close Yenime"><X className="h-5 w-5" /></button>
             </div>
             {yenimeRequest.resolving && <div role="status" className="mt-3 text-xs text-violet-200">Resolving MAL ID automatically…</div>}
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <label className="text-xs text-slate-400">MAL ID
-                <input value={yenimeRequest.malId} onChange={event => setYenimeRequest(current => current ? { ...current, malId: event.target.value, error: '' } : current)} inputMode="numeric" min="1" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" />
-              </label>
+            <div className="mt-4 grid grid-cols-1 gap-3">
               <label className="text-xs text-slate-400">Episode
                 <input value={yenimeRequest.episode} onChange={event => setYenimeRequest(current => current ? { ...current, episode: event.target.value, error: '' } : current)} inputMode="numeric" min="1" className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" />
               </label>
@@ -179,11 +166,11 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
           loading={loading}
           loadingLabel="Loading Yenime player…"
           closeLabel="Close Yenime player"
-          onClose={closeYenime}
+          onClose={() => vm.setYenimePlayer(null)}
           providers={yenimePlayer.tmdbId ? [
             { label: 'Yenime', active: yenimeProvider === 'yenime', onSelect: () => setYenimeProvider('yenime') },
             { label: 'VidRift', active: yenimeProvider === 'vidrift', onSelect: () => {
-              closeYenime();
+              vm.setYenimePlayer(null);
               void vm.playWithNexStream({
                 id: yenimePlayer.tmdbId as number,
                 title: yenimePlayer.title,
