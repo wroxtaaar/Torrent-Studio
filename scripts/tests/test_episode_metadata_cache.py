@@ -1,10 +1,12 @@
 import asyncio
 import importlib.util
 import json
-from pathlib import Path
+import subprocess
+import sys
+import tarfile
 import tempfile
 import unittest
-
+from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / "build_episode_metadata_cache.py"
 SPEC = importlib.util.spec_from_file_location("build_episode_metadata_cache", SCRIPT)
@@ -73,6 +75,13 @@ class EpisodeMetadataCacheTests(unittest.TestCase):
             document = json.loads(path.read_text(encoding="utf-8"))
             document["subsections"]["anime"]["results"] = []
             path.write_text(json.dumps(document), encoding="utf-8")
+
+    def isolate_anime_section(self):
+        path = self.seed / "anime.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["subsections"]["movies"]["results"] = []
+        document["subsections"]["series"]["results"] = []
+        path.write_text(json.dumps(document), encoding="utf-8")
 
     @staticmethod
     def detail_payload(seasons=(1, 2)):
@@ -243,6 +252,152 @@ class EpisodeMetadataCacheTests(unittest.TestCase):
         ))
 
         self.assertEqual(maximum_active, 2)
+
+    def test_anime_records_use_section_conventions_and_deduplicate_tmdb_ids(self):
+        for filename in MODULE.SECTION_FILES:
+            (self.seed / filename).write_text(json.dumps({"subsections": {}}), encoding="utf-8")
+        (self.seed / "anime.json").write_text(json.dumps({
+            "subsections": {
+                "movies": {
+                    "mediaType": "movie",
+                    "results": [{"tmdbId": 100, "title": "Anime Film", "releaseDate": "2020-01-01"}],
+                },
+                "series": {
+                    "mediaType": "tv",
+                    "results": [{"tmdbId": 101, "title": "Anime Series", "year": 2018}],
+                },
+            },
+        }), encoding="utf-8")
+        (self.seed / "favourites.json").write_text(json.dumps({
+            "subsections": {
+                "anime": {
+                    "mediaType": "tv",
+                    "results": [
+                        {"id": 101, "title": "Anime Series Extended", "year": 2018},
+                        {"tmdbId": 102, "title": "Favourite Anime"},
+                    ],
+                },
+            },
+        }), encoding="utf-8")
+        (self.seed / "bollywood.json").write_text(json.dumps({
+            "subsections": {
+                "tv-popular": {
+                    "mediaType": "tv",
+                    "results": [{"id": 103, "title": "Flagged Anime", "anime": True}],
+                },
+            },
+        }), encoding="utf-8")
+        (self.seed / "marvel.json").write_text(json.dumps({
+            "subsections": {
+                "series": {
+                    "mediaType": "tv",
+                    "results": [{"id": 104, "title": "Not Anime"}],
+                },
+            },
+        }), encoding="utf-8")
+
+        records = MODULE.anime_catalogue_records(self.seed)
+        self.assertEqual([row["tmdbId"] for row in records], [100, 101, 102, 103])
+        self.assertEqual(records[0]["year"], 2020)
+        self.assertEqual(records[1]["title"], "Anime Series Extended")
+
+    def test_mal_builder_skips_cached_ids_and_resumes_after_temporary_failure(self):
+        self.isolate_anime_section()
+
+        class FakeResolver:
+            _ANILIST_COOLDOWN_UNTIL = 0
+
+            def __init__(self):
+                self.mappings = {}
+                self.calls = []
+                self.fail_once = True
+
+            def get_cached_mal_mapping(self, tmdb_id):
+                return self.mappings.get(tmdb_id)
+
+            async def fetch_anilist_mal_resolution(self, title, year, *, tmdb_id):
+                self.calls.append(tmdb_id)
+                if self.fail_once:
+                    self.fail_once = False
+                    return {"status": "unavailable", "message": "AniList network request failed"}
+                self.mappings[tmdb_id] = {"tmdbId": tmdb_id, "malId": tmdb_id + 5000}
+                return {"status": "resolved", "malId": tmdb_id + 5000}
+
+        resolver = FakeResolver()
+        summary = asyncio.run(MODULE.build_mal_id_cache(self.seed, resolver, batch_size=1))
+        self.assertEqual(summary["animeRecordsExamined"], 1)
+        self.assertEqual(summary["malResolutionFailures"], 1)
+        self.assertEqual(resolver.calls, [102])
+
+        resumed = asyncio.run(MODULE.build_mal_id_cache(self.seed, resolver, batch_size=1))
+        self.assertEqual(resumed["malMappingsAdded"], 1)
+        self.assertEqual(resolver.calls, [102, 102])
+
+        skipped = asyncio.run(MODULE.build_mal_id_cache(self.seed, resolver, batch_size=1))
+        self.assertEqual(skipped["malMappingsSkipped"], 1)
+        self.assertEqual(resolver.calls, [102, 102])
+
+    def test_mal_builder_waits_out_anilist_retry_after_without_repeating_record(self):
+        self.isolate_anime_section()
+
+        class FakeResolver:
+            def __init__(self):
+                self._ANILIST_COOLDOWN_UNTIL = MODULE.time.time() + 5
+                self.calls = []
+
+            def get_cached_mal_mapping(self, _tmdb_id):
+                return None
+
+            async def fetch_anilist_mal_resolution(self, _title, _year, *, tmdb_id):
+                self.calls.append(tmdb_id)
+                return {"status": "unavailable", "message": "AniList is rate limiting requests"}
+
+        resolver = FakeResolver()
+        waits = []
+
+        async def fake_sleep(delay):
+            waits.append(delay)
+
+        result = asyncio.run(MODULE.build_mal_id_cache(
+            self.seed,
+            resolver,
+            batch_size=1,
+            sleep=fake_sleep,
+        ))
+        self.assertEqual(resolver.calls, [102])
+        self.assertEqual(result["malResolutionFailures"], 1)
+        self.assertEqual(len(waits), 1)
+        self.assertGreater(waits[0], 4)
+
+    def test_cache_bundle_includes_the_persistent_mal_mapping_file(self):
+        (self.seed / "unrelated.json").unlink()
+        runtime = self.seed / "runtime"
+        runtime.mkdir()
+        mal_cache = runtime / "yenime_mal_resolution_cache.json"
+        mal_cache.write_text(json.dumps({
+            "version": 2,
+            "entries": {},
+            "tmdbMappings": {
+                "101": {"tmdbId": 101, "malId": 5114, "title": "Example", "source": "AniList", "resolvedAt": "now"},
+            },
+            "cooldownUntil": 0,
+        }), encoding="utf-8")
+        output = self.root / "bundle-out"
+        subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).resolve().parents[1] / "make_cache_bundle.py"),
+                str(self.seed),
+                str(output),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+        with tarfile.open(output / "cache-bundle.tar.gz", "r:gz") as bundle:
+            archived = json.load(bundle.extractfile("runtime/yenime_mal_resolution_cache.json"))
+        self.assertEqual(archived["tmdbMappings"]["101"]["malId"], 5114)
 
 
 if __name__ == "__main__":

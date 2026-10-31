@@ -221,6 +221,7 @@ def test_anilist_429_sets_persistent_cooldown_and_suppresses_other_lookups(monke
     assert first["status"] == second["status"] == "unavailable"
     assert "rate limiting" in second["message"]
     assert document["cooldownUntil"] > 0
+    assert 29 <= document["cooldownUntil"] - yenime.time.time() <= 30
     assert calls == [1]
 
 
@@ -298,3 +299,179 @@ def test_manual_mal_id_resolution_does_not_contact_anilist(monkeypatch):
     result = asyncio.run(yenime.resolve_mal_id("Example", mal_id=1234))
     assert result["status"] == "resolved"
     assert result["malId"] == 1234
+
+
+def test_cached_tmdb_mapping_is_available_in_cache_only_mode(monkeypatch, tmp_path):
+    import asyncio
+
+    import integrations.yenime as yenime
+
+    cache_path = tmp_path / "mal-cache.json"
+    monkeypatch.setattr(yenime, "_MAL_CACHE_PATH", cache_path)
+    monkeypatch.setattr(yenime, "_MAL_CACHE_SEED_PATH", tmp_path / "absent-seed.json")
+    monkeypatch.setattr(yenime, "CACHE_ONLY_MODE", True)
+    yenime._MAL_CACHE.clear()
+    yenime._write_mal_cache_document({
+        "version": yenime._MAL_CACHE_VERSION,
+        "entries": {},
+        "tmdbMappings": {
+            "105248": {
+                "tmdbId": 105248,
+                "malId": 42310,
+                "title": "Cyberpunk: Edgerunners",
+                "source": "AniList",
+                "resolvedAt": "2026-10-30T00:00:00+00:00",
+            },
+        },
+        "cooldownUntil": 0,
+    })
+
+    def unexpected_client(*_args, **_kwargs):
+        raise AssertionError("Cache-only mapping lookup must not contact AniList")
+
+    monkeypatch.setattr(yenime, "_InstrumentedAsyncClient", unexpected_client)
+    result = asyncio.run(yenime.resolve_mal_id(
+        "Cyberpunk: Edgerunners",
+        year=2022,
+        tmdb_id=105248,
+    ))
+
+    assert result["status"] == "resolved"
+    assert result["malId"] == 42310
+
+
+def test_cache_only_miss_explains_refresh_and_never_contacts_anilist(monkeypatch, tmp_path):
+    import asyncio
+
+    import integrations.yenime as yenime
+
+    monkeypatch.setattr(yenime, "_MAL_CACHE_PATH", tmp_path / "mal-cache.json")
+    monkeypatch.setattr(yenime, "_MAL_CACHE_SEED_PATH", tmp_path / "absent-seed.json")
+    monkeypatch.setattr(yenime, "CACHE_ONLY_MODE", True)
+    monkeypatch.setattr(yenime, "KNOWN_MAL_IDS", {})
+    yenime._MAL_CACHE.clear()
+
+    def unexpected_client(*_args, **_kwargs):
+        raise AssertionError("A cache-only MAL miss must not contact AniList")
+
+    monkeypatch.setattr(yenime, "_InstrumentedAsyncClient", unexpected_client)
+    result = asyncio.run(yenime.resolve_mal_id("Unknown Anime", tmdb_id=90001))
+    assert result["status"] == "unavailable"
+    assert "cache refresh" in result["message"]
+
+
+def test_normal_mode_resolves_and_persists_tmdb_mapping(monkeypatch, tmp_path):
+    import asyncio
+    import json
+
+    import integrations.yenime as yenime
+
+    calls = []
+
+    class FakeResponse:
+        status_code = 200
+        headers = {}
+
+        def json(self):
+            return {"data": {"Page": {"media": [
+                {"idMal": 42310, "synonyms": [], "title": {"english": "Cyberpunk: Edgerunners", "romaji": "", "native": ""}, "startDate": {"year": 2022}},
+            ]}}}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc):
+            return False
+
+        async def post(self, *args, **kwargs):
+            calls.append(1)
+            return FakeResponse()
+
+    cache_path = tmp_path / "mal-cache.json"
+    monkeypatch.setattr(yenime, "_MAL_CACHE_PATH", cache_path)
+    monkeypatch.setattr(yenime, "_MAL_CACHE_SEED_PATH", tmp_path / "absent-seed.json")
+    monkeypatch.setattr(yenime, "_InstrumentedAsyncClient", FakeClient)
+    monkeypatch.setattr(yenime, "CACHE_ONLY_MODE", False)
+    monkeypatch.setattr(yenime, "KNOWN_MAL_IDS", {})
+    monkeypatch.setattr(yenime, "_ANILIST_COOLDOWN_UNTIL", 0)
+    yenime._MAL_CACHE.clear()
+
+    result = asyncio.run(yenime.resolve_mal_id(
+        "Cyberpunk: Edgerunners",
+        year=2022,
+        tmdb_id=105248,
+    ))
+    mapping = json.loads(cache_path.read_text(encoding="utf-8"))["tmdbMappings"]["105248"]
+
+    assert result["status"] == "resolved"
+    assert result["malId"] == 42310
+    assert mapping["title"] == "Cyberpunk: Edgerunners"
+    assert mapping["source"] == "AniList"
+    assert mapping["resolvedAt"]
+    assert calls == [1]
+
+
+def test_bundled_mal_cache_merge_preserves_valid_mappings_and_adds_missing(monkeypatch, tmp_path):
+    import json
+
+    import integrations.yenime as yenime
+
+    persistent_path = tmp_path / "persistent.json"
+    seed_path = tmp_path / "seed.json"
+    persistent_path.write_text(json.dumps({
+        "version": 1,
+        "entries": {"preserved": {"result": {"status": "resolved", "malId": 44}, "expiresAt": 9999999999}},
+        "tmdbMappings": {
+            "1": {"tmdbId": 1, "malId": 44, "title": "Existing", "source": "manual", "resolvedAt": "old"},
+            "2": {"tmdbId": 2, "malId": 0, "title": "Invalid", "source": "AniList", "resolvedAt": "old"},
+        },
+        "cooldownUntil": 0,
+    }), encoding="utf-8")
+    seed_path.write_text(json.dumps({
+        "version": 2,
+        "entries": {
+            "preserved": {"result": {"status": "unavailable", "malId": None}, "expiresAt": 9999999999},
+            "new": {"result": {"status": "missing", "malId": None}, "expiresAt": 9999999999},
+        },
+        "tmdbMappings": {
+            "1": {"tmdbId": 1, "malId": 99, "title": "Do not replace", "source": "AniList", "resolvedAt": "new"},
+            "2": {"tmdbId": 2, "malId": 55, "title": "Added", "source": "AniList", "resolvedAt": "new"},
+            "3": {"tmdbId": 3, "malId": None, "title": "Failed", "source": "AniList", "resolvedAt": "new"},
+            "4": {"malId": 66, "title": "Missing TMDB ID", "source": "AniList", "resolvedAt": "new"},
+        },
+        "cooldownUntil": 100,
+    }), encoding="utf-8")
+    monkeypatch.setattr(yenime, "_MAL_CACHE_PATH", persistent_path)
+    monkeypatch.setattr(yenime, "_MAL_CACHE_SEED_PATH", seed_path)
+
+    yenime._seed_yenime_mal_cache()
+    merged = json.loads(persistent_path.read_text(encoding="utf-8"))
+    assert merged["tmdbMappings"]["1"]["malId"] == 44
+    assert merged["tmdbMappings"]["2"]["malId"] == 55
+    assert "3" not in merged["tmdbMappings"]
+    assert "4" not in merged["tmdbMappings"]
+    assert merged["entries"]["preserved"]["result"]["malId"] == 44
+    assert "new" not in merged["entries"]
+    assert merged["cooldownUntil"] == 100
+
+
+def test_manual_mal_id_overrides_cached_or_automatic_resolution(monkeypatch):
+    import asyncio
+
+    import integrations.yenime as yenime
+
+    def unexpected_resolver(*_args, **_kwargs):
+        raise AssertionError("Manual MAL ID must take precedence over automatic resolution")
+
+    monkeypatch.setattr(yenime, "fetch_anilist_mal_resolution", unexpected_resolver)
+    result = asyncio.run(yenime.resolve_mal_id(
+        "Cyberpunk: Edgerunners",
+        mal_id=999,
+        tmdb_id=105248,
+    ))
+    assert result["status"] == "resolved"
+    assert result["malId"] == 999

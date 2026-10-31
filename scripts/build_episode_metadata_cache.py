@@ -8,17 +8,18 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
 import json
 import os
-from pathlib import Path
 import re
+import sys
 import tempfile
+import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
-
 
 SECTION_FILES = (
     "hollywood.json",
@@ -83,6 +84,144 @@ def catalogue_tmdb_ids(seed_dir: Path) -> list[int]:
                 if value.isdigit() and int(value) > 0:
                     identifiers.add(int(value))
     return sorted(identifiers)
+
+
+def anime_catalogue_records(seed_dir: Path) -> list[dict[str, Any]]:
+    """Collect and deduplicate anime catalogue records by their positive TMDB ID."""
+    records: dict[int, dict[str, Any]] = {}
+    for filename in SECTION_FILES:
+        section_name = Path(filename).stem.casefold()
+        document = json.loads((seed_dir / filename).read_text(encoding="utf-8"))
+        subsections = document.get("subsections")
+        if not isinstance(subsections, dict):
+            raise ValueError(f"{seed_dir / filename} has no subsection object")
+        for subsection_name, subsection in subsections.items():
+            if not isinstance(subsection, dict):
+                continue
+            subsection_key = str(
+                subsection.get("catalogueKey") or subsection.get("catalogue") or subsection_name
+            ).casefold()
+            results = subsection.get("results")
+            if not isinstance(results, list):
+                continue
+            is_anime_section = (
+                section_name == "anime"
+                or "anime" in subsection_key
+                or str(subsection.get("mediaType") or "").casefold() == "anime"
+            )
+            for row in results:
+                if not isinstance(row, dict):
+                    continue
+                is_anime = is_anime_section or row.get("anime") is True or row.get("isAnime") is True
+                if not is_anime:
+                    continue
+                raw_id = row.get("tmdbId") or row.get("id")
+                if isinstance(raw_id, bool) or not str(raw_id or "").strip().isdigit():
+                    continue
+                tmdb_id = int(raw_id)
+                if tmdb_id <= 0:
+                    continue
+                title = str(row.get("title") or row.get("name") or "").strip()
+                if not title:
+                    continue
+                raw_year = row.get("year")
+                if not raw_year:
+                    release_date = str(row.get("releaseDate") or row.get("firstAirDate") or "")
+                    raw_year = release_date[:4] if release_date[:4].isdigit() else None
+                try:
+                    year = int(raw_year) if raw_year else None
+                except (TypeError, ValueError):
+                    year = None
+                candidate = {
+                    "tmdbId": tmdb_id,
+                    "title": title,
+                    "year": year,
+                }
+                previous = records.get(tmdb_id)
+                if previous is None or (
+                    (previous.get("year") is None and year is not None)
+                    or (len(title) > len(previous["title"]))
+                ):
+                    records[tmdb_id] = candidate
+    return [records[tmdb_id] for tmdb_id in sorted(records)]
+
+
+async def build_mal_id_cache(
+    seed_dir: Path,
+    resolver: Any,
+    *,
+    batch_size: int = 25,
+    sleep: Any = asyncio.sleep,
+) -> dict[str, Any]:
+    """Resolve anime identities through the existing Yenime resolver in bounded batches."""
+    if batch_size < 1:
+        raise ValueError("MAL batch size must be at least 1")
+    records = anime_catalogue_records(seed_dir)
+    resolved = skipped = failed = 0
+    failures: list[dict[str, Any]] = []
+    batches = [records[index:index + batch_size] for index in range(0, len(records), batch_size)]
+    for batch in batches:
+        for record in batch:
+            tmdb_id = record["tmdbId"]
+            if resolver.get_cached_mal_mapping(tmdb_id):
+                skipped += 1
+                continue
+            try:
+                result = await resolver.fetch_anilist_mal_resolution(
+                    record["title"],
+                    record["year"],
+                    tmdb_id=tmdb_id,
+                )
+            except (httpx.RequestError, ValueError, TypeError) as exc:
+                failed += 1
+                failures.append({
+                    "tmdbId": tmdb_id,
+                    "title": record["title"],
+                    "error": type(exc).__name__,
+                })
+                continue
+            if (
+                isinstance(result, dict)
+                and result.get("status") == "resolved"
+                and str(result.get("malId") or "").isdigit()
+                and int(result["malId"]) > 0
+                and resolver.get_cached_mal_mapping(tmdb_id)
+            ):
+                resolved += 1
+                continue
+            failed += 1
+            failures.append({
+                "tmdbId": tmdb_id,
+                "title": record["title"],
+                "status": result.get("status") if isinstance(result, dict) else "invalid_response",
+            })
+            cooldown_until = float(getattr(resolver, "_ANILIST_COOLDOWN_UNTIL", 0) or 0)
+            if cooldown_until > time.time():
+                await sleep(cooldown_until - time.time())
+    return {
+        "animeRecordsExamined": len(records),
+        "malMappingsAdded": resolved,
+        "malMappingsSkipped": skipped,
+        "malResolutionFailures": failed,
+        "failures": failures,
+    }
+
+
+def load_yenime_resolver(cache_path: Path):
+    """Load the project resolver with its persistent cache pointed into the working seed."""
+    backend_dir = Path(__file__).resolve().parents[1] / "backend"
+    if str(backend_dir) not in sys.path:
+        sys.path.insert(0, str(backend_dir))
+    os.environ["YENIME_MAL_CACHE_PATH"] = str(cache_path)
+    os.environ["YENIME_MAL_CACHE_SEED_PATH"] = str(cache_path)
+    from core import cache_diagnostics
+    from integrations import yenime
+
+    cache_diagnostics.CACHE_ONLY_MODE = False
+    yenime.CACHE_ONLY_MODE = False
+    yenime._MAL_CACHE_PATH = cache_path
+    yenime._MAL_CACHE.clear()
+    return yenime
 
 
 def read_episode_cache(path: Path) -> dict[str, Any]:
@@ -374,21 +513,32 @@ def main() -> int:
     )
     parser.add_argument("--concurrency", type=int, default=3)
     parser.add_argument("--max-attempts", type=int, default=5)
+    parser.add_argument("--mal-batch-size", type=int, default=25)
     parser.add_argument(
         "--allow-live-tmdb",
         action="store_true",
         help="explicitly authorize TMDB requests for this cache-building operation",
     )
+    parser.add_argument(
+        "--allow-live-anilist",
+        action="store_true",
+        help="explicitly authorize AniList requests for offline MAL ID pre-resolution",
+    )
     args = parser.parse_args()
     if not args.allow_live_tmdb:
         parser.error("this explicit cache builder requires --allow-live-tmdb")
+    if not args.allow_live_anilist:
+        parser.error("MAL ID pre-resolution requires --allow-live-anilist")
     if args.concurrency < 1:
         parser.error("--concurrency must be at least 1")
     if args.max_attempts < 1:
         parser.error("--max-attempts must be at least 1")
+    if args.mal_batch_size < 1:
+        parser.error("--mal-batch-size must be at least 1")
 
     seed_dir = args.seed_dir.resolve()
     cache_path = args.cache_path or seed_dir / "runtime" / "nexstream_episode_metadata_cache.json"
+    mal_cache_path = seed_dir / "runtime" / "yenime_mal_resolution_cache.json"
     credentials = [
         ("key", value)
         for value in _environment_values("TMDB_API_KEYS", "TMDB_API_KEY")
@@ -403,15 +553,22 @@ def main() -> int:
     if not credentials:
         parser.error("configure a TMDB API key or read access token before running")
 
-    summary = asyncio.run(build_episode_cache(
+    episode_summary = asyncio.run(build_episode_cache(
         seed_dir,
         cache_path,
         credentials,
         concurrency=args.concurrency,
         max_attempts=args.max_attempts,
     ))
+    resolver = load_yenime_resolver(mal_cache_path)
+    mal_summary = asyncio.run(build_mal_id_cache(
+        seed_dir,
+        resolver,
+        batch_size=args.mal_batch_size,
+    ))
+    summary = {"episodeMetadata": episode_summary, "malIds": mal_summary}
     print(json.dumps(summary, indent=2))
-    return 1 if summary["failures"] else 0
+    return 1 if episode_summary["failures"] else 0
 
 
 if __name__ == "__main__":

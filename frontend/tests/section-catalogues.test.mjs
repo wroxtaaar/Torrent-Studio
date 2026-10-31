@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const repositoryRoot = resolve(frontendRoot, '..');
 
-async function loadTypeScriptModule(filePath) {
+async function loadTypeScriptModule(filePath, define = {}) {
   const { outputFiles } = await build({
     entryPoints: [filePath],
     bundle: true,
@@ -16,6 +16,7 @@ async function loadTypeScriptModule(filePath) {
     platform: 'node',
     target: 'node20',
     write: false,
+    define,
   });
   const source = Buffer.from(outputFiles[0].contents).toString('base64');
   return import(`data:text/javascript;base64,${source}`);
@@ -25,6 +26,18 @@ const [sectionCache, grouping] = await Promise.all([
   loadTypeScriptModule(resolve(frontendRoot, 'src/api/sectionCache.ts')),
   loadTypeScriptModule(resolve(frontendRoot, 'src/components/torrent-search/grouping.ts')),
 ]);
+const searchApiBundle = await build({
+  entryPoints: [resolve(frontendRoot, 'src/api/search.ts')],
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  target: 'node20',
+  write: false,
+  define: { 'import.meta.env': '{}' },
+});
+const searchApi = await import(
+  `data:text/javascript;base64,${Buffer.from(searchApiBundle.outputFiles[0].text).toString('base64')}`
+);
 
 const catalogues = [
   { mode: 'marvel', section: 'marvel', subsection: 'movies', records: 96 },
@@ -103,4 +116,42 @@ test('franchise movie catalogues load section records through the card-rendering
       );
     });
   }
+});
+
+test('Yenime MAL lookup sends TMDB ID for offline mapping lookup', async t => {
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  t.after(() => { globalThis.fetch = originalFetch; });
+  globalThis.fetch = async input => {
+    requests.push(String(input));
+    return new Response(JSON.stringify({
+      status: 'resolved',
+      malId: 16498,
+      source: 'AniList',
+      title: 'Attack on Titan',
+    }), { status: 200 });
+  };
+
+  const result = await searchApi.searchApi.resolveYenimeMalId(
+    'Attack on Titan',
+    2013,
+    null,
+    1429,
+  );
+
+  assert.equal(result.status, 'resolved');
+  assert.match(requests[0], /\/api\/yenime\/resolve-mal\?/);
+  assert.match(requests[0], /tmdbId=1429/);
+  assert.match(requests[0], /year=2013/);
+});
+
+test('manual MAL input remains authoritative while automatic resolution is pending', async () => {
+  const hookSource = await readFile(
+    resolve(frontendRoot, 'src/components/torrent-search/state/useYenimePlayer.ts'),
+    'utf8',
+  );
+  assert.match(hookSource, /if \(current\.malId\) return \{ \.\.\.current, resolving: false, error: '' \}/);
+  assert.match(hookSource, /const launchYenime = \(malIdText: string, episodeText: string, type:/);
+  assert.match(hookSource, /const malId = Number\(malIdText\)/);
+  assert.match(hookSource, /buildYenimeUrl\(malId, episode, type\)/);
 });

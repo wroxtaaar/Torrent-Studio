@@ -172,7 +172,7 @@ export const searchApi = {
     return data as MarvelCatalogueResponse;
   },
 
-  async resolveYenimeMalId(title: string, year?: number | null, malId?: number | string | null): Promise<{
+  async resolveYenimeMalId(title: string, year?: number | null, malId?: number | string | null, tmdbId?: number | string | null): Promise<{
     status: 'resolved' | 'ambiguous' | 'missing' | 'unavailable';
     malId?: number | null;
     source?: string;
@@ -184,6 +184,8 @@ export const searchApi = {
     if (year) params.set('year', String(year));
     const numericMalId = Number(malId || 0);
     if (Number.isInteger(numericMalId) && numericMalId > 0) params.set('malId', String(numericMalId));
+    const numericTmdbId = Number(tmdbId || 0);
+    if (Number.isInteger(numericTmdbId) && numericTmdbId > 0) params.set('tmdbId', String(numericTmdbId));
     const res = await fetch(API_BASE + '/api/yenime/resolve-mal?' + params.toString(), { credentials: 'include', cache: 'no-store' });
     const body = await res.text();
     let data: any = null;

@@ -37,7 +37,8 @@ if [ "$GROUP" != "publish-only" ]; then
     ./venv/bin/python repo/scripts/build_episode_metadata_cache.py \
       --seed-dir "$REFRESH_SEED_DIR" \
       --cache-path "$REFRESH_SEED_DIR/runtime/nexstream_episode_metadata_cache.json" \
-      --allow-live-tmdb
+      --allow-live-tmdb \
+      --allow-live-anilist
   else
     ./venv/bin/python repo/scripts/refresh_seed.py "$GROUP"
   fi

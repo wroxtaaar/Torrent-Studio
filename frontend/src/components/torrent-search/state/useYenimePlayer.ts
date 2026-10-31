@@ -92,10 +92,11 @@ export function useYenimePlayer() {
     if (validTmdbId) void loadYenimeEpisodes(validTmdbId, validSeason);
 
     if (existingMalId) return;
-    void api.resolveYenimeMalId(title, year, null).then(result => {
+    void api.resolveYenimeMalId(title, year, null, validTmdbId).then(result => {
       if (generation !== generationRef.current) return;
       setYenimeRequest(current => {
         if (!current) return current;
+        if (current.malId) return { ...current, resolving: false, error: '' };
         if (result.status === 'resolved' && result.malId) {
           return { ...current, malId: String(result.malId), resolving: false, error: '' };
         }
@@ -142,7 +143,7 @@ export function useYenimePlayer() {
     }
 
     setYenimeRequest({ title, malId: '', episode: String(validEpisode), type: 'sub', resolving: true, error: '' });
-    void api.resolveYenimeMalId(title, year, null).then(result => {
+    void api.resolveYenimeMalId(title, year, null, tmdbId).then(result => {
       if (generation !== generationRef.current) return;
       if (result.status === 'resolved' && result.malId) {
         launchResolvedMalId(result.malId);
