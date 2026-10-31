@@ -581,7 +581,10 @@ async def get_tv_episodes(
         log_cache_only_metadata_block("TMDB")
         raise HTTPException(
             status_code=404,
-            detail=f"Episode metadata for TMDB show {tmdb_id}, season {season}, is not present in the local cache.",
+            detail=(
+                f"Episode metadata for TMDB show {tmdb_id}, season {season}, is not present in the local cache"
+                f" and live lookups are disabled (LIVE_TITLE_SEARCH={os.getenv('LIVE_TITLE_SEARCH', '')!r})."
+            ),
         )
     api_keys = _env_values("TMDB_API_KEYS", "TMDB_API_KEY")
     bearer_tokens = _env_values("TMDB_READ_ACCESS_TOKENS", "TMDB_READ_ACCESS_TOKEN", "TMDB_BEARER_TOKEN")
