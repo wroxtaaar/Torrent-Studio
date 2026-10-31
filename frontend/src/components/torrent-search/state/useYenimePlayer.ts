@@ -9,7 +9,7 @@ export type YenimePlayerRequest = {
   episode: number;
   season: number;
   tmdbId?: number;
-  type: 'dub' | 'dub';
+  type: 'sub' | 'dub';
   url: string;
 };
 
@@ -18,7 +18,7 @@ export function useYenimePlayer() {
     title: string;
     malId: string;
     episode: string;
-    type: 'dub' | 'dub';
+    type: 'sub' | 'dub';
     error: string;
     resolving: boolean;
   } | null>(null);
@@ -101,8 +101,8 @@ export function useYenimePlayer() {
           return { ...current, malId: String(result.malId), resolving: false, error: '' };
         }
         const message = result.message || (result.status === 'ambiguous'
-          ? 'Multiple matches were found. Enter the correct MAL ID manually.'
-          : 'No confident MAL ID match was found. Enter the MAL ID manually.');
+          ? 'Multiple anime matches were found, so Yenime could not select a reliable MAL ID.'
+          : 'No reliable MAL ID was found. Yenime playback is unavailable for this title.');
         return { ...current, resolving: false, error: message };
       });
     }).catch((error: unknown) => {
@@ -156,8 +156,8 @@ export function useYenimePlayer() {
         type: 'dub',
         resolving: false,
         error: result.status === 'ambiguous'
-          ? 'Multiple matches were found. Enter the correct MAL ID manually.'
-          : 'No confident MAL ID match was found. Enter the MAL ID manually.',
+          ? 'Multiple anime matches were found, so Yenime could not select a reliable MAL ID.'
+          : 'No reliable MAL ID was found. Yenime playback is unavailable for this title.',
       });
     }).catch((error: unknown) => {
       if (generation !== generationRef.current) return;
@@ -177,7 +177,7 @@ export function useYenimePlayer() {
     setYenimeEpisodesStatus(null);
   };
 
-  const launchYenime = (malIdText: string, episodeText: string, type: 'dub' | 'dub') => {
+  const launchYenime = (malIdText: string, episodeText: string, type: 'sub' | 'dub') => {
     if (!yenimeRequest) return;
     try {
       const malId = Number(malIdText);
