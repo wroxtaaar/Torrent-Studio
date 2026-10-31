@@ -13,7 +13,16 @@ export const upgradedHighQualityPosters = new Set<HTMLImageElement>();
 
 export let highQualityUpgradeScheduled = false;
 
-export let highQualityUpgradeInFlight = false;
+/** Upgrades loading right now. Several run at once so a full page is not upgraded one poster at a time. */
+export const highQualityUpgradesInFlight = new Set<HTMLImageElement>();
+
+export const MAX_CONCURRENT_HIGH_QUALITY_UPGRADES = 4;
+
+/** High-quality URLs that finished loading once: they are in the browser cache, so revisits reuse them at once. */
+export const loadedHighQualityUrls = new Set<string>();
+
+/** Quiet time (no tap/scroll/key) before upgrades start. */
+export const POSTER_UPGRADE_IDLE_MS = 500;
 
 export let highQualityUpgradeGeneration = 0;
 
@@ -102,6 +111,9 @@ export function cancelHighQualityUpgradeSchedule(): void {
 
 export function restoreLowQualityPoster(image: HTMLImageElement): void {
   if (!image.isConnected || image.dataset.highQualityTried !== 'true') return;
+  // A finished high-quality poster is already cached by the browser: keep it instead of
+  // downgrading it and loading it again after the next navigation.
+  if (image.complete && image.naturalWidth > 0 && loadedHighQualityUrls.has(image.currentSrc || image.src)) return;
   const lowQualityUrl = normalizeLowQualityPosterUrl(image.currentSrc || image.src);
   image.dataset.highQualityTried = '';
   image.dataset.highQualityFailed = '';
@@ -109,6 +121,23 @@ export function restoreLowQualityPoster(image: HTMLImageElement): void {
   image.fetchPriority = 'high';
   image.loading = 'eager';
   if (lowQualityUrl && image.src !== lowQualityUrl) image.src = lowQualityUrl;
+}
+
+/** The high-quality URL this poster would be upgraded to, or null when it has none. */
+export function highQualityVariant(current: string): string | null {
+  try {
+    const parsed = new URL(current, window.location.origin);
+    if (parsed.pathname.replace(/\/+$/, '') === '/api/poster') {
+      parsed.searchParams.set('size', 'w780');
+      return parsed.toString();
+    }
+  } catch {
+    return null;
+  }
+  const resizedHigh = resizeKnownPosterHost(current, 'high');
+  if (resizedHigh && resizeKnownPosterHost(current, 'low') === current) return resizedHigh;
+  if (current.includes('image.tmdb.org') && /\/t\/p\/w185\//.test(current)) return current.replace('/t/p/w185/', '/t/p/w780/');
+  return null;
 }
 
 export function upgradeToHighQualityPoster(image: HTMLImageElement): boolean {
@@ -130,7 +159,7 @@ export function upgradeToHighQualityPoster(image: HTMLImageElement): boolean {
       image.dataset.posterQuality = 'high-pending';
       image.src = highQualityUrl;
       upgradedHighQualityPosters.add(image);
-      highQualityUpgradeInFlight = true;
+      highQualityUpgradesInFlight.add(image);
       return true;
     }
   } catch {
@@ -144,7 +173,7 @@ export function upgradeToHighQualityPoster(image: HTMLImageElement): boolean {
     image.dataset.posterQuality = 'high-pending';
     image.src = resizedHigh;
     upgradedHighQualityPosters.add(image);
-    highQualityUpgradeInFlight = true;
+    highQualityUpgradesInFlight.add(image);
     return true;
   }
   if (!current.includes('image.tmdb.org') || !/\/t\/p\/w185\//.test(current)) return false;
@@ -154,7 +183,7 @@ export function upgradeToHighQualityPoster(image: HTMLImageElement): boolean {
   image.dataset.posterQuality = 'high-pending';
   image.src = current.replace('/t/p/w185/', '/t/p/w780/');
   upgradedHighQualityPosters.add(image);
-  highQualityUpgradeInFlight = true;
+  highQualityUpgradesInFlight.add(image);
   return true;
 }
 
@@ -162,7 +191,7 @@ export function scheduleHighQualityPosterUpgrades(): void {
   if (
     !highQualityPostersReady ||
     highQualityUpgradeScheduled ||
-    highQualityUpgradeInFlight ||
+    highQualityUpgradesInFlight.size >= MAX_CONCURRENT_HIGH_QUALITY_UPGRADES ||
     pendingHighQualityPosters.size === 0
   ) return;
   highQualityUpgradeScheduled = true;
@@ -175,10 +204,10 @@ export function scheduleHighQualityPosterUpgrades(): void {
     if (
       generation !== highQualityUpgradeGeneration ||
       !highQualityPostersReady ||
-      highQualityUpgradeInFlight ||
+      highQualityUpgradesInFlight.size >= MAX_CONCURRENT_HIGH_QUALITY_UPGRADES ||
       pendingHighQualityPosters.size === 0
     ) return;
-    if (Date.now() - lastPosterUserActivity < 1800) {
+    if (Date.now() - lastPosterUserActivity < POSTER_UPGRADE_IDLE_MS) {
       scheduleHighQualityPosterUpgrades();
       return;
     }
@@ -193,8 +222,9 @@ export function scheduleHighQualityPosterUpgrades(): void {
     });
 
     for (const image of images) {
+      if (highQualityUpgradesInFlight.size >= MAX_CONCURRENT_HIGH_QUALITY_UPGRADES) break;
       pendingHighQualityPosters.delete(image);
-      if (upgradeToHighQualityPoster(image)) return;
+      upgradeToHighQualityPoster(image);
     }
   };
 
@@ -202,26 +232,35 @@ export function scheduleHighQualityPosterUpgrades(): void {
     requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
   };
   if (idleWindow.requestIdleCallback) {
-    highQualityIdleHandle = idleWindow.requestIdleCallback(run, { timeout: 5000 });
+    highQualityIdleHandle = idleWindow.requestIdleCallback(run, { timeout: 1000 });
   } else {
-    highQualityFallbackTimer = window.setTimeout(run, 2500);
+    highQualityFallbackTimer = window.setTimeout(run, 600);
   }
 }
 
 export function requestHighQualityPoster(image: HTMLImageElement): void {
   if (image.dataset.highQualityTried === 'true') {
-    if (upgradedHighQualityPosters.has(image)) {
-      highQualityUpgradeInFlight = false;
+    // This is the load (or error) event of the upgraded image: free its slot and remember
+    // the URL so the next visit to this poster can use the cached high-quality image at once.
+    highQualityUpgradesInFlight.delete(image);
+    if (image.complete && image.naturalWidth > 0) {
+      const loaded = image.currentSrc || image.src;
+      if (loaded) loadedHighQualityUrls.add(loaded);
     }
     scheduleHighQualityPosterUpgrades();
     return;
   }
-  if (image.dataset.posterQuality === 'low-loaded' || image.complete) {
-    pendingHighQualityPosters.add(image);
-    scheduleHighQualityPosterUpgrades();
-  } else {
-    pendingHighQualityPosters.add(image);
+  // Seen before in high quality: swap straight to the cached image, no idle wait or queue.
+  const known = highQualityVariant(image.src || image.currentSrc);
+  if (known && loadedHighQualityUrls.has(known) && image.dataset.highQualityFailed !== 'true') {
+    image.dataset.highQualityTried = 'true';
+    image.dataset.posterQuality = 'high-pending';
+    upgradedHighQualityPosters.add(image);
+    image.src = known;
+    return;
   }
+  pendingHighQualityPosters.add(image);
+  if (image.dataset.posterQuality === 'low-loaded' || image.complete) scheduleHighQualityPosterUpgrades();
 }
 
 /** Pause and reset upgrades on navigation; resume only after the page details settle. */
@@ -229,7 +268,7 @@ export function setHighQualityPostersReady(ready: boolean): void {
   if (!ready) {
     highQualityUpgradeGeneration += 1;
     cancelHighQualityUpgradeSchedule();
-    highQualityUpgradeInFlight = false;
+    highQualityUpgradesInFlight.clear();
     pendingHighQualityPosters.clear();
     for (const image of upgradedHighQualityPosters) {
       restoreLowQualityPoster(image);
