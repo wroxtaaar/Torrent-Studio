@@ -672,14 +672,74 @@ async def get_tv_episodes(
     }
 
 
+async def _resolve_nexstream_api(media_type: str, tmdb_id: int, season: int | None, episode: int | None) -> dict:
+    """Resolve a title through the NexStream API (needs NEXSTREAM_API_KEY); result cached briefly."""
+    api_key = os.getenv("NEXSTREAM_API_KEY", "").strip()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="NexStream is not configured on this server (NEXSTREAM_API_KEY).")
+    if media_type == "tv":
+        if season is None or episode is None:
+            raise HTTPException(status_code=422, detail="TV playback requires both season and episode.")
+        path = f"/api/tv/{tmdb_id}/{season}/{episode}"
+    else:
+        path = f"/api/movie/{tmdb_id}"
+    cache_key = f"resolve:{media_type}:{tmdb_id}:{season or 0}:{episode or 0}"
+    cached = _get_nexstream_cache(cache_key, _NEXSTREAM_RESOLVE_CACHE_TTL)
+    if cached is not None:
+        return cached
+    try:
+        async with _InstrumentedAsyncClient(timeout=httpx.Timeout(15.0)) as client:
+            response = await client.get(
+                f"{NEXSTREAM_API_BASE}{path}",
+                params={"apikey": api_key},
+                headers={"Accept": "application/json"},
+            )
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=502, detail="Could not connect to NexStream. Try again later.") from exc
+    if response.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"NexStream returned HTTP {response.status_code}.")
+    try:
+        payload = response.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail="NexStream returned an invalid response.") from exc
+    if not isinstance(payload, dict) or not payload.get("success"):
+        message = payload.get("message") if isinstance(payload, dict) else None
+        raise HTTPException(status_code=502, detail=str(message or "NexStream could not resolve this title."))
+    safe_sources = []
+    for source in payload.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        url = str(source.get("url") or "").strip()
+        parsed = urlsplit(url)
+        if parsed.scheme != "https" or parsed.hostname not in ALLOWED_EMBED_HOSTS:
+            continue
+        safe_sources.append({"name": str(source.get("name") or "NexStream")[:80], "url": url})
+    if not safe_sources:
+        raise HTTPException(status_code=502, detail="NexStream returned no supported player source.")
+    result = {
+        "success": True,
+        "type": media_type,
+        "tmdbId": str(tmdb_id),
+        "season": season if media_type == "tv" else None,
+        "episode": episode if media_type == "tv" else None,
+        "meta": {"provider": "NexStream", "availabilityVerified": False, "availability": "unverified"},
+        "sources": safe_sources,
+    }
+    _set_nexstream_cache(cache_key, result)
+    return result
+
+
 @router.get("/api/nexstream/resolve")
 async def resolve_nexstream(
     media_type: str = Query("movie", alias="type", pattern="^(movie|tv)$"),
     tmdb_id: int = Query(..., gt=0),
     season: int | None = Query(None, ge=1),
     episode: int | None = Query(None, ge=1),
+    provider: str = Query("vidrift", pattern="^(vidrift|nexstream)$"),
 ):
-    """Compatibility route returning VidRift embed URLs for movies and episodes."""
+    """Return a player URL for a movie or episode: VidRift (default, embed URL) or NexStream (API)."""
+    if provider == "nexstream":
+        return await _resolve_nexstream_api(media_type, tmdb_id, season, episode)
     if media_type == "tv":
         if season is None or episode is None:
             raise HTTPException(status_code=422, detail="TV playback requires both season and episode.")

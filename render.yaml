@@ -26,6 +26,9 @@ services:
         sync: false
       - key: WATCHMODE_API_KEY
         sync: false
+      # Optional second stream source ("NexStream" in the player). VidRift needs no key.
+      - key: NEXSTREAM_API_KEY
+        sync: false
       - key: OMDB_API_KEY
         sync: false
       - key: SEEDR_API_TOKEN

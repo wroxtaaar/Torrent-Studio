@@ -2,7 +2,7 @@ import React from 'react';
 import { Loader2, Maximize2, X } from 'lucide-react';
 
 export type TorrentPlayerShellProvider = {
-  label: 'Yenime' | 'VidRift';
+  label: 'Yenime' | 'VidRift' | 'NexStream';
   active: boolean;
   onSelect: () => void;
 };

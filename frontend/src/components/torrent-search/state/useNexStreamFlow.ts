@@ -158,6 +158,40 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
       setNexStreamResolvingId(null);
     }
   };
+  type NexStreamPlayerState = NonNullable<ReturnType<typeof useNexStreamState>['nexStreamPlayer']>;
+  // Switch the open player between the two stream sources for the same title/episode.
+  const switchNexStreamProvider = async (player: NexStreamPlayerState, provider: 'vidrift' | 'nexstream') => {
+    const tmdbId = Number(player.tmdbId);
+    if (!validTmdbId(tmdbId)) {
+      setNexStreamError('This title has no valid TMDB ID for ' + (provider === 'nexstream' ? 'NexStream' : 'VidRift') + ' playback.');
+      return;
+    }
+    setNexStreamError('');
+    if (provider === 'vidrift') {
+      const url = player.type === 'tv' ? buildVidRiftTvUrl(tmdbId, player.season, player.episode) : buildVidRiftMovieUrl(tmdbId);
+      if (!url) { setNexStreamError('This title has an invalid VidRift playback ID or episode.'); return; }
+      setNexStreamPlayer({ ...player, sourceName: 'VidRift', url });
+      return;
+    }
+    const resolvingId = 'switch:' + player.type + ':' + tmdbId;
+    setNexStreamResolvingId(resolvingId);
+    try {
+      const params = new URLSearchParams({ provider: 'nexstream', type: player.type, tmdb_id: String(tmdbId) });
+      if (player.type === 'tv') {
+        params.set('season', String(player.season || 1));
+        params.set('episode', String(player.episode || 1));
+      }
+      const response = await fetch('/api/nexstream/resolve?' + params.toString(), { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+      const data = await response.json().catch(() => ({}));
+      const url = String(data?.sources?.[0]?.url || '');
+      if (!response.ok || !data.success || !url) throw new Error(data?.detail || 'NexStream could not load this title.');
+      setNexStreamPlayer({ ...player, sourceName: 'NexStream', url });
+    } catch (error: any) {
+      setNexStreamError(String(error?.message || 'NexStream could not load this title.'));
+    } finally {
+      setNexStreamResolvingId(null);
+    }
+  };
   const playCatalogueTvWithNexStream = (show: {
     id: number | string;
     title: string;
@@ -197,6 +231,7 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
     searchNexStreamTitles,
     loadNexStreamEpisodes,
     playWithNexStream,
+    switchNexStreamProvider,
     playCatalogueTvWithNexStream,
   };
 }

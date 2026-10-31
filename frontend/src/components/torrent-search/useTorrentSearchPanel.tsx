@@ -307,7 +307,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [showRecentSearches]);
   const { cancelSearch } = useCancelSearch({ searchGenerationRef, searchRequestRef, setShowRecentSearches, setResults, movieTorrentSearchGenerationRef, movieTorrentSearchControllerRef, nexStreamSearchGenerationRef, nexStreamSearchControllerRef, setNexStreamLoading, setNexStreamSearchMode, setNexStreamResults, setNexStreamError, setIsSearching, setCatalogueBuildProgress, setError, setMovieCatalogue, setSearched, setSearchAvailabilityByGroup });
-  const { searchNexStreamTitles, loadNexStreamEpisodes, playWithNexStream, playCatalogueTvWithNexStream } = useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearchGenerationRef, setNexStreamSearchMode, setNexStreamLoadingTitle, setNexStreamLoading, setNexStreamError, setNexStreamResults, setNexStreamPlayer, setNexStreamEpisodePrefetchStatus, setNexStreamSeasons, setNexStreamEpisodes, setNexStreamSelectedSeason, setNexStreamEpisodesError, setNexStreamEpisodesStatus, setNexStreamEpisodesLoading, setNexStreamEpisodePicker, setNexStreamResolvingId, error });
+  const { searchNexStreamTitles, loadNexStreamEpisodes, playWithNexStream, switchNexStreamProvider, playCatalogueTvWithNexStream } = useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearchGenerationRef, setNexStreamSearchMode, setNexStreamLoadingTitle, setNexStreamLoading, setNexStreamError, setNexStreamResults, setNexStreamPlayer, setNexStreamEpisodePrefetchStatus, setNexStreamSeasons, setNexStreamEpisodes, setNexStreamSelectedSeason, setNexStreamEpisodesError, setNexStreamEpisodesStatus, setNexStreamEpisodesLoading, setNexStreamEpisodePicker, setNexStreamResolvingId, error });
   // Warm the episode metadata cache while the franchise TV catalogue is
   // open, so selecting a series usually opens with its season/episodes ready.
   useEffect(() => {
@@ -939,6 +939,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     ...yenime,
     loadNexStreamEpisodes,
     playWithNexStream,
+    switchNexStreamProvider,
     playCatalogueTvWithNexStream,
     runSearch,
     searchMovieTorrents,

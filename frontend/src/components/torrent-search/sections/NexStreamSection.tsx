@@ -6,7 +6,7 @@ import { imdbRatingKey } from '../grouping.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 
 export function NexStreamSection({ vm }: { vm: PanelModel }) {
-  const { imdbRatingsByKey, loadNexStreamEpisodes, nexStreamEpisodePicker, nexStreamEpisodes, nexStreamEpisodesError, nexStreamEpisodesLoading, nexStreamEpisodesStatus, nexStreamError, nexStreamLoading, nexStreamPlayer, nexStreamResolvingId, nexStreamResults, nexStreamSearchMode, nexStreamSeasons, nexStreamSelectedSeason, playWithNexStream, setNexStreamEpisodePicker, setNexStreamPlayer, switchToYenimePlayer } = vm;
+  const { imdbRatingsByKey, loadNexStreamEpisodes, nexStreamEpisodePicker, nexStreamEpisodes, nexStreamEpisodesError, nexStreamEpisodesLoading, nexStreamEpisodesStatus, nexStreamError, nexStreamLoading, nexStreamPlayer, nexStreamResolvingId, nexStreamResults, nexStreamSearchMode, nexStreamSeasons, nexStreamSelectedSeason, playWithNexStream, setNexStreamEpisodePicker, setNexStreamPlayer, switchNexStreamProvider, switchToYenimePlayer } = vm;
   const [playerLoading, setPlayerLoading] = useState(false);
   useEffect(() => {
     setPlayerLoading(Boolean(nexStreamPlayer));
@@ -118,24 +118,25 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
               id="nexstream-player-container"
               title={`${nexStreamPlayer.title}${nexStreamPlayer.type === 'tv' && nexStreamPlayer.season && nexStreamPlayer.episode ? ` · S${nexStreamPlayer.season} E${nexStreamPlayer.episode}` : nexStreamPlayer.year ? ` (${nexStreamPlayer.year})` : ''}`}
               loading={playerLoading}
-              loadingLabel="Loading VidRift player…"
-              closeLabel="Close VidRift player"
+              loadingLabel={'Loading ' + nexStreamPlayer.sourceName + ' player…'}
+              closeLabel={'Close ' + nexStreamPlayer.sourceName + ' player'}
               onClose={() => setNexStreamPlayer(null)}
-              providers={nexStreamPlayer.anime ? [
-                { label: 'Yenime', active: false, onSelect: () => {
+              providers={[
+                ...(nexStreamPlayer.anime ? [{ label: 'Yenime', active: false, onSelect: () => {
                   const player = nexStreamPlayer;
                   setNexStreamPlayer(null);
                   switchToYenimePlayer(player.title, Number(player.year) || null, null, player.episode || 1, player.tmdbId || null, player.season || 1);
-                } },
-                { label: 'VidRift', active: true, onSelect: () => undefined },
-              ] : undefined}
+                } }] : []),
+                { label: 'VidRift', active: nexStreamPlayer.sourceName === 'VidRift', onSelect: () => { if (nexStreamPlayer.sourceName !== 'VidRift') void switchNexStreamProvider(nexStreamPlayer, 'vidrift'); } },
+                { label: 'NexStream', active: nexStreamPlayer.sourceName === 'NexStream', onSelect: () => { if (nexStreamPlayer.sourceName !== 'NexStream') void switchNexStreamProvider(nexStreamPlayer, 'nexstream'); } },
+              ]}
             >
               <iframe
                 id="nexstream-player-frame"
                 key={nexStreamPlayer.url}
                 src={nexStreamPlayer.url}
                 onLoad={() => setPlayerLoading(false)}
-                title={'VidRift player for ' + nexStreamPlayer.title}
+                title={nexStreamPlayer.sourceName + ' player for ' + nexStreamPlayer.title}
                 allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
                 allowFullScreen
                 referrerPolicy="strict-origin-when-cross-origin"
