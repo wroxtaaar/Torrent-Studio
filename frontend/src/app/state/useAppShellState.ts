@@ -33,8 +33,14 @@ export function useAppShellState() {
         ? window.history.state.tab
         : null;
 
-      if (activeTab !== 'search' && stateTab === 'search') {
-        setActiveTab('search');
+      if (
+        stateTab === 'search' ||
+        stateTab === 'files' ||
+        stateTab === 'shared' ||
+        stateTab === 'activity' ||
+        stateTab === 'storage'
+      ) {
+        setActiveTab(stateTab);
       }
     };
 
