@@ -18,6 +18,7 @@ export function useNexStreamState() {
   const [nexStreamSelectedSeason, setNexStreamSelectedSeason] = useState(1);
   const [nexStreamEpisodesLoading, setNexStreamEpisodesLoading] = useState(false);
   const [nexStreamEpisodesError, setNexStreamEpisodesError] = useState('');
+  const [nexStreamEpisodesStatus, setNexStreamEpisodesStatus] = useState<'ready' | 'no_seasons' | 'no_episodes' | null>(null);
 
   return {
     nexStreamResults,
@@ -50,5 +51,7 @@ export function useNexStreamState() {
     setNexStreamEpisodesLoading,
     nexStreamEpisodesError,
     setNexStreamEpisodesError,
+    nexStreamEpisodesStatus,
+    setNexStreamEpisodesStatus,
   };
 }

@@ -7,6 +7,7 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
   const {
     yenimeRequest, yenimePlayer, yenimeEpisodePicker, yenimeSeasons, yenimeEpisodes,
     yenimeSelectedSeason, yenimeEpisodesLoading, yenimeEpisodesError, yenimeProvider,
+    yenimeEpisodesStatus,
     setYenimeRequest, setYenimeSelectedSeason, setYenimeProvider, closeYenime,
     closeYenimeEpisodePicker, loadYenimeEpisodes, launchYenime,
   } = vm;
@@ -120,11 +121,15 @@ export const YenimeSection: React.FC<{ vm: PanelModel }> = ({ vm }) => {
                   ))}
                 </div>
               ) : (
-                <div className="flex items-center gap-3 py-4">
-                  <label className="text-xs text-slate-400">Episode
-                    <input value={yenimeRequest.episode} onChange={event => setYenimeRequest(current => current ? { ...current, episode: event.target.value, error: '' } : current)} inputMode="numeric" className="mt-1 w-24 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" />
-                  </label>
-                  <button type="button" disabled={yenimeProvider === 'yenime' && (yenimeRequest.resolving || !yenimeRequest.malId)} onClick={() => playEpisodeWithProvider(yenimeRequest.episode)} className="mt-5 rounded-lg bg-violet-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Play episode</button>
+                <div className="space-y-3 py-4">
+                  {yenimeEpisodesStatus === 'no_seasons' && <p className="text-sm text-slate-400">TMDB reports no numbered seasons for this show. You can enter an episode number manually.</p>}
+                  {yenimeEpisodesStatus === 'no_episodes' && <p className="text-sm text-slate-400">No episode metadata is available for this season. You can enter an episode number manually.</p>}
+                  <div className="flex items-end gap-3">
+                    <label className="text-xs text-slate-400">Episode
+                      <input value={yenimeRequest.episode} onChange={event => setYenimeRequest(current => current ? { ...current, episode: event.target.value, error: '' } : current)} inputMode="numeric" className="mt-1 w-24 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" />
+                    </label>
+                    <button type="button" disabled={yenimeProvider === 'yenime' && (yenimeRequest.resolving || !yenimeRequest.malId)} onClick={() => playEpisodeWithProvider(yenimeRequest.episode)} className="rounded-lg bg-violet-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Play episode</button>
+                  </div>
                 </div>
               )}
             </div>

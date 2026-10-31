@@ -17,10 +17,22 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
     && vm.regionalContentTabs[vm.activeTopSection as keyof typeof vm.regionalContentTabs] === 'web-series';
   if (isRegionalTvView) return null;
 
-  const { activeTopSection, catalogueExpectedTitles, classicsContentTab, classicsSort, dcWebSeriesCatalogue, dcWebSeriesError, dcWebSeriesLoading, error, expandedSearchGroupKey, franchiseGridPage, franchiseGridPageSize, groupedResults, imdbRatingsByKey, isSearching, marvelWebSeriesCatalogue, marvelWebSeriesError, marvelWebSeriesLoading, metadataPosterFailed, movieCatalogue, movieTorrentPreviewGroup, nexStreamLoading, nexStreamLoadingTitle, nexStreamResolvingId, nexStreamResults, onPlaySeedrFile, openYenimeRequest, pendingPosterAction, playCatalogueTvWithNexStream, playWithNexStream, playingTorrentKey, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, prepareMovieTorrent, prepareStateFor, preparedActionsFor, preparedForResult, preparingTorrentKey, regionalWebSeriesCatalogue, regionalWebSeriesError, regionalWebSeriesLoading, renderFranchisePagination, results, searchAvailabilityByGroup, searchMetadata, searchMetadataStatus, searchNexStreamTitles, searchPosterUrlsRef, selectedMovieTorrentQualityByGroup, selectedQualityByGroup, setDcWebSeriesCatalogue, setDcWebSeriesError, setDcWebSeriesLoading, setExpandedSearchGroupKey, setMarvelWebSeriesCatalogue, setMarvelWebSeriesError, setMarvelWebSeriesLoading, setMetadataPosterFailed, setMovieTorrentPreviewCatalogueId, setMovieTorrentPreviewGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setPlayingTorrentKey, setRegionalWebSeriesCatalogue, setRegionalWebSeriesError, setRegionalWebSeriesLoading, setSelectedMovieTorrentQualityByGroup, setSelectedQualityByGroup, showDcWebSeries, showMarvelWebSeries, sortedResults, startPosterBackgroundWorkers } = vm;
+  const { activeTopSection, catalogueExpectedTitles, classicsContentTab, classicsSort, dcWebSeriesCatalogue, dcWebSeriesError, dcWebSeriesLoading, error, expandedSearchGroupKey, franchiseGridPage, franchiseGridPageSize, groupedResults, imdbRatingsByKey, isSearching, loadDcWebSeriesPage, marvelWebSeriesCatalogue, marvelWebSeriesError, marvelWebSeriesLoading, metadataPosterFailed, movieCatalogue, movieTorrentPreviewGroup, nexStreamLoading, nexStreamLoadingTitle, nexStreamResolvingId, nexStreamResults, onPlaySeedrFile, openYenimeRequest, pendingPosterAction, playCatalogueTvWithNexStream, playWithNexStream, playingTorrentKey, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, prepareMovieTorrent, prepareStateFor, preparedActionsFor, preparedForResult, preparingTorrentKey, regionalWebSeriesCatalogue, regionalWebSeriesError, regionalWebSeriesLoading, renderFranchisePagination, results, searchAvailabilityByGroup, searchMetadata, searchMetadataStatus, searchNexStreamTitles, searchPosterUrlsRef, selectedMovieTorrentQualityByGroup, selectedQualityByGroup, setExpandedSearchGroupKey, setMarvelWebSeriesCatalogue, setMarvelWebSeriesError, setMarvelWebSeriesLoading, setMetadataPosterFailed, setMovieTorrentPreviewCatalogueId, setMovieTorrentPreviewGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setPlayingTorrentKey, setRegionalWebSeriesCatalogue, setRegionalWebSeriesError, setRegionalWebSeriesLoading, setSelectedMovieTorrentQualityByGroup, setSelectedQualityByGroup, showDcWebSeries, showMarvelWebSeries, sortedResults, startPosterBackgroundWorkers } = vm;
+  const renderDcWebSeriesPagination = () => {
+    if (!dcWebSeriesCatalogue || dcWebSeriesCatalogue.totalPages <= 1) return null;
+    const page = dcWebSeriesCatalogue.page;
+    const totalPages = dcWebSeriesCatalogue.totalPages;
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
+        <button type="button" disabled={dcWebSeriesLoading || page <= 1} onClick={() => void loadDcWebSeriesPage(page - 1)} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-200 disabled:opacity-40">← Previous</button>
+        <span className="text-xs text-slate-400">Page {page} of {totalPages} · {dcWebSeriesCatalogue.totalResults} titles</span>
+        <button type="button" disabled={dcWebSeriesLoading || page >= totalPages} onClick={() => void loadDcWebSeriesPage(page + 1)} className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-40">Next →</button>
+      </div>
+    );
+  };
   return (
     <>
-      {(results.length > 0 || regionalWebSeriesLoading || Boolean(regionalWebSeriesError) || Boolean(regionalWebSeriesCatalogue) || (activeTopSection === 'classics' && classicsContentTab !== null)) && (
+      {(results.length > 0 || regionalWebSeriesLoading || Boolean(regionalWebSeriesError) || Boolean(regionalWebSeriesCatalogue) || showDcWebSeries || (activeTopSection === 'classics' && classicsContentTab !== null)) && (
         <div className="space-y-2">
           <div className="px-1 text-[11px] text-slate-500">Use the subsection buttons above to switch catalogue views.</div>
 
@@ -112,14 +124,13 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
               {dcWebSeriesCatalogue && (
                 <>
                   <div className="px-1 text-xs text-slate-400">{dcWebSeriesCatalogue.totalResults.toLocaleString()} DC web series · Page {dcWebSeriesCatalogue.page} of {dcWebSeriesCatalogue.totalPages.toLocaleString()} · Metadata by TMDB</div>
-                  {renderFranchisePagination(dcWebSeriesCatalogue.results.length)}
+                  {renderDcWebSeriesPagination()}
                   <div className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
-                    {[...dcWebSeriesCatalogue.results].sort(classicsComparator(classicsSort, show => releaseDateSortValue(show), show => ratingValue(imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]), show => String(show.title || ''))).slice((franchiseGridPage - 1) * franchiseGridPageSize, franchiseGridPage * franchiseGridPageSize).map(show => (
+                    {dcWebSeriesCatalogue.results.map(show => (
                       <TvShowCard key={String(show.id)} show={show} imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]} onOpen={() => playCatalogueTvWithNexStream(show)} />
                     ))}
                   </div>
-                  {renderFranchisePagination(dcWebSeriesCatalogue.results.length)}
-                  {dcWebSeriesCatalogue.page < dcWebSeriesCatalogue.totalPages && <button type="button" disabled={dcWebSeriesLoading} onClick={async () => { setDcWebSeriesLoading(true); setDcWebSeriesError(''); try { const nextPage = await api.getTvCatalogue('dc-live-action', dcWebSeriesCatalogue.page + 1); setDcWebSeriesCatalogue(current => current ? { ...nextPage, results: [...current.results, ...nextPage.results.filter(item => !current.results.some(existing => String(existing.id) === String(item.id)))].sort(compareReleaseDateDescending) } : { ...nextPage, results: [...nextPage.results].sort(compareReleaseDateDescending) }); } catch (error: any) { setDcWebSeriesError(String(error?.message || 'Could not load more series.')); } finally { setDcWebSeriesLoading(false); } }} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-500 disabled:opacity-50">Load more</button>}
+                  {renderDcWebSeriesPagination()}
                 </>
               )}
             </div>

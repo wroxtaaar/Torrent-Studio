@@ -84,7 +84,7 @@ def test_episode_selection_is_preserved_in_url():
     assert yenime.build_yenime_url(16498, 12, "dub") == "https://player.yenime.net/anime/mal/16498/12?dub=1"
 
 
-def test_resolved_mal_id_is_looked_up_only_once(monkeypatch):
+def test_resolved_mal_id_is_looked_up_only_once(monkeypatch, tmp_path):
     import asyncio
 
     import integrations.yenime as yenime
@@ -93,6 +93,9 @@ def test_resolved_mal_id_is_looked_up_only_once(monkeypatch):
     media = [{"idMal": 5114, "synonyms": [], "title": {"romaji": "Hagane no Renkinjutsushi", "english": "Fullmetal Alchemist: Brotherhood", "native": ""}, "startDate": {"year": 2009}}]
 
     class FakeResponse:
+        status_code = 200
+        headers = {}
+
         def raise_for_status(self):
             return None
 
@@ -113,11 +116,185 @@ def test_resolved_mal_id_is_looked_up_only_once(monkeypatch):
             calls.append(1)
             return FakeResponse()
 
-    monkeypatch.setattr(yenime.httpx, "AsyncClient", FakeClient)
+    monkeypatch.setattr(yenime, "_InstrumentedAsyncClient", FakeClient)
+    monkeypatch.setattr(yenime, "CACHE_ONLY_MODE", False)
+    monkeypatch.setattr(yenime, "_MAL_CACHE_PATH", tmp_path / "mal-cache.json")
     monkeypatch.setattr(yenime, "KNOWN_MAL_IDS", {})
+    monkeypatch.setattr(yenime, "_ANILIST_COOLDOWN_UNTIL", 0)
     yenime._MAL_CACHE.clear()
     first = asyncio.run(yenime.fetch_anilist_mal_resolution("Fullmetal Alchemist Brotherhood", 2009))
     second = asyncio.run(yenime.fetch_anilist_mal_resolution("Fullmetal Alchemist Brotherhood", 2009))
     assert first["status"] == "resolved" and first["malId"] == 5114
     assert second == first and len(calls) == 1
     yenime._MAL_CACHE.clear()
+
+
+def test_mal_resolution_persists_success_and_negative_results(monkeypatch, tmp_path):
+    import asyncio
+
+    import integrations.yenime as yenime
+
+    calls = []
+
+    class FakeResponse:
+        status_code = 200
+        headers = {}
+
+        def json(self):
+            return {"data": {"Page": {"media": [
+                {"idMal": 16498, "synonyms": [], "title": {"english": "Attack on Titan", "romaji": "", "native": ""}, "startDate": {"year": 2013}},
+            ]}}}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc):
+            return False
+
+        async def post(self, *args, **kwargs):
+            calls.append(1)
+            return FakeResponse()
+
+    monkeypatch.setattr(yenime, "_InstrumentedAsyncClient", FakeClient)
+    monkeypatch.setattr(yenime, "CACHE_ONLY_MODE", False)
+    monkeypatch.setattr(yenime, "_MAL_CACHE_PATH", tmp_path / "mal-cache.json")
+    monkeypatch.setattr(yenime, "KNOWN_MAL_IDS", {})
+    monkeypatch.setattr(yenime, "_ANILIST_COOLDOWN_UNTIL", 0)
+    yenime._MAL_CACHE.clear()
+
+    result = asyncio.run(yenime.fetch_anilist_mal_resolution("Attack on Titan", 2013))
+    yenime._MAL_CACHE.clear()
+    persisted = asyncio.run(yenime.fetch_anilist_mal_resolution("Attack on Titan", 2013))
+
+    assert result["status"] == "resolved" and result["malId"] == 16498
+    assert persisted == result
+    assert calls == [1]
+
+
+def test_anilist_429_sets_persistent_cooldown_and_suppresses_other_lookups(monkeypatch, tmp_path):
+    import asyncio
+    import json
+
+    import integrations.yenime as yenime
+
+    calls = []
+
+    class FakeResponse:
+        status_code = 429
+        headers = {"Retry-After": "30"}
+
+        def json(self):
+            return {}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc):
+            return False
+
+        async def post(self, *args, **kwargs):
+            calls.append(1)
+            return FakeResponse()
+
+    cache_path = tmp_path / "mal-cache.json"
+    monkeypatch.setattr(yenime, "_InstrumentedAsyncClient", FakeClient)
+    monkeypatch.setattr(yenime, "CACHE_ONLY_MODE", False)
+    monkeypatch.setattr(yenime, "_MAL_CACHE_PATH", cache_path)
+    monkeypatch.setattr(yenime, "KNOWN_MAL_IDS", {})
+    monkeypatch.setattr(yenime, "_ANILIST_COOLDOWN_UNTIL", 0)
+    yenime._MAL_CACHE.clear()
+
+    first = asyncio.run(yenime.fetch_anilist_mal_resolution("Black Clover", 2017))
+    yenime._MAL_CACHE.clear()
+    monkeypatch.setattr(yenime, "_ANILIST_COOLDOWN_UNTIL", 0)
+    second = asyncio.run(yenime.fetch_anilist_mal_resolution("Cyberpunk Edgerunners", 2022))
+    document = json.loads(cache_path.read_text(encoding="utf-8"))
+
+    assert first["status"] == second["status"] == "unavailable"
+    assert "rate limiting" in second["message"]
+    assert document["cooldownUntil"] > 0
+    assert calls == [1]
+
+
+def test_missing_mal_resolution_is_persistently_negative_cached(monkeypatch, tmp_path):
+    import asyncio
+
+    import integrations.yenime as yenime
+
+    calls = []
+
+    class FakeResponse:
+        status_code = 200
+        headers = {}
+
+        def json(self):
+            return {"data": {"Page": {"media": []}}}
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_exc):
+            return False
+
+        async def post(self, *args, **kwargs):
+            calls.append(1)
+            return FakeResponse()
+
+    monkeypatch.setattr(yenime, "_InstrumentedAsyncClient", FakeClient)
+    monkeypatch.setattr(yenime, "CACHE_ONLY_MODE", False)
+    monkeypatch.setattr(yenime, "_MAL_CACHE_PATH", tmp_path / "mal-cache.json")
+    monkeypatch.setattr(yenime, "KNOWN_MAL_IDS", {})
+    monkeypatch.setattr(yenime, "_ANILIST_COOLDOWN_UNTIL", 0)
+    yenime._MAL_CACHE.clear()
+
+    first = asyncio.run(yenime.fetch_anilist_mal_resolution("Uncatalogued Series", 2024))
+    yenime._MAL_CACHE.clear()
+    second = asyncio.run(yenime.fetch_anilist_mal_resolution("Uncatalogued Series", 2024))
+
+    assert first["status"] == second["status"] == "missing"
+    assert calls == [1]
+
+
+def test_cache_only_mal_resolution_does_not_create_http_client(monkeypatch, tmp_path):
+    import asyncio
+
+    import integrations.yenime as yenime
+
+    monkeypatch.setattr(yenime, "CACHE_ONLY_MODE", True)
+    monkeypatch.setattr(yenime, "_MAL_CACHE_PATH", tmp_path / "mal-cache.json")
+    monkeypatch.setattr(yenime, "KNOWN_MAL_IDS", {})
+    yenime._MAL_CACHE.clear()
+
+    def unexpected_client(*_args, **_kwargs):
+        raise AssertionError("AniList client must not be constructed in cache-only mode")
+
+    monkeypatch.setattr(yenime, "_InstrumentedAsyncClient", unexpected_client)
+    result = asyncio.run(yenime.fetch_anilist_mal_resolution("Some Anime", 2024))
+    assert result["status"] == "unavailable"
+    assert "cache-only" in result["message"]
+
+
+def test_manual_mal_id_resolution_does_not_contact_anilist(monkeypatch):
+    import asyncio
+
+    import integrations.yenime as yenime
+
+    def unexpected_resolver(*_args, **_kwargs):
+        raise AssertionError("A supplied MAL ID must bypass automatic resolution")
+
+    monkeypatch.setattr(yenime, "fetch_anilist_mal_resolution", unexpected_resolver)
+    result = asyncio.run(yenime.resolve_mal_id("Example", mal_id=1234))
+    assert result["status"] == "resolved"
+    assert result["malId"] == 1234

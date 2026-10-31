@@ -4,6 +4,7 @@ Provider credentials stay on the server. Only approved HTTPS EmbedMaster player
 URLs are returned to the browser; no direct media URLs are exposed by this adapter.
 """
 import json
+import logging
 import os
 import tempfile
 import threading
@@ -14,10 +15,11 @@ from urllib.parse import urlsplit
 import httpx
 from core.cache_diagnostics import _InstrumentedAsyncClient, _record_cache_event
 from fastapi import APIRouter, HTTPException, Query
-from core.settings import _CACHE_SEED_DIR, stored_ttl, data_file
+from core.settings import CACHE_ONLY_MODE, _CACHE_SEED_DIR, data_file, log_cache_only_metadata_block, stored_ttl
 from integrations.vidrift import build_vidrift_movie_url, build_vidrift_tv_url
 
 router = APIRouter()
+logger = logging.getLogger("torrent-studio")
 NEXSTREAM_API_BASE = "https://api.codespecters.com"
 TMDB_API_BASE = "https://api.themoviedb.org/3"
 ALLOWED_EMBED_HOSTS = {"embedmaster.link", "www.embedmaster.link"}
@@ -35,6 +37,7 @@ _NEXSTREAM_EPISODE_CACHE_SEED_PATH = Path(
     )
 )
 _NEXSTREAM_CACHE_LOCK = threading.Lock()
+_NEXSTREAM_EPISODE_CACHE_LOCK = threading.RLock()
 _NEXSTREAM_SEARCH_CACHE_TTL = stored_ttl(24 * 60 * 60)
 _NEXSTREAM_RESOLVE_CACHE_TTL = 5 * 60
 
@@ -63,13 +66,8 @@ _seed_nexstream_cache()
 
 
 def _seed_nexstream_episode_cache() -> None:
-    """Restore bundled episode metadata only when persistent data is absent."""
+    """Merge bundled episode metadata without replacing persistent season entries."""
     try:
-        if (
-            _NEXSTREAM_EPISODE_CACHE_PATH.is_file()
-            and _NEXSTREAM_EPISODE_CACHE_PATH.stat().st_size > 0
-        ):
-            return
         if (
             not _NEXSTREAM_EPISODE_CACHE_SEED_PATH.is_file()
             or _NEXSTREAM_EPISODE_CACHE_SEED_PATH.stat().st_size == 0
@@ -78,19 +76,33 @@ def _seed_nexstream_episode_cache() -> None:
         payload = json.loads(
             _NEXSTREAM_EPISODE_CACHE_SEED_PATH.read_text(encoding="utf-8")
         )
-        if not isinstance(payload, dict):
+        if not isinstance(payload, dict) or not isinstance(payload.get("shows"), dict):
             return
-        _NEXSTREAM_EPISODE_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _NEXSTREAM_EPISODE_CACHE_PATH.write_text(
-            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-            encoding="utf-8",
-        )
+        with _NEXSTREAM_EPISODE_CACHE_LOCK:
+            if _NEXSTREAM_EPISODE_CACHE_PATH.is_file():
+                try:
+                    persistent = json.loads(
+                        _NEXSTREAM_EPISODE_CACHE_PATH.read_text(encoding="utf-8")
+                    )
+                except (OSError, json.JSONDecodeError) as exc:
+                    logger.warning(
+                        "Could not merge bundled episode metadata into unreadable cache %s: %s",
+                        _NEXSTREAM_EPISODE_CACHE_PATH,
+                        exc,
+                    )
+                    return
+                if not isinstance(persistent, dict) or not isinstance(persistent.get("shows", {}), dict):
+                    logger.warning(
+                        "Could not merge bundled episode metadata into invalid cache %s",
+                        _NEXSTREAM_EPISODE_CACHE_PATH,
+                    )
+                    return
+            else:
+                persistent = {"shows": {}}
+            if _merge_episode_cache_data(persistent, payload):
+                _write_episode_cache_document(persistent)
     except (OSError, ValueError, TypeError):
-        # Cache seeding is best-effort and must never prevent API startup.
-        return
-
-
-_seed_nexstream_episode_cache()
+        logger.exception("Could not seed bundled NexStream episode metadata")
 
 
 def _read_nexstream_cache() -> dict[str, dict]:
@@ -286,52 +298,150 @@ async def search_titles(
 
 
 
-_NEXSTREAM_EPISODE_CACHE_PATH = Path(os.getenv("NEXSTREAM_EPISODE_CACHE_PATH", data_file("nexstream_episode_metadata_cache.json")))
-_NEXSTREAM_EPISODE_CACHE_LOCK = threading.Lock()
+def _merge_episode_cache_data(persistent: dict, bundled: dict) -> bool:
+    """Merge only missing shows, season metadata, and completed episode lists."""
+    persistent_shows = persistent.setdefault("shows", {})
+    bundled_shows = bundled.get("shows") or {}
+    changed = False
+    for tmdb_id, bundled_show in bundled_shows.items():
+        if not isinstance(bundled_show, dict):
+            continue
+        if tmdb_id not in persistent_shows or not isinstance(persistent_shows[tmdb_id], dict):
+            persistent_shows[tmdb_id] = json.loads(json.dumps(bundled_show))
+            changed = True
+            continue
+        persistent_show = persistent_shows[tmdb_id]
+        if persistent_show.get("tmdbId") is None and bundled_show.get("tmdbId") is not None:
+            persistent_show["tmdbId"] = bundled_show["tmdbId"]
+            changed = True
+        persistent_seasons = persistent_show.setdefault("seasons", [])
+        if not isinstance(persistent_seasons, list):
+            persistent_seasons = persistent_show["seasons"] = []
+            changed = True
+        known_seasons = {
+            str(item.get("seasonNumber"))
+            for item in persistent_seasons
+            if isinstance(item, dict) and item.get("seasonNumber") is not None
+        }
+        for season in bundled_show.get("seasons") or []:
+            if not isinstance(season, dict) or season.get("seasonNumber") is None:
+                continue
+            season_key = str(season["seasonNumber"])
+            if season_key not in known_seasons:
+                persistent_seasons.append(json.loads(json.dumps(season)))
+                known_seasons.add(season_key)
+                changed = True
+        if persistent_show.get("seasonsFetched") is not True and bundled_show.get("seasonsFetched") is True:
+            persistent_show["seasonsFetched"] = True
+            changed = True
+        persistent_episodes = persistent_show.setdefault("episodesBySeason", {})
+        if not isinstance(persistent_episodes, dict):
+            persistent_episodes = persistent_show["episodesBySeason"] = {}
+            changed = True
+        for season, episodes in (bundled_show.get("episodesBySeason") or {}).items():
+            if season not in persistent_episodes and isinstance(episodes, list):
+                persistent_episodes[season] = json.loads(json.dumps(episodes))
+                changed = True
+    return changed
 
 
-def _read_episode_cache(tmdb_id: int, season: int):
+def _write_episode_cache_document(data: dict) -> None:
+    _NEXSTREAM_EPISODE_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=str(_NEXSTREAM_EPISODE_CACHE_PATH.parent),
+            prefix="nexstream-episodes-",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary_path = Path(handle.name)
+            json.dump(data, handle, ensure_ascii=False, separators=(",", ":"))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, _NEXSTREAM_EPISODE_CACHE_PATH)
+    finally:
+        if temporary_path is not None and temporary_path.exists():
+            temporary_path.unlink()
+
+
+def _read_episode_cache_document() -> dict:
     try:
         with _NEXSTREAM_EPISODE_CACHE_LOCK:
             if not _NEXSTREAM_EPISODE_CACHE_PATH.is_file():
                 _record_cache_event("nexstream_episode_metadata", "miss")
-                return None
+                return {"shows": {}}
             data = json.loads(_NEXSTREAM_EPISODE_CACHE_PATH.read_text(encoding="utf-8"))
-        show = (data.get("shows") or {}).get(str(tmdb_id)) or {}
-        episodes = (show.get("episodesBySeason") or {}).get(str(season))
-        if episodes is None:
-            _record_cache_event("nexstream_episode_metadata", "miss")
-            return None
+        if not isinstance(data, dict) or not isinstance(data.get("shows", {}), dict):
+            raise ValueError("invalid episode cache document")
+        return data
+    except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        logger.warning("Could not read NexStream episode cache %s: %s", _NEXSTREAM_EPISODE_CACHE_PATH, exc)
+        _record_cache_event("nexstream_episode_metadata", "read_error_miss")
+        return {"shows": {}}
+
+
+def _episode_cache_response(data: dict, tmdb_id: int, season: int) -> dict | None:
+    show = (data.get("shows") or {}).get(str(tmdb_id))
+    if not isinstance(show, dict):
+        _record_cache_event("nexstream_episode_metadata", "miss")
+        return None
+    seasons = show.get("seasons") if isinstance(show.get("seasons"), list) else []
+    episodes_by_season = show.get("episodesBySeason")
+    if not isinstance(episodes_by_season, dict):
+        episodes_by_season = {}
+    season_key = str(season)
+    if season_key in episodes_by_season and isinstance(episodes_by_season[season_key], list):
+        episodes = episodes_by_season[season_key]
         _record_cache_event("nexstream_episode_metadata", "persistent_hit")
         _record_cache_event("nexstream_episode_metadata", "episode_rows_served", len(episodes))
-        return {"success": True, "tmdbId": tmdb_id, "seasons": show.get("seasons") or [], "selectedSeason": season, "episodes": episodes, "cached": True}
-    except Exception:
-        _record_cache_event("nexstream_episode_metadata", "read_error_miss")
-        return None
+        return {
+            "success": True,
+            "status": "ready" if episodes else "no_episodes",
+            "tmdbId": tmdb_id,
+            "seasons": seasons,
+            "selectedSeason": season,
+            "episodes": episodes,
+            "cached": True,
+        }
+    if show.get("seasonsFetched") is True and not seasons:
+        _record_cache_event("nexstream_episode_metadata", "persistent_hit")
+        return {
+            "success": True,
+            "status": "no_seasons",
+            "tmdbId": tmdb_id,
+            "seasons": [],
+            "selectedSeason": season,
+            "episodes": [],
+            "cached": True,
+        }
+    return None
 
 
-def _write_episode_cache(tmdb_id: int, seasons: list, season: int, episodes: list) -> None:
-    try:
-        _NEXSTREAM_EPISODE_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with _NEXSTREAM_EPISODE_CACHE_LOCK:
-            data = {"shows": {}}
-            if _NEXSTREAM_EPISODE_CACHE_PATH.is_file():
-                try:
-                    existing = json.loads(_NEXSTREAM_EPISODE_CACHE_PATH.read_text(encoding="utf-8"))
-                    if isinstance(existing, dict):
-                        data = existing
-                except Exception:
-                    pass
-            shows = data.setdefault("shows", {})
-            show = shows.setdefault(str(tmdb_id), {"tmdbId": tmdb_id, "seasons": [], "episodesBySeason": {}})
-            show["tmdbId"] = tmdb_id
-            show["seasons"] = seasons or show.get("seasons", [])
-            show.setdefault("episodesBySeason", {})[str(season)] = episodes
-            temp = _NEXSTREAM_EPISODE_CACHE_PATH.with_suffix(".json.tmp")
-            temp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-            temp.replace(_NEXSTREAM_EPISODE_CACHE_PATH)
-    except Exception:
-        return
+def _write_episode_cache(
+    tmdb_id: int,
+    seasons: list,
+    season: int | None,
+    episodes: list | None,
+) -> None:
+    with _NEXSTREAM_EPISODE_CACHE_LOCK:
+        data = _read_episode_cache_document()
+        show = (data.setdefault("shows", {})).setdefault(
+            str(tmdb_id),
+            {"tmdbId": tmdb_id, "seasons": [], "episodesBySeason": {}},
+        )
+        show["tmdbId"] = tmdb_id
+        show["seasons"] = seasons
+        show["seasonsFetched"] = True
+        episode_map = show.setdefault("episodesBySeason", {})
+        if season is not None and episodes is not None:
+            episode_map[str(season)] = episodes
+        _write_episode_cache_document(data)
+
+_seed_nexstream_episode_cache()
+
 
 @router.get("/api/nexstream/episodes")
 async def get_tv_episodes(
@@ -339,13 +449,32 @@ async def get_tv_episodes(
     season: int = Query(1, ge=1),
 ):
     """Serve persisted episode metadata first; fetch TMDB only on cache misses."""
-    cached = _read_episode_cache(tmdb_id, season)
+    if tmdb_id <= 0:
+        raise HTTPException(status_code=422, detail="Invalid TMDB ID.")
+    if season <= 0:
+        raise HTTPException(status_code=422, detail="Invalid season number.")
+    cache_document = _read_episode_cache_document()
+    cached = _episode_cache_response(cache_document, tmdb_id, season)
     if cached is not None:
         return cached
+    show_cache = (cache_document.get("shows") or {}).get(str(tmdb_id)) or {}
+    known_seasons = show_cache.get("seasons") if isinstance(show_cache, dict) else []
+    if isinstance(known_seasons, list) and known_seasons and not any(
+        isinstance(item, dict) and int(item.get("seasonNumber", 0) or 0) == season
+        for item in known_seasons
+    ):
+        raise HTTPException(status_code=404, detail=f"Season {season} is not available for TMDB show {tmdb_id}.")
+    if CACHE_ONLY_MODE:
+        _record_cache_event("nexstream_episode_metadata", "cache_only_miss_blocked")
+        log_cache_only_metadata_block("TMDB")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Episode metadata for TMDB show {tmdb_id}, season {season}, is not present in the local cache.",
+        )
     api_keys = _env_values("TMDB_API_KEYS", "TMDB_API_KEY")
     bearer_tokens = _env_values("TMDB_READ_ACCESS_TOKENS", "TMDB_READ_ACCESS_TOKEN", "TMDB_BEARER_TOKEN")
     if not api_keys and not bearer_tokens:
-        raise HTTPException(status_code=503, detail="TMDB credentials are not configured on the test server.")
+        raise HTTPException(status_code=503, detail="TMDB authentication is not configured.")
 
     async with _InstrumentedAsyncClient(timeout=httpx.Timeout(12.0), follow_redirects=True) as client:
         async def tmdb_get(path: str):
@@ -374,9 +503,13 @@ async def get_tv_episodes(
                 if response.status_code == 429:
                     raise HTTPException(status_code=429, detail="TMDB rate limit reached. Try again shortly.")
             if last_status in (401, 403):
-                raise HTTPException(status_code=502, detail="TMDB rejected the configured credentials.")
+                raise HTTPException(status_code=502, detail="TMDB authentication failed. Check the configured credentials.")
             if connection_errors and last_status is None:
-                raise HTTPException(status_code=502, detail="Could not connect to TMDB episode metadata.")
+                raise HTTPException(status_code=502, detail="Network connection to TMDB failed while loading episode metadata.")
+            if last_status == 404:
+                if path.endswith("/season/" + str(season)):
+                    raise HTTPException(status_code=404, detail=f"TMDB has no episode metadata for season {season} of show {tmdb_id}.")
+                raise HTTPException(status_code=404, detail=f"TMDB show {tmdb_id} was not found; the TMDB ID may be invalid.")
             raise HTTPException(status_code=502, detail=f"TMDB episode metadata failed (HTTP {last_status or 'unknown'}).")
 
         show = await tmdb_get(f"/tv/{tmdb_id}")
@@ -385,8 +518,21 @@ async def get_tv_episodes(
             for item in show.get("seasons", [])
             if isinstance(item, dict) and int(item.get("season_number", 0)) > 0
         ]
-        selected_season = season if any(item["seasonNumber"] == season for item in seasons) else (seasons[0]["seasonNumber"] if seasons else season)
-        season_data = await tmdb_get(f"/tv/{tmdb_id}/season/{selected_season}")
+        if not seasons:
+            _write_episode_cache(tmdb_id, [], None, None)
+            return {
+                "success": True,
+                "status": "no_seasons",
+                "tmdbId": tmdb_id,
+                "seasons": [],
+                "selectedSeason": season,
+                "episodes": [],
+            }
+        if not any(item["seasonNumber"] == season for item in seasons):
+            _write_episode_cache(tmdb_id, seasons, None, None)
+            raise HTTPException(status_code=404, detail=f"Season {season} is not available for TMDB show {tmdb_id}.")
+        _write_episode_cache(tmdb_id, seasons, None, None)
+        season_data = await tmdb_get(f"/tv/{tmdb_id}/season/{season}")
     episodes = [
         {
             "episodeNumber": int(item.get("episode_number", 0)),
@@ -398,8 +544,15 @@ async def get_tv_episodes(
         for item in season_data.get("episodes", [])
         if isinstance(item, dict) and int(item.get("episode_number", 0)) > 0
     ]
-    _write_episode_cache(tmdb_id, seasons, selected_season, episodes)
-    return {"success": True, "tmdbId": tmdb_id, "seasons": seasons, "selectedSeason": selected_season, "episodes": episodes}
+    _write_episode_cache(tmdb_id, seasons, season, episodes)
+    return {
+        "success": True,
+        "status": "ready" if episodes else "no_episodes",
+        "tmdbId": tmdb_id,
+        "seasons": seasons,
+        "selectedSeason": season,
+        "episodes": episodes,
+    }
 
 
 @router.get("/api/nexstream/resolve")

@@ -6,7 +6,7 @@ import { imdbRatingKey } from '../grouping.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 
 export function NexStreamSection({ vm }: { vm: PanelModel }) {
-  const { imdbRatingsByKey, loadNexStreamEpisodes, nexStreamEpisodePicker, nexStreamEpisodePrefetchStatus, nexStreamEpisodes, nexStreamEpisodesError, nexStreamEpisodesLoading, nexStreamError, nexStreamLoading, nexStreamPlayer, nexStreamResolvingId, nexStreamResults, nexStreamSearchMode, nexStreamSeasons, nexStreamSelectedSeason, playWithNexStream, setNexStreamEpisodePicker, setNexStreamPlayer, switchToYenimePlayer } = vm;
+  const { imdbRatingsByKey, loadNexStreamEpisodes, nexStreamEpisodePicker, nexStreamEpisodePrefetchStatus, nexStreamEpisodes, nexStreamEpisodesError, nexStreamEpisodesLoading, nexStreamEpisodesStatus, nexStreamError, nexStreamLoading, nexStreamPlayer, nexStreamResolvingId, nexStreamResults, nexStreamSearchMode, nexStreamSeasons, nexStreamSelectedSeason, playWithNexStream, setNexStreamEpisodePicker, setNexStreamPlayer, switchToYenimePlayer } = vm;
   const [playerLoading, setPlayerLoading] = useState(false);
   useEffect(() => {
     setPlayerLoading(Boolean(nexStreamPlayer));
@@ -94,7 +94,13 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
                       ))}
                     </div>
                   ) : !nexStreamEpisodesLoading && !nexStreamEpisodesError ? (
-                    <div className="py-8 text-center text-sm text-slate-400">No episode metadata was returned for this season.</div>
+                    <div className="py-8 text-center text-sm text-slate-400">
+                      {nexStreamEpisodesStatus === 'no_seasons'
+                        ? 'TMDB reports no numbered seasons for this show.'
+                        : nexStreamEpisodesStatus === 'no_episodes'
+                          ? 'No episode metadata is available for this season.'
+                          : 'No episode metadata was returned for this season.'}
+                    </div>
                   ) : null}
                   {(nexStreamEpisodesError || (!nexStreamEpisodesLoading && nexStreamEpisodes.length === 0)) && (
                     <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); const form = event.currentTarget; const input = form.elements.namedItem('episodeNumber') as HTMLInputElement; const number = Number(input.value); if (Number.isInteger(number) && number > 0 && nexStreamEpisodePicker) { const selected = nexStreamEpisodePicker; setNexStreamEpisodePicker(null); void playWithNexStream(selected, nexStreamSelectedSeason, number); } }}>

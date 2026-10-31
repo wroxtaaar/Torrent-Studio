@@ -42,7 +42,7 @@ const NO_RATINGS: Record<string, undefined> = {};
 export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPrepare, onPlaySeedrFile, onOpenProgress, onCancelPrepare }: Pick<TorrentSearchPanelProps, 'onPrepare' | 'onPlaySeedrFile' | 'onOpenProgress' | 'onCancelPrepare'> & Required<Pick<TorrentSearchPanelProps, 'seedrFiles' | 'seedrDeletedFolderIds'>>) {
   const yenime = useYenimePlayer();
   const { query, setQuery, results, setResults, resolutionFilter, setResolutionFilter, sizeSort, setSizeSort, timeSort, setTimeSort, showRecentSearches, setShowRecentSearches, metadataCacheRef, recentSearchRef, searchRequestRef, searchGenerationRef } = useSearchInputState();
-  const { nexStreamResults, setNexStreamResults, nexStreamSearchMode, setNexStreamSearchMode, nexStreamLoading, setNexStreamLoading, nexStreamLoadingTitle, setNexStreamLoadingTitle, nexStreamEpisodePrefetchStatus, setNexStreamEpisodePrefetchStatus, nexStreamSearchControllerRef, nexStreamSearchGenerationRef, nexStreamError, setNexStreamError, nexStreamPlayer, setNexStreamPlayer, nexStreamResolvingId, setNexStreamResolvingId, nexStreamEpisodePicker, setNexStreamEpisodePicker, nexStreamSeasons, setNexStreamSeasons, nexStreamEpisodes, setNexStreamEpisodes, nexStreamSelectedSeason, setNexStreamSelectedSeason, nexStreamEpisodesLoading, setNexStreamEpisodesLoading, nexStreamEpisodesError, setNexStreamEpisodesError } = useNexStreamState();
+  const { nexStreamResults, setNexStreamResults, nexStreamSearchMode, setNexStreamSearchMode, nexStreamLoading, setNexStreamLoading, nexStreamLoadingTitle, setNexStreamLoadingTitle, nexStreamEpisodePrefetchStatus, setNexStreamEpisodePrefetchStatus, nexStreamSearchControllerRef, nexStreamSearchGenerationRef, nexStreamError, setNexStreamError, nexStreamPlayer, setNexStreamPlayer, nexStreamResolvingId, setNexStreamResolvingId, nexStreamEpisodePicker, setNexStreamEpisodePicker, nexStreamSeasons, setNexStreamSeasons, nexStreamEpisodes, setNexStreamEpisodes, nexStreamSelectedSeason, setNexStreamSelectedSeason, nexStreamEpisodesLoading, setNexStreamEpisodesLoading, nexStreamEpisodesError, setNexStreamEpisodesError, nexStreamEpisodesStatus, setNexStreamEpisodesStatus } = useNexStreamState();
   const { searchMetadata, setSearchMetadata, searchMetadataStatus, setSearchMetadataStatus, imdbRatingsByKey, setImdbRatingsByKey, imdbRatingRequestedRef, imdbRetryTick, setImdbRetryTick, imdbInFlightRef, imdbRetryCountRef, tvMetadataRequestedRef, searchAvailabilityByGroup, setSearchAvailabilityByGroup, selectedQualityByGroup, setSelectedQualityByGroup } = useSearchMetadataState();
   const { expandedSearchGroupKey, setExpandedSearchGroupKey, movieTorrentPreviewGroup, setMovieTorrentPreviewGroup, movieTorrentPreviewCatalogueId, setMovieTorrentPreviewCatalogueId, pendingPosterAction, setPendingPosterAction, movieTorrentPreviewPosterUrl, setMovieTorrentPreviewPosterUrl, cataloguePosterUrlsRef, searchPosterUrlsRef, movieTorrentPickerGroups, setMovieTorrentPickerGroups, movieTorrentSearchLoading, setMovieTorrentSearchLoading, movieTorrentSearchTitle, setMovieTorrentSearchTitle, movieTorrentSearchError, setMovieTorrentSearchError, selectedMovieTorrentQualityByGroup, setSelectedMovieTorrentQualityByGroup, movieTorrentSearchControllerRef, movieTorrentSearchGenerationRef, prepareClickIntentRef, prepareTraceIdRef, movieTorrentDetailsCacheRef } = useMoviePreviewState();
   const { persistMovieTorrentCache } = useMovieTorrentCache({ movieTorrentDetailsCacheRef });
@@ -51,7 +51,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
   useEffect(() => persistSearchAvailability(searchAvailabilityByGroup), [searchAvailabilityByGroup]);
   useEffect(() => persistImdbRatings(imdbRatingsByKey), [imdbRatingsByKey]);
   const renderFranchisePagination = (total: number) => total > franchiseGridPageSize ? <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2"><button type="button" disabled={franchiseGridPage <= 1} onClick={() => navigateFranchisePage(Math.max(1, franchiseGridPage - 1))} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-200 disabled:opacity-40">← Previous</button><span className="text-xs text-slate-400">Page {franchiseGridPage} of {Math.max(1, Math.ceil(total / franchiseGridPageSize))} · {total} titles</span><button type="button" disabled={franchiseGridPage >= Math.ceil(total / franchiseGridPageSize)} onClick={() => navigateFranchisePage(Math.min(Math.ceil(total / franchiseGridPageSize), franchiseGridPage + 1))} className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-40">Next →</button></div> : null;
-  const { regionalWebSeriesCatalogue, setRegionalWebSeriesCatalogue, regionalWebSeriesLoading, setRegionalWebSeriesLoading, regionalWebSeriesError, setRegionalWebSeriesError, showDcWebSeries, setShowDcWebSeries, dcWebSeriesCatalogue, setDcWebSeriesCatalogue, dcWebSeriesLoading, setDcWebSeriesLoading, dcWebSeriesError, setDcWebSeriesError, marvelWebSeriesCatalogue, setMarvelWebSeriesCatalogue, marvelWebSeriesLoading, setMarvelWebSeriesLoading, marvelWebSeriesError, setMarvelWebSeriesError } = useWebSeriesState();
+  const { regionalWebSeriesCatalogue, setRegionalWebSeriesCatalogue, regionalWebSeriesLoading, setRegionalWebSeriesLoading, regionalWebSeriesError, setRegionalWebSeriesError, showDcWebSeries, setShowDcWebSeries, dcWebSeriesCatalogue, setDcWebSeriesCatalogue, dcWebSeriesLoading, setDcWebSeriesLoading, dcWebSeriesError, setDcWebSeriesError, dcWebSeriesRequestGenerationRef, marvelWebSeriesCatalogue, setMarvelWebSeriesCatalogue, marvelWebSeriesLoading, setMarvelWebSeriesLoading, marvelWebSeriesError, setMarvelWebSeriesError } = useWebSeriesState();
   useEffect(() => {
     if (!openCachedLanguageMenu) return;
 
@@ -193,7 +193,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [showRecentSearches]);
   const { cancelSearch } = useCancelSearch({ searchGenerationRef, searchRequestRef, setShowRecentSearches, setResults, movieTorrentSearchGenerationRef, movieTorrentSearchControllerRef, nexStreamSearchGenerationRef, nexStreamSearchControllerRef, setNexStreamLoading, setNexStreamSearchMode, setNexStreamResults, setNexStreamError, setIsSearching, setCatalogueBuildProgress, setError, setMovieCatalogue, setSearched, setSearchAvailabilityByGroup });
-  const { searchNexStreamTitles, loadNexStreamEpisodes, playWithNexStream, playCatalogueTvWithNexStream } = useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearchGenerationRef, setNexStreamSearchMode, setNexStreamLoadingTitle, setNexStreamLoading, setNexStreamError, setNexStreamResults, setNexStreamPlayer, setNexStreamEpisodePrefetchStatus, setNexStreamSeasons, setNexStreamEpisodes, setNexStreamSelectedSeason, setNexStreamEpisodesError, setNexStreamEpisodesLoading, setNexStreamEpisodePicker, setNexStreamResolvingId, error });
+  const { searchNexStreamTitles, loadNexStreamEpisodes, playWithNexStream, playCatalogueTvWithNexStream } = useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearchGenerationRef, setNexStreamSearchMode, setNexStreamLoadingTitle, setNexStreamLoading, setNexStreamError, setNexStreamResults, setNexStreamPlayer, setNexStreamEpisodePrefetchStatus, setNexStreamSeasons, setNexStreamEpisodes, setNexStreamSelectedSeason, setNexStreamEpisodesError, setNexStreamEpisodesStatus, setNexStreamEpisodesLoading, setNexStreamEpisodePicker, setNexStreamResolvingId, error });
   // Warm the episode metadata cache while the franchise TV catalogue is
   // open, so selecting a series usually opens with its season/episodes ready.
   useEffect(() => {
@@ -243,7 +243,31 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     setRegionalWebSeriesLoading(false);
     return runSearchRaw(...args);
   };
-  const { loadDcWebSeries, loadClassicsTvCatalogue, loadMarvelWebSeries } = useWebSeriesLoaders({ searchGenerationRef, setShowDcWebSeries, dcWebSeriesCatalogue, dcWebSeriesLoading, setDcWebSeriesLoading, setDcWebSeriesError, setDcWebSeriesCatalogue, marvelWebSeriesCatalogue, setMarvelWebSeriesCatalogue, setMarvelWebSeriesLoading, setMarvelWebSeriesError, marvelWebSeriesLoading, setShowMarvelWebSeries, error, setClassicsContentTab });
+  const { loadDcWebSeries, loadDcWebSeriesPage, loadClassicsTvCatalogue, loadMarvelWebSeries } = useWebSeriesLoaders({
+    searchGenerationRef,
+    dcWebSeriesRequestGenerationRef,
+    searchRequestRef,
+    franchisePageRequestRef,
+    setShowDcWebSeries,
+    setDcWebSeriesLoading,
+    setDcWebSeriesError,
+    setDcWebSeriesCatalogue,
+    setShowMarvelWebSeries,
+    setClassicsContentTab,
+    marvelWebSeriesCatalogue,
+    marvelWebSeriesLoading,
+    setMarvelWebSeriesCatalogue,
+    setMarvelWebSeriesLoading,
+    setMarvelWebSeriesError,
+    setIsSearching,
+    setSearched,
+    setError,
+    setMovieCatalogue,
+    setActiveFranchiseSearchMode,
+    setFranchiseGridPage,
+    setCatalogueExpectedTitles,
+    setResults,
+  });
   const openMovieCatalogue = async (
     key: MovieCatalogueKey,
     searchText: string,
@@ -677,6 +701,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     nexStreamSelectedSeason,
     nexStreamEpisodesLoading,
     nexStreamEpisodesError,
+    nexStreamEpisodesStatus,
     searchMetadata,
     searchMetadataStatus,
     imdbRatingsByKey,
@@ -806,6 +831,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     selectMovieTorrentGroup,
     closeMoviePrepareCard,
     loadDcWebSeries,
+    loadDcWebSeriesPage,
     loadClassicsTvCatalogue,
     loadMarvelWebSeries,
     openMovieCatalogue,

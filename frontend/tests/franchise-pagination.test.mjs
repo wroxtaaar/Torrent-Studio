@@ -85,7 +85,7 @@ test('Marvel Web Series, DC Web Series and Favourites Web Series have matching t
       label: 'DC Web Series',
       start: ') : showDcWebSeries ? (',
       end: ') : showMarvelWebSeries ? (',
-      call: 'renderFranchisePagination(dcWebSeriesCatalogue.results.length)',
+      call: 'renderDcWebSeriesPagination()',
     },
     {
       label: 'Marvel Web Series',

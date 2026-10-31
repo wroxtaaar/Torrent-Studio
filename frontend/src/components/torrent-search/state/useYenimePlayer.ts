@@ -29,6 +29,7 @@ export function useYenimePlayer() {
   const [yenimeSelectedSeason, setYenimeSelectedSeason] = useState(1);
   const [yenimeEpisodesLoading, setYenimeEpisodesLoading] = useState(false);
   const [yenimeEpisodesError, setYenimeEpisodesError] = useState('');
+  const [yenimeEpisodesStatus, setYenimeEpisodesStatus] = useState<'ready' | 'no_seasons' | 'no_episodes' | null>(null);
   const [yenimeProvider, setYenimeProvider] = useState<'yenime' | 'vidrift'>('yenime');
   const generationRef = useRef(0);
   const episodeLoadGenerationRef = useRef(0);
@@ -37,15 +38,18 @@ export function useYenimePlayer() {
     const generation = ++episodeLoadGenerationRef.current;
     setYenimeEpisodesLoading(true);
     setYenimeEpisodesError('');
+    setYenimeEpisodesStatus(null);
     try {
       const data = await fetchNexStreamEpisodeMetadata(tmdbId, season);
       if (generation !== episodeLoadGenerationRef.current) return;
       setYenimeSeasons(data.seasons);
       setYenimeEpisodes(data.episodes);
       setYenimeSelectedSeason(data.selectedSeason);
+      setYenimeEpisodesStatus(data.status || (!data.seasons.length ? 'no_seasons' : data.episodes.length ? 'ready' : 'no_episodes'));
     } catch (error: unknown) {
       if (generation !== episodeLoadGenerationRef.current) return;
       setYenimeEpisodes([]);
+      setYenimeEpisodesStatus(null);
       setYenimeEpisodesError(error instanceof Error ? error.message : 'Could not load episode list.');
     } finally {
       if (generation === episodeLoadGenerationRef.current) setYenimeEpisodesLoading(false);
@@ -59,6 +63,7 @@ export function useYenimePlayer() {
     setYenimeEpisodes([]);
     setYenimeSeasons([]);
     setYenimeEpisodesError('');
+    setYenimeEpisodesStatus(null);
     setYenimeRequest(null);
   };
 
@@ -112,6 +117,7 @@ export function useYenimePlayer() {
     setYenimeEpisodes([]);
     setYenimeSeasons([]);
     setYenimeEpisodesError('');
+    setYenimeEpisodesStatus(null);
     setYenimeProvider('yenime');
 
     const numericEpisode = Number(episode);
@@ -167,6 +173,7 @@ export function useYenimePlayer() {
     setYenimeEpisodes([]);
     setYenimeSeasons([]);
     setYenimeEpisodesError('');
+    setYenimeEpisodesStatus(null);
   };
 
   const launchYenime = (malIdText: string, episodeText: string, type: 'sub' | 'dub') => {
@@ -189,6 +196,7 @@ export function useYenimePlayer() {
   return {
     yenimeRequest, yenimePlayer, yenimeEpisodePicker, yenimeSeasons, yenimeEpisodes,
     yenimeSelectedSeason, yenimeEpisodesLoading, yenimeEpisodesError, yenimeProvider,
+    yenimeEpisodesStatus,
     setYenimePlayer, setYenimeRequest, setYenimeSelectedSeason, setYenimeProvider,
     openYenimeRequest, switchToYenimePlayer, closeYenime, closeYenimeEpisodePicker,
     loadYenimeEpisodes, launchYenime,

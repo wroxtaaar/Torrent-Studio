@@ -5,6 +5,7 @@
 #   refresh_and_publish.sh hollywood-bollywood     # weekly
 #   refresh_and_publish.sh franchise               # when you want Marvel/DC/classics updated
 #   refresh_and_publish.sh classics                # only the Classics lists (much quicker)
+#   refresh_and_publish.sh episode-metadata         # explicitly build/publish the TV episode cache
 #   refresh_and_publish.sh publish-only            # just re-publish the current working copy
 #
 # Config in ~/.config/torrent-studio/env (chmod 600):
@@ -14,7 +15,7 @@
 set -euo pipefail
 # Everything runs inside a function so that `git pull` replacing this file mid-run is harmless.
 main() {
-GROUP="${1:?usage: $0 hollywood-bollywood|franchise|classics|tv-imdb|imdb-dataset|publish-only}"
+GROUP="${1:?usage: $0 hollywood-bollywood|franchise|classics|tv-imdb|imdb-dataset|episode-metadata|publish-only}"
 REPO="wroxtaaar/Torrent-Studio"
 HOME_DIR="${TS_HOME:-$HOME/torrent-studio-refresh}"
 mkdir -p "$HOME_DIR"; cd "$HOME_DIR"
@@ -32,7 +33,14 @@ export REFRESH_SEED_DIR="$HOME_DIR/seed"
 [ -d "$REFRESH_SEED_DIR" ] || cp -r repo/backend/cache-seed "$REFRESH_SEED_DIR"
 
 if [ "$GROUP" != "publish-only" ]; then
-  ./venv/bin/python repo/scripts/refresh_seed.py "$GROUP"
+  if [ "$GROUP" = "episode-metadata" ]; then
+    ./venv/bin/python repo/scripts/build_episode_metadata_cache.py \
+      --seed-dir "$REFRESH_SEED_DIR" \
+      --cache-path "$REFRESH_SEED_DIR/runtime/nexstream_episode_metadata_cache.json" \
+      --allow-live-tmdb
+  else
+    ./venv/bin/python repo/scripts/refresh_seed.py "$GROUP"
+  fi
 fi
 
 rm -rf out; ./venv/bin/python repo/scripts/make_cache_bundle.py "$REFRESH_SEED_DIR" out

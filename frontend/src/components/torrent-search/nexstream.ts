@@ -7,7 +7,12 @@ export type NexStreamEpisode = { episodeNumber: number; name: string; overview: 
 
 export type NexStreamSeason = { seasonNumber: number; name: string; episodeCount: number };
 
-export type NexStreamEpisodePayload = { seasons: NexStreamSeason[]; episodes: NexStreamEpisode[]; selectedSeason: number };
+export type NexStreamEpisodePayload = {
+  seasons: NexStreamSeason[];
+  episodes: NexStreamEpisode[];
+  selectedSeason: number;
+  status?: 'ready' | 'no_seasons' | 'no_episodes';
+};
 
 // Episode metadata is prefetched after TV search results appear. Keep it in a
 // module cache so opening the picker and revisiting a title is usually instant.
@@ -71,14 +76,23 @@ export async function fetchNexStreamEpisodeMetadata(tmdbId: number, season: numb
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data.success) {
           const error = new Error(data.detail || 'Could not load episode list.');
-          // Retry server errors and rate limits; don't retry invalid requests.
-          if (response.status < 500 && response.status !== 429) throw Object.assign(error, { permanent: true });
+          if (response.status < 500) throw Object.assign(error, { permanent: true });
           throw error;
         }
+        const seasons = Array.isArray(data.seasons) ? data.seasons : [];
+        const episodes = Array.isArray(data.episodes) ? data.episodes : [];
+        const status = data.status === 'no_seasons' || data.status === 'no_episodes'
+          ? data.status
+          : !seasons.length
+            ? 'no_seasons'
+            : episodes.length
+              ? 'ready'
+              : 'no_episodes';
         const payload: NexStreamEpisodePayload = {
-          seasons: Array.isArray(data.seasons) ? data.seasons : [],
-          episodes: Array.isArray(data.episodes) ? data.episodes : [],
+          seasons,
+          episodes,
           selectedSeason: Number(data.selectedSeason) || season,
+          status,
         };
         nexStreamEpisodeCache.set(nexStreamEpisodeCacheKey(tmdbId, payload.selectedSeason), payload);
         nexStreamEpisodeCache.set(key, payload);

@@ -2,6 +2,7 @@ import { api } from '../../../api/client.ts';
 import { tvCataloguePageFromSection, tvCatalogueSection } from '../../../api/sectionCache.ts';
 import { useCatalogueNavigationState } from './useCatalogueNavigationState.ts';
 import { useWebSeriesState } from './useWebSeriesState.ts';
+import { useSearchInputState } from './useSearchInputState.ts';
 
 async function loadTvCataloguePage(catalogue: string, page = 1) {
   const section = tvCatalogueSection(catalogue);
@@ -12,23 +13,104 @@ async function loadTvCataloguePage(catalogue: string, page = 1) {
   return result;
 }
 
-export function useWebSeriesLoaders({ searchGenerationRef, setShowDcWebSeries, dcWebSeriesCatalogue, dcWebSeriesLoading, setDcWebSeriesLoading, setDcWebSeriesError, setDcWebSeriesCatalogue, marvelWebSeriesCatalogue, setMarvelWebSeriesCatalogue, setMarvelWebSeriesLoading, setMarvelWebSeriesError, marvelWebSeriesLoading, setShowMarvelWebSeries, error, setClassicsContentTab }: { searchGenerationRef: { current: number } } & Pick<ReturnType<typeof useWebSeriesState>, 'setShowDcWebSeries' | 'dcWebSeriesCatalogue' | 'dcWebSeriesLoading' | 'setDcWebSeriesLoading' | 'setDcWebSeriesError' | 'setDcWebSeriesCatalogue' | 'marvelWebSeriesCatalogue' | 'setMarvelWebSeriesCatalogue' | 'setMarvelWebSeriesLoading' | 'setMarvelWebSeriesError' | 'marvelWebSeriesLoading'> & Pick<ReturnType<typeof useCatalogueNavigationState>, 'setShowMarvelWebSeries' | 'error' | 'setClassicsContentTab'>) {
+export function useWebSeriesLoaders({
+  searchGenerationRef,
+  dcWebSeriesRequestGenerationRef,
+  setShowDcWebSeries,
+  setDcWebSeriesLoading,
+  setDcWebSeriesError,
+  setDcWebSeriesCatalogue,
+  setShowMarvelWebSeries,
+  setClassicsContentTab,
+  marvelWebSeriesCatalogue,
+  marvelWebSeriesLoading,
+  setMarvelWebSeriesCatalogue,
+  setMarvelWebSeriesLoading,
+  setMarvelWebSeriesError,
+  setIsSearching,
+  setSearched,
+  setError,
+  setMovieCatalogue,
+  setActiveFranchiseSearchMode,
+  setFranchiseGridPage,
+  setCatalogueExpectedTitles,
+  setResults,
+  searchRequestRef,
+  franchisePageRequestRef,
+}: {
+  searchGenerationRef: { current: number };
+  dcWebSeriesRequestGenerationRef: { current: number };
+  searchRequestRef: { current: AbortController | null };
+  franchisePageRequestRef: { current: AbortController | null };
+} & Pick<ReturnType<typeof useWebSeriesState>,
+  | 'setShowDcWebSeries'
+  | 'setDcWebSeriesLoading'
+  | 'setDcWebSeriesError'
+  | 'setDcWebSeriesCatalogue'
+  | 'marvelWebSeriesCatalogue'
+  | 'marvelWebSeriesLoading'
+  | 'setMarvelWebSeriesCatalogue'
+  | 'setMarvelWebSeriesLoading'
+  | 'setMarvelWebSeriesError'
+> & Pick<ReturnType<typeof useCatalogueNavigationState>,
+  | 'setShowMarvelWebSeries'
+  | 'setClassicsContentTab'
+  | 'setIsSearching'
+  | 'setSearched'
+  | 'setError'
+  | 'setMovieCatalogue'
+  | 'setActiveFranchiseSearchMode'
+  | 'setFranchiseGridPage'
+  | 'setCatalogueExpectedTitles'
+> & {
+  setResults: ReturnType<typeof useSearchInputState>['setResults'];
+}) {
+  const loadDcWebSeriesPage = async (page: number) => {
+    const generation = ++searchGenerationRef.current;
+    const requestGeneration = ++dcWebSeriesRequestGenerationRef.current;
+    setDcWebSeriesLoading(true);
+    setDcWebSeriesError('');
+    try {
+      const cataloguePage = await loadTvCataloguePage('dc-live-action', page);
+      if (
+        generation === searchGenerationRef.current
+        && requestGeneration === dcWebSeriesRequestGenerationRef.current
+      ) {
+        setDcWebSeriesCatalogue(cataloguePage);
+      }
+    } catch (error: any) {
+      if (
+        generation === searchGenerationRef.current
+        && requestGeneration === dcWebSeriesRequestGenerationRef.current
+      ) {
+        setDcWebSeriesError(String(error?.message || 'Could not load DC web series.'));
+      }
+    } finally {
+      if (requestGeneration === dcWebSeriesRequestGenerationRef.current) {
+        setDcWebSeriesLoading(false);
+      }
+    }
+  };
+
   const loadDcWebSeries = async () => {
     setShowDcWebSeries(true);
     setShowMarvelWebSeries(false);
-    if (dcWebSeriesCatalogue || dcWebSeriesLoading) return;
-    setDcWebSeriesLoading(true);
+    searchRequestRef.current?.abort();
+    searchRequestRef.current = null;
+    franchisePageRequestRef.current?.abort();
+    franchisePageRequestRef.current = null;
+    searchGenerationRef.current += 1;
+    setIsSearching(false);
+    setSearched(false);
+    setError('');
+    setResults([]);
+    setMovieCatalogue(null);
+    setActiveFranchiseSearchMode(null);
+    setFranchiseGridPage(1);
+    setCatalogueExpectedTitles(0);
+    setDcWebSeriesCatalogue(null);
     setDcWebSeriesError('');
-    // Any newer section action bumps the counter, so a late answer cannot reappear after switching away.
-    const generation = ++searchGenerationRef.current;
-    try {
-      const page = await loadTvCataloguePage('dc-live-action');
-      if (generation === searchGenerationRef.current) setDcWebSeriesCatalogue(page);
-    } catch (error: any) {
-      if (generation === searchGenerationRef.current) setDcWebSeriesError(String(error?.message || 'Could not load DC web series.'));
-    } finally {
-      setDcWebSeriesLoading(false);
-    }
+    await loadDcWebSeriesPage(1);
   };
   const loadClassicsTvCatalogue = async (catalogueKey: 'classics-web-series' | 'classics-anime', tab: 'web-series' | 'anime') => {
     setClassicsContentTab(tab);
@@ -76,6 +158,7 @@ export function useWebSeriesLoaders({ searchGenerationRef, setShowDcWebSeries, d
 
   return {
     loadDcWebSeries,
+    loadDcWebSeriesPage,
     loadClassicsTvCatalogue,
     loadMarvelWebSeries,
   };

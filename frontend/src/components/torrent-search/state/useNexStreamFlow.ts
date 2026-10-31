@@ -8,7 +8,7 @@ import { useRef } from 'react';
 import { readLocalCache } from '../localCache.ts';
 import { buildVidRiftMovieUrl, buildVidRiftTvUrl, validTmdbId } from '../vidrift.ts';
 
-export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearchGenerationRef, setNexStreamSearchMode, setNexStreamLoadingTitle, setNexStreamLoading, setNexStreamError, setNexStreamResults, setNexStreamPlayer, setNexStreamEpisodePrefetchStatus, setNexStreamSeasons, setNexStreamEpisodes, setNexStreamSelectedSeason, setNexStreamEpisodesError, setNexStreamEpisodesLoading, setNexStreamEpisodePicker, setNexStreamResolvingId, error }: Pick<ReturnType<typeof useNexStreamState>, 'nexStreamSearchControllerRef' | 'nexStreamSearchGenerationRef' | 'setNexStreamSearchMode' | 'setNexStreamLoadingTitle' | 'setNexStreamLoading' | 'setNexStreamError' | 'setNexStreamResults' | 'setNexStreamPlayer' | 'setNexStreamEpisodePrefetchStatus' | 'setNexStreamSeasons' | 'setNexStreamEpisodes' | 'setNexStreamSelectedSeason' | 'setNexStreamEpisodesError' | 'setNexStreamEpisodesLoading' | 'setNexStreamEpisodePicker' | 'setNexStreamResolvingId'> & Pick<ReturnType<typeof useCatalogueNavigationState>, 'error'>) {
+export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearchGenerationRef, setNexStreamSearchMode, setNexStreamLoadingTitle, setNexStreamLoading, setNexStreamError, setNexStreamResults, setNexStreamPlayer, setNexStreamEpisodePrefetchStatus, setNexStreamSeasons, setNexStreamEpisodes, setNexStreamSelectedSeason, setNexStreamEpisodesError, setNexStreamEpisodesStatus, setNexStreamEpisodesLoading, setNexStreamEpisodePicker, setNexStreamResolvingId, error }: Pick<ReturnType<typeof useNexStreamState>, 'nexStreamSearchControllerRef' | 'nexStreamSearchGenerationRef' | 'setNexStreamSearchMode' | 'setNexStreamLoadingTitle' | 'setNexStreamLoading' | 'setNexStreamError' | 'setNexStreamResults' | 'setNexStreamPlayer' | 'setNexStreamEpisodePrefetchStatus' | 'setNexStreamSeasons' | 'setNexStreamEpisodes' | 'setNexStreamSelectedSeason' | 'setNexStreamEpisodesError' | 'setNexStreamEpisodesStatus' | 'setNexStreamEpisodesLoading' | 'setNexStreamEpisodePicker' | 'setNexStreamResolvingId'> & Pick<ReturnType<typeof useCatalogueNavigationState>, 'error'>) {
   const episodeLoadGenerationRef = useRef(0);
   const searchNexStreamTitles = async (titleQuery: string, mediaType: 'movie' | 'tv' = 'movie') => {
     nexStreamSearchControllerRef.current?.abort();
@@ -95,6 +95,7 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
       setNexStreamSeasons(cached.seasons);
       setNexStreamEpisodes(cached.episodes);
       setNexStreamSelectedSeason(cached.selectedSeason);
+      setNexStreamEpisodesStatus(cached.status || (!cached.seasons.length ? 'no_seasons' : cached.episodes.length ? 'ready' : 'no_episodes'));
       setNexStreamEpisodesError('');
       setNexStreamEpisodesLoading(false);
       return;
@@ -102,16 +103,19 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
 
     setNexStreamEpisodesLoading(true);
     setNexStreamEpisodesError('');
+    setNexStreamEpisodesStatus(null);
     try {
       const data = await fetchNexStreamEpisodeMetadata(item.id, season);
       if (generation !== episodeLoadGenerationRef.current) return;
       setNexStreamSeasons(data.seasons);
       setNexStreamEpisodes(data.episodes);
       setNexStreamSelectedSeason(data.selectedSeason);
+      setNexStreamEpisodesStatus(data.status || (!data.seasons.length ? 'no_seasons' : data.episodes.length ? 'ready' : 'no_episodes'));
     } catch (error: any) {
       if (generation !== episodeLoadGenerationRef.current) return;
       setNexStreamEpisodesError(String(error?.message || 'Could not load episode list.'));
       setNexStreamEpisodes([]);
+      setNexStreamEpisodesStatus(null);
     } finally {
       if (generation === episodeLoadGenerationRef.current) setNexStreamEpisodesLoading(false);
     }
@@ -126,6 +130,7 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
       setNexStreamEpisodes([]);
       setNexStreamSeasons([]);
       setNexStreamEpisodesError('');
+      setNexStreamEpisodesStatus(null);
       await loadNexStreamEpisodes(item, 1);
       return;
     }
