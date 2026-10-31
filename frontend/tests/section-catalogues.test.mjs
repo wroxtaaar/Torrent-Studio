@@ -145,6 +145,31 @@ test('Yenime MAL lookup sends TMDB ID for offline mapping lookup', async t => {
   assert.match(requests[0], /year=2013/);
 });
 
+test('browser Back records and restores catalogue and playback navigation', async () => {
+  const panel = await readFile(
+    resolve(frontendRoot, 'src/components/torrent-search/useTorrentSearchPanel.tsx'),
+    'utf8',
+  );
+  const shell = await readFile(
+    resolve(frontendRoot, 'src/app/state/useAppShellState.ts'),
+    'utf8',
+  );
+  const yenime = await readFile(
+    resolve(frontendRoot, 'src/components/torrent-search/state/useYenimePlayer.ts'),
+    'utf8',
+  );
+
+  assert.match(panel, /window\.history\.pushState\(/);
+  assert.match(panel, /window\.addEventListener\('popstate', restore\)/);
+  assert.match(panel, /setActiveTopSection\(view\.activeTopSection/);
+  assert.match(panel, /setNexStreamEpisodePicker\(view\.nexStreamEpisodePicker/);
+  assert.match(panel, /yenime\.setYenimeEpisodePicker\(view\.yenimeEpisodePicker/);
+  assert.match(panel, /if \(hadPlayer && !hasPlayer/);
+  assert.match(panel, /window\.history\.back\(\)/);
+  assert.match(shell, /setActiveTab\(stateTab\)/);
+  assert.match(yenime, /setYenimeSeasons, setYenimeEpisodes/);
+});
+
 test('anime playback hides MAL IDs, defaults to Dub, and preserves episode pickers', async () => {
   const hookSource = await readFile(
     resolve(frontendRoot, 'src/components/torrent-search/state/useYenimePlayer.ts'),
