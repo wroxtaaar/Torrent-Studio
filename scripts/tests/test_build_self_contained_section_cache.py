@@ -1,8 +1,8 @@
 import importlib.util
 import json
-from pathlib import Path
 import tempfile
 import unittest
+from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / "build_self_contained_section_cache.py"
 SPEC = importlib.util.spec_from_file_location("build_self_contained_section_cache", SCRIPT)
@@ -188,6 +188,98 @@ class SelfContainedSectionCacheTests(unittest.TestCase):
                 sorted(path.name for path in output.glob("*.json")),
                 sorted(f"{section}.json" for section in MODULE.SECTIONS),
             )
+
+    def test_in_place_migration_preserves_curated_rows_and_non_section_caches(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            seed = Path(temporary) / "seed"
+            runtime = seed / "runtime"
+            runtime.mkdir(parents=True)
+            regional_tv = seed / "regional_tv_prebuilt_cache.json"
+            catalogues = {
+                key: {"pages": [{"page": 1, "results": [{
+                    "id": index + 9000,
+                    "title": f"Regional {key}",
+                }]}]}
+                for index, key in enumerate(MODULE.REGIONAL_TV_CATALOGUES)
+            }
+            regional_tv.write_text(json.dumps({"catalogues": catalogues}), encoding="utf-8")
+            for filename, payload in (
+                ("tmdb_movie_catalogue_cache.json", {"catalogues": {}}),
+                ("tmdb_search_metadata_cache.json", {"results": []}),
+                ("imdb_rating_cache.json", {"results": []}),
+                ("tmdb_ott_availability_cache.json", {"items": {}}),
+                ("yenime_mal_resolution_cache.json", {
+                    "version": 2,
+                    "tmdbMappings": {"101": {"tmdbId": 101, "malId": 5114}},
+                }),
+                ("nexstream_episode_metadata_cache.json", {
+                    "shows": {"101": {"episodesBySeason": {"1": []}}},
+                }),
+            ):
+                (runtime / filename).write_text(json.dumps(payload), encoding="utf-8")
+
+            for section in MODULE.SECTIONS:
+                (seed / f"{section}.json").write_text(json.dumps({
+                    "section": section,
+                    "subsections": {
+                        "movies": {
+                            "mediaType": "movie",
+                            "pageSize": 18,
+                            "pageCount": 1,
+                            "pageOffsets": [0, 2],
+                            "totalResults": 2,
+                            "results": [
+                                {
+                                    "id": 101,
+                                    "title": "Curated First",
+                                    "year": 2020,
+                                    "posterUrl": "https://example.test/keep.jpg",
+                                },
+                                {"id": 202, "title": "Curated Second", "year": 2021},
+                            ],
+                        },
+                    },
+                    "customMetadata": {"preserve": True},
+                }), encoding="utf-8")
+
+            preserved = {
+                path: path.read_bytes()
+                for path in (regional_tv, *runtime.glob("*.json"))
+            }
+            MODULE.migrate(seed, runtime, seed, regional_tv)
+
+            for section in MODULE.SECTIONS:
+                document = json.loads((seed / f"{section}.json").read_text(encoding="utf-8"))
+                subsection = document["subsections"]["movies"]
+                self.assertEqual(
+                    [row["title"] for row in subsection["results"]],
+                    ["Curated First", "Curated Second"],
+                )
+                self.assertEqual(subsection["results"][0]["posterUrl"], "https://example.test/keep.jpg")
+                self.assertEqual(subsection["pageOffsets"], [0, 2])
+                self.assertEqual(subsection["totalResults"], 2)
+                self.assertEqual(document["customMetadata"], {"preserve": True})
+                self.assertIs(document["metadataSelfContained"], True)
+            for path, contents in preserved.items():
+                self.assertEqual(path.read_bytes(), contents)
+
+    def test_publisher_builds_and_validates_before_bundle_upload_for_every_operation(self):
+        publisher = SCRIPT.parent / "vps" / "refresh_and_publish.sh"
+        script = publisher.read_text(encoding="utf-8")
+        builder_call = script.index("repo/scripts/build_self_contained_section_cache.py")
+        validator_call = script.index("repo/scripts/validate_section_caches.py")
+        bundle_call = script.index("repo/scripts/make_cache_bundle.py")
+        upload_call = script.index("gh release upload")
+
+        self.assertLess(builder_call, validator_call)
+        self.assertLess(validator_call, bundle_call)
+        self.assertLess(bundle_call, upload_call)
+        self.assertIn('--source-dir "$REFRESH_SEED_DIR"', script)
+        self.assertIn('--cache-dir "$REFRESH_SEED_DIR/runtime"', script)
+        self.assertIn('--regional-tv-cache "$REFRESH_SEED_DIR/regional_tv_prebuilt_cache.json"', script)
+        self.assertIn('--output-dir "$REFRESH_SEED_DIR"', script)
+        self.assertIn("--require-all", script)
+        self.assertIn("--require-self-contained", script)
 
     def test_failed_imdb_cache_result_does_not_replace_good_values(self):
         row = {

@@ -66,9 +66,13 @@ This needs `CACHE_ONLY_MODE=false` and TMDB keys on Render (set in `render.yaml`
 GitHub never stores refreshed data in `main`'s history. Instead:
 
 1. A cron job on the VPS runs `scripts/vps/refresh_and_publish.sh <group>`. It refreshes data with
-   live API keys (`scripts/refresh_seed.py`), packs one `cache-bundle.tar.gz` + `cache-bundle.json`
-   (checksum, version) with `scripts/make_cache_bundle.py`, uploads them to the rolling release
-   `cache-data` (old assets are replaced, so size stays flat) and calls the Render deploy hook.
+   live API keys (`scripts/refresh_seed.py`), rebuilds the nine self-contained section documents
+   from the persistent seed's `runtime/` metadata caches and `regional_tv_prebuilt_cache.json`,
+   validates their API-required shape, then packs one `cache-bundle.tar.gz` + `cache-bundle.json`
+   (checksum, version) with `scripts/make_cache_bundle.py`. The section migration writes only the
+   nine section files, preserving the persistent episode and MAL mapping caches. It uploads the
+   bundle to the rolling release `cache-data` (old assets are replaced, so size stays flat) and
+   calls the Render deploy hook.
 2. When the Render container starts, `maintenance/fetch_cache_bundle.py` downloads the bundle,
    verifies the checksum, refuses anything unsafe or not valid JSON, and overlays it on the seed
    baked into the image. If anything fails it prints why and the baked seed is used.

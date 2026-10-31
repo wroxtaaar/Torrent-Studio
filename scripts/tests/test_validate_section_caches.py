@@ -1,5 +1,7 @@
 """The section-cache validator flags torrent fields, stale stream fields and duplicates; gaps are only counted."""
 import importlib.util
+import json
+import tempfile
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / "validate_section_caches.py"
@@ -30,3 +32,29 @@ def test_torrent_stale_stream_duplicates_and_missing_titles_fail():
 def test_direct_stream_broken_flag_is_allowed():
     problems, _ = MODULE.check_subsection([{"title": "A", "tmdbId": 1, "directStreamBroken": True}])
     assert problems == []
+
+
+def test_self_contained_validation_requires_all_nine_api_document_shapes():
+    with tempfile.TemporaryDirectory() as temporary:
+        seed = Path(temporary)
+        for section in MODULE.SELF_CONTAINED_SECTIONS:
+            (seed / f"{section}.json").write_text(json.dumps({
+                "section": section,
+                "metadataSelfContained": True,
+                "subsections": {},
+            }), encoding="utf-8")
+
+        assert MODULE.validate_self_contained_documents(seed) == []
+
+        (seed / "anime.json").write_text(json.dumps({
+            "section": "wrong-section",
+            "metadataSelfContained": False,
+            "subsections": [],
+        }), encoding="utf-8")
+        (seed / "dc.json").unlink()
+        problems = MODULE.validate_self_contained_documents(seed)
+
+        assert any("anime.json: section must equal" in problem for problem in problems)
+        assert any("anime.json: metadataSelfContained must be true" in problem for problem in problems)
+        assert any("anime.json: subsections must be an object" in problem for problem in problems)
+        assert any("dc.json: cannot read valid JSON" in problem for problem in problems)

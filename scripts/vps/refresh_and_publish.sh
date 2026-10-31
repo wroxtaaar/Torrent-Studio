@@ -44,6 +44,18 @@ if [ "$GROUP" != "publish-only" ]; then
   fi
 fi
 
+# Build self-contained section documents from the persistent seed and its runtime metadata caches.
+# The builder writes only the nine section JSON files; episode and MAL caches remain untouched.
+./venv/bin/python repo/scripts/build_self_contained_section_cache.py \
+  --source-dir "$REFRESH_SEED_DIR" \
+  --cache-dir "$REFRESH_SEED_DIR/runtime" \
+  --regional-tv-cache "$REFRESH_SEED_DIR/regional_tv_prebuilt_cache.json" \
+  --output-dir "$REFRESH_SEED_DIR"
+./venv/bin/python repo/scripts/validate_section_caches.py \
+  --seed "$REFRESH_SEED_DIR" \
+  --require-all \
+  --require-self-contained
+
 rm -rf out; ./venv/bin/python repo/scripts/make_cache_bundle.py "$REFRESH_SEED_DIR" out
 
 gh release view cache-data -R "$REPO" >/dev/null 2>&1 || \

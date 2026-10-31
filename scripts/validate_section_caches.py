@@ -23,6 +23,10 @@ assert _spec and _spec.loader
 _spec.loader.exec_module(split)
 
 SECTIONS = ("marvel", "dc", "hollywood", "bollywood", "korean", "pakistani", "anime", "favourites", "highest-rated")
+SELF_CONTAINED_SECTIONS = (
+    "hollywood", "bollywood", "marvel", "dc", "highest-rated",
+    "korean", "pakistani", "anime", "favourites",
+)
 GAPS = (("tmdbId", "no tmdbId"), ("imdbId", "no imdbId"), ("posterUrl", "no poster"), ("overview", "no overview"))
 
 
@@ -52,12 +56,47 @@ def check_subsection(rows: list) -> tuple[list[str], dict[str, int]]:
     return problems, gaps
 
 
+def validate_self_contained_documents(seed: Path) -> list[str]:
+    problems: list[str] = []
+    for section in SELF_CONTAINED_SECTIONS:
+        path = seed / f"{section}.json"
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            problems.append(f"{path.name}: cannot read valid JSON ({exc})")
+            continue
+        if not isinstance(document, dict):
+            problems.append(f"{path.name}: document must be an object")
+            continue
+        if document.get("section") != section:
+            problems.append(f"{path.name}: section must equal {section!r}")
+        if document.get("metadataSelfContained") is not True:
+            problems.append(f"{path.name}: metadataSelfContained must be true")
+        if not isinstance(document.get("subsections"), dict):
+            problems.append(f"{path.name}: subsections must be an object")
+    return problems
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--require-all", action="store_true", help="a missing section file is a failure")
+    parser.add_argument(
+        "--require-self-contained",
+        action="store_true",
+        help="validate all nine section documents against the section-cache API shape and exit",
+    )
     parser.add_argument("--seed", default=os.getenv("REFRESH_SEED_DIR") or str(Path.home() / "torrent-studio-refresh" / "seed"))
     args = parser.parse_args()
     seed = Path(args.seed)
+    if args.require_self_contained:
+        problems = validate_self_contained_documents(seed)
+        if problems:
+            for problem in problems:
+                print(f"INVALID: {problem}")
+            return 1
+        print(f"Validated all {len(SELF_CONTAINED_SECTIONS)} self-contained section documents in {seed}")
+        return 0
+
     failed = False
     for section in SECTIONS:
         path = seed / f"{section}.json"
