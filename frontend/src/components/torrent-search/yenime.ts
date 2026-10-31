@@ -8,7 +8,7 @@ export function validEpisode(value: unknown): value is number {
   return Number.isInteger(episode) && episode > 0;
 }
 
-export function buildYenimeUrl(malId: unknown, episode: unknown, type: 'sub' | 'dub' = 'sub'): string {
+export function buildYenimeUrl(malId: unknown, episode: unknown, type: 'sub' | 'dub' = 'dub'): string {
   if (!validMalId(malId)) throw new Error('A positive MAL ID is required.');
   if (!validEpisode(episode)) throw new Error('A positive episode number is required.');
   if (type !== 'sub' && type !== 'dub') throw new Error('Stream type must be sub or dub.');

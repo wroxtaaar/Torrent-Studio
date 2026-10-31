@@ -85,7 +85,7 @@ export function useYenimePlayer() {
       title,
       malId: existingMalId?.toString() || '',
       episode: String(Number(episode) > 0 ? Number(episode) : 1),
-      type: 'sub',
+      type: 'dub',
       error: '',
       resolving: !existingMalId,
     });
@@ -101,8 +101,8 @@ export function useYenimePlayer() {
           return { ...current, malId: String(result.malId), resolving: false, error: '' };
         }
         const message = result.message || (result.status === 'ambiguous'
-          ? 'Multiple matches were found. Enter the correct MAL ID manually.'
-          : 'No confident MAL ID match was found. Enter the MAL ID manually.');
+          ? 'Multiple anime matches were found, so Yenime could not select a reliable MAL ID.'
+          : 'No reliable MAL ID was found. Yenime playback is unavailable for this title.');
         return { ...current, resolving: false, error: message };
       });
     }).catch((error: unknown) => {
@@ -127,13 +127,13 @@ export function useYenimePlayer() {
 
     const launchResolvedMalId = (malId: number) => {
       try {
-        const url = buildYenimeUrl(malId, validEpisode, 'sub');
+        const url = buildYenimeUrl(malId, validEpisode, 'dub');
         if (generation !== generationRef.current) return;
         setYenimeRequest(null);
-        setYenimePlayer({ title, malId, episode: validEpisode, season, tmdbId: tmdbId || undefined, type: 'sub', url });
+        setYenimePlayer({ title, malId, episode: validEpisode, season, tmdbId: tmdbId || undefined, type: 'dub', url });
       } catch (error: unknown) {
         if (generation !== generationRef.current) return;
-        setYenimeRequest({ title, malId: String(malId), episode: String(validEpisode), type: 'sub', resolving: false, error: error instanceof Error ? error.message : 'Could not open Yenime.' });
+        setYenimeRequest({ title, malId: String(malId), episode: String(validEpisode), type: 'dub', resolving: false, error: error instanceof Error ? error.message : 'Could not open Yenime.' });
       }
     };
 
@@ -142,7 +142,7 @@ export function useYenimePlayer() {
       return;
     }
 
-    setYenimeRequest({ title, malId: '', episode: String(validEpisode), type: 'sub', resolving: true, error: '' });
+    setYenimeRequest({ title, malId: '', episode: String(validEpisode), type: 'dub', resolving: true, error: '' });
     void api.resolveYenimeMalId(title, year, null, tmdbId).then(result => {
       if (generation !== generationRef.current) return;
       if (result.status === 'resolved' && result.malId) {
@@ -153,15 +153,15 @@ export function useYenimePlayer() {
         title,
         malId: '',
         episode: String(validEpisode),
-        type: 'sub',
+        type: 'dub',
         resolving: false,
         error: result.status === 'ambiguous'
-          ? 'Multiple matches were found. Enter the correct MAL ID manually.'
-          : 'No confident MAL ID match was found. Enter the MAL ID manually.',
+          ? 'Multiple anime matches were found, so Yenime could not select a reliable MAL ID.'
+          : 'No reliable MAL ID was found. Yenime playback is unavailable for this title.',
       });
     }).catch((error: unknown) => {
       if (generation !== generationRef.current) return;
-      setYenimeRequest({ title, malId: '', episode: String(validEpisode), type: 'sub', resolving: false, error: error instanceof Error ? error.message : 'Could not resolve the MAL ID automatically.' });
+      setYenimeRequest({ title, malId: '', episode: String(validEpisode), type: 'dub', resolving: false, error: error instanceof Error ? error.message : 'Could not resolve the MAL ID automatically.' });
     });
   };
 
@@ -184,9 +184,6 @@ export function useYenimePlayer() {
       const episode = Number(episodeText);
       const url = buildYenimeUrl(malId, episode, type);
       const tmdbId = yenimeEpisodePicker?.tmdbId;
-      setYenimeRequest(null);
-      setYenimeEpisodePicker(null);
-      setYenimeEpisodes([]);
       setYenimeProvider('yenime');
       setYenimePlayer({ title: yenimeRequest.title, malId, episode, season: yenimeSelectedSeason, tmdbId, type, url });
     } catch (error: unknown) {

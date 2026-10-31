@@ -145,13 +145,30 @@ test('Yenime MAL lookup sends TMDB ID for offline mapping lookup', async t => {
   assert.match(requests[0], /year=2013/);
 });
 
-test('manual MAL input remains authoritative while automatic resolution is pending', async () => {
+test('anime playback hides MAL IDs, defaults to Dub, and preserves episode pickers', async () => {
   const hookSource = await readFile(
     resolve(frontendRoot, 'src/components/torrent-search/state/useYenimePlayer.ts'),
     'utf8',
   );
-  assert.match(hookSource, /if \(current\.malId\) return \{ \.\.\.current, resolving: false, error: '' \}/);
-  assert.match(hookSource, /const launchYenime = \(malIdText: string, episodeText: string, type:/);
-  assert.match(hookSource, /const malId = Number\(malIdText\)/);
-  assert.match(hookSource, /buildYenimeUrl\(malId, episode, type\)/);
+  const yenimeUi = await readFile(
+    resolve(frontendRoot, 'src/components/torrent-search/sections/YenimeSection.tsx'),
+    'utf8',
+  );
+  const vidriftUi = await readFile(
+    resolve(frontendRoot, 'src/components/torrent-search/sections/NexStreamSection.tsx'),
+    'utf8',
+  );
+  const yenimeHelpers = await readFile(
+    resolve(frontendRoot, 'src/components/torrent-search/yenime.ts'),
+    'utf8',
+  );
+
+  assert.match(hookSource, /type: 'dub'/);
+  assert.match(hookSource, /type: 'sub' \| 'dub'/);
+  assert.match(yenimeHelpers, /type: 'sub' \| 'dub' = 'dub'/);
+  assert.doesNotMatch(yenimeUi, /<label[^>]*>MAL ID/);
+  assert.match(yenimeUi, /role="alert"/);
+  assert.match(yenimeUi, /onClose=\{\(\) => vm\.setYenimePlayer\(null\)\}/);
+  assert.match(vidriftUi, /onClose=\{\(\) => setNexStreamPlayer\(null\)\}/);
+  assert.doesNotMatch(vidriftUi, /setNexStreamEpisodePicker\(null\); if \(selected\) void playWithNexStream/);
 });
