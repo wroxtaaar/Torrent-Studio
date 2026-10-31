@@ -6,7 +6,7 @@ import { imdbRatingKey } from '../grouping.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 
 export function NexStreamSection({ vm }: { vm: PanelModel }) {
-  const { imdbRatingsByKey, loadNexStreamEpisodes, nexStreamEpisodePicker, nexStreamEpisodePrefetchStatus, nexStreamEpisodes, nexStreamEpisodesError, nexStreamEpisodesLoading, nexStreamEpisodesStatus, nexStreamError, nexStreamLoading, nexStreamPlayer, nexStreamResolvingId, nexStreamResults, nexStreamSearchMode, nexStreamSeasons, nexStreamSelectedSeason, playWithNexStream, setNexStreamEpisodePicker, setNexStreamPlayer, switchToYenimePlayer } = vm;
+  const { imdbRatingsByKey, loadNexStreamEpisodes, nexStreamEpisodePicker, nexStreamEpisodes, nexStreamEpisodesError, nexStreamEpisodesLoading, nexStreamEpisodesStatus, nexStreamError, nexStreamLoading, nexStreamPlayer, nexStreamResolvingId, nexStreamResults, nexStreamSearchMode, nexStreamSeasons, nexStreamSelectedSeason, playWithNexStream, setNexStreamEpisodePicker, setNexStreamPlayer, switchToYenimePlayer } = vm;
   const [playerLoading, setPlayerLoading] = useState(false);
   useEffect(() => {
     setPlayerLoading(Boolean(nexStreamPlayer));
@@ -39,7 +39,7 @@ export function NexStreamSection({ vm }: { vm: PanelModel }) {
                   show={{ id: item.id, title: item.title, year: Number(item.date?.slice(0, 4)) || null, posterUrl: item.poster || undefined, overview: item.overview }}
                   imdb={imdbRatingsByKey[imdbRatingKey(item.title, item.date ? item.date.slice(0, 4) : null, 'tv')]}
                   onOpen={() => {
-                    if (nexStreamResolvingId === 'tv:' + item.id || nexStreamEpisodePrefetchStatus[String(item.id)] === 'loading') return;
+                    if (nexStreamResolvingId === 'tv:' + item.id) return;
                     void playWithNexStream(item);
                   }}
 

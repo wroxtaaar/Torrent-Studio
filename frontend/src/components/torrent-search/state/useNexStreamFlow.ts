@@ -1,4 +1,4 @@
-import { fetchNexStreamEpisodeMetadata, nexStreamEpisodeCache, nexStreamEpisodeCacheKey, prefetchNexStreamEpisodeMetadata } from '../nexstream.ts';
+import { fetchNexStreamEpisodeMetadata, nexStreamEpisodeCache, nexStreamEpisodeCacheKey } from '../nexstream.ts';
 import { writeLocalCache } from '../helpers.ts';
 import { NexStreamTitle } from '../types.ts';
 import { useNexStreamState } from './useNexStreamState.ts';
@@ -20,18 +20,13 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
     setNexStreamLoading(true);
     setNexStreamError('');
     setNexStreamResults([]);
+    setNexStreamEpisodePrefetchStatus({});
     setNexStreamPlayer(null);
     try {
       const types: Array<'movie' | 'tv'> = [mediaType];
       const cachedNexResults = readLocalCache<NexStreamTitle[]>(NEXSTREAM_SEARCH_CACHE_KEY, mediaType + ':' + String(titleQuery || '').trim().toLowerCase());
       if (cachedNexResults && !forceRefresh) {
         setNexStreamResults(cachedNexResults);
-        if (mediaType === 'tv') {
-          setNexStreamEpisodePrefetchStatus({});
-          prefetchNexStreamEpisodeMetadata(cachedNexResults, (id, status) => {
-            setNexStreamEpisodePrefetchStatus(previous => ({ ...previous, [String(id)]: status }));
-          });
-        }
         setNexStreamLoading(false);
         setNexStreamLoadingTitle('');
         return;
@@ -61,15 +56,6 @@ export function useNexStreamFlow({ nexStreamSearchControllerRef, nexStreamSearch
       const resolvedTitles = Array.from(unique.values());
       writeLocalCache(NEXSTREAM_SEARCH_CACHE_KEY, mediaType + ':' + String(titleQuery || '').trim().toLowerCase(), resolvedTitles);
       setNexStreamResults(resolvedTitles);
-      // Fetch episode lists and thumbnails in the background, without delaying
-      // the result cards. The first few TV cards are ready by the time a user
-      // opens the episode picker; remaining cards are prefetched with 3 workers.
-      if (mediaType === 'tv') {
-        setNexStreamEpisodePrefetchStatus({});
-        prefetchNexStreamEpisodeMetadata(resolvedTitles, (id, status) => {
-          setNexStreamEpisodePrefetchStatus(previous => ({ ...previous, [String(id)]: status }));
-        });
-      }
       if (failedSearches.length === types.length) {
         const firstFailure = failedSearches[0] as PromiseRejectedResult;
         throw firstFailure.reason instanceof Error ? firstFailure.reason : new Error('TMDB title search failed.');
