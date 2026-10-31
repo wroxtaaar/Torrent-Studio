@@ -209,13 +209,14 @@ async def resolve_nexstream_movie(tmdb_id: int) -> dict:
 async def search_titles(
     query: str = Query(..., min_length=2, max_length=120),
     media_type: str = Query("movie", alias="type", pattern="^(movie|tv)$"),
+    force_refresh: bool = Query(False),
 ):
     """Search TMDB by title so testers don't need to know TMDB IDs."""
     # Cache first: a stored answer must work even on a deployment without TMDB credentials.
     endpoint = "movie" if media_type == "movie" else "tv"
     normalized_query = " ".join(query.split()).casefold()
     cache_key = f"search:{media_type}:{normalized_query}"
-    cached = _get_nexstream_cache(cache_key, _NEXSTREAM_SEARCH_CACHE_TTL)
+    cached = None if force_refresh else _get_nexstream_cache(cache_key, _NEXSTREAM_SEARCH_CACHE_TTL)
     if cached is not None:
         return cached
 
