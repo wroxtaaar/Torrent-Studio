@@ -5,7 +5,7 @@
 
 Pre-splits the catalogue pages first so the app never has to do that on a slow instance.
 """
-import hashlib, json, subprocess, sys, tarfile
+import hashlib, json, shutil, subprocess, sys, tarfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,10 +24,14 @@ with tarfile.open(bundle, "w:gz") as tar:
             tar.add(f, arcname=rel.as_posix())
 
 digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
+version = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + digest[:8]
+immutable_bundle_name = f"cache-bundle-{version}.tar.gz"
+shutil.copy2(bundle, out / immutable_bundle_name)
 manifest = {
-    "version": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + digest[:8],
+    "version": version,
     "sha256": digest,
     "size": bundle.stat().st_size,
+    "bundle": immutable_bundle_name,
     "createdAt": datetime.now(timezone.utc).isoformat(),
 }
 (out / "cache-bundle.json").write_text(json.dumps(manifest, indent=2))

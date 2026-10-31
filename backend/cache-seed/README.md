@@ -69,7 +69,9 @@ GitHub never stores refreshed data in `main`'s history. Instead:
    live API keys (`scripts/refresh_seed.py`), rebuilds the nine self-contained section documents
    from the persistent seed's `runtime/` metadata caches and `regional_tv_prebuilt_cache.json`,
    validates their API-required shape, then packs one `cache-bundle.tar.gz` + `cache-bundle.json`
-   (checksum, version) with `scripts/make_cache_bundle.py`. The section migration writes only the
+   (checksum, version) with `scripts/make_cache_bundle.py`. The publisher uploads the versioned
+   immutable archive before replacing the rolling manifest, so concurrent Render startups never
+   pair a newly replaced archive with a stale manifest. The section migration writes only the
    nine section files, preserving the persistent episode and MAL mapping caches. It uploads the
    bundle to the rolling release `cache-data` (old assets are replaced, so size stays flat) and
    calls the Render deploy hook.
