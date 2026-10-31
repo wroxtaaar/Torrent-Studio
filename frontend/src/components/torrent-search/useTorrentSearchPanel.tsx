@@ -63,9 +63,17 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
     nexStreamEpisodePicker,
     nexStreamPlayer,
     nexStreamSelectedSeason,
+    nexStreamSeasons,
+    nexStreamEpisodes,
+    nexStreamEpisodesError,
+    nexStreamEpisodesStatus,
     yenimeEpisodePicker: yenime.yenimeEpisodePicker,
     yenimePlayer: yenime.yenimePlayer,
     yenimeSelectedSeason: yenime.yenimeSelectedSeason,
+    yenimeSeasons: yenime.yenimeSeasons,
+    yenimeEpisodes: yenime.yenimeEpisodes,
+    yenimeEpisodesError: yenime.yenimeEpisodesError,
+    yenimeEpisodesStatus: yenime.yenimeEpisodesStatus,
   };
   useEffect(() => {
     const current = window.history.state || {};
@@ -101,9 +109,17 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       setNexStreamEpisodePicker(view.nexStreamEpisodePicker ?? null);
       setNexStreamPlayer(view.nexStreamPlayer ?? null);
       setNexStreamSelectedSeason(view.nexStreamSelectedSeason ?? 1);
+      setNexStreamSeasons(view.nexStreamSeasons ?? []);
+      setNexStreamEpisodes(view.nexStreamEpisodes ?? []);
+      setNexStreamEpisodesError(view.nexStreamEpisodesError ?? '');
+      setNexStreamEpisodesStatus(view.nexStreamEpisodesStatus ?? null);
       yenime.setYenimeEpisodePicker(view.yenimeEpisodePicker ?? null);
       yenime.setYenimePlayer(view.yenimePlayer ?? null);
       yenime.setYenimeSelectedSeason(view.yenimeSelectedSeason ?? 1);
+      yenime.setYenimeSeasons(view.yenimeSeasons ?? []);
+      yenime.setYenimeEpisodes(view.yenimeEpisodes ?? []);
+      yenime.setYenimeEpisodesError(view.yenimeEpisodesError ?? '');
+      yenime.setYenimeEpisodesStatus(view.yenimeEpisodesStatus ?? null);
     };
     window.addEventListener('popstate', restore);
     return () => window.removeEventListener('popstate', restore);
