@@ -60,6 +60,12 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
   const previousPlayerRef = useRef(false);
   const navigationSnapshot = {
     activeTopSection,
+    movieCatalogue,
+    results,
+    searched,
+    regionalWebSeriesCatalogue,
+    dcWebSeriesCatalogue,
+    marvelWebSeriesCatalogue,
     dcContentTab,
     regionalContentTabs,
     marvelContentTab,
@@ -109,7 +115,9 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       window.history.pushState({ ...current, torrentStudio: true, tab: 'search', searchView: navigationSnapshot }, '', window.location.href);
     }
   }, [
-    activeTopSection, dcContentTab, regionalContentTabs, marvelContentTab,
+    activeTopSection, movieCatalogue, results, searched,
+    regionalWebSeriesCatalogue, dcWebSeriesCatalogue, marvelWebSeriesCatalogue,
+    dcContentTab, regionalContentTabs, marvelContentTab,
     classicsContentTab, activeFranchiseSearchMode, showMarvelWebSeries,
     showDcWebSeries, regionalCatalogueModes, regionalTvModes,
     franchiseGridPage, expandedSearchGroupKey,
@@ -123,6 +131,12 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       restoringNavigationRef.current = true;
       previousPlayerRef.current = false;
       setActiveTopSection(view.activeTopSection ?? null);
+      setMovieCatalogue(view.movieCatalogue ?? null);
+      setResults(view.results ?? []);
+      setSearched(view.searched ?? false);
+      setRegionalWebSeriesCatalogue(view.regionalWebSeriesCatalogue ?? null);
+      setDcWebSeriesCatalogue(view.dcWebSeriesCatalogue ?? null);
+      setMarvelWebSeriesCatalogue(view.marvelWebSeriesCatalogue ?? null);
       setDcContentTab(view.dcContentTab ?? 'movies');
       setRegionalContentTabs(view.regionalContentTabs ?? { bollywood: null, hollywood: null, korean: null, pakistani: null, anime: null });
       setMarvelContentTab(view.marvelContentTab ?? null);
