@@ -121,7 +121,7 @@ export const MovieActionCard: React.FC<MovieActionCardProps> = ({ title, titleHr
   const checking = hdLoading || largeLoading;
 
   return (
-    <div className="relative min-w-0 self-start rounded-xl border border-slate-800 bg-slate-900 p-2.5 sm:p-3 lg:rounded-[14px]">
+    <div className="relative flex min-h-[14rem] min-w-0 flex-col self-stretch rounded-xl border border-slate-800 bg-slate-900 p-2.5 sm:p-3 lg:rounded-[14px]">
       <div className="flex items-start gap-1.5">
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5">
           <a href={titleHref} target="_blank" rel="noreferrer" title="Open on IMDb"
@@ -136,7 +136,7 @@ export const MovieActionCard: React.FC<MovieActionCardProps> = ({ title, titleHr
         </button>
       </div>
 
-      <div className="mt-2.5 space-y-2">
+      <div className="mt-2.5 flex flex-1 flex-col justify-center gap-2">
         {play && (
           <button type="button" disabled={play.disabled} onClick={play.onClick}
             className="flex w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-violet-400/40 bg-violet-500/15 px-2 py-2 text-xs font-bold text-violet-200 hover:bg-violet-500/25 disabled:opacity-60">
