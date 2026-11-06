@@ -34,7 +34,6 @@ interface MenuItem { key: string; label: string; title?: string; href?: string; 
 interface Group {
   id: string;
   label: string;
-  icon: React.ReactNode;
   className: string;
   ariaLabel: string;
   disabled?: boolean;
@@ -42,7 +41,7 @@ interface Group {
   items: MenuItem[];
 }
 
-const tileClass = 'flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-2 text-center text-[10px] font-bold leading-tight disabled:cursor-not-allowed disabled:opacity-60';
+const tileClass = 'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-[11px] font-bold leading-tight disabled:cursor-not-allowed disabled:opacity-60';
 const rowClass = 'flex w-full min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-slate-200 hover:bg-slate-800';
 
 /** Quality text for a torrent: "1080p · 3.4 GB". */
@@ -99,26 +98,25 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
   const groups: Group[] = [];
   if (hd.length > 0) {
     groups.push({
-      id: 'play-hd', label: 'Play HD', icon: <Play className="h-4 w-4 fill-current" />, className: hdTone, ariaLabel: `Play HD: choose a quality for ${title}`,
+      id: 'play-hd', label: 'Play HD', className: hdTone, ariaLabel: `Play HD: choose a quality for ${title}`,
       items: hd.map(option => ({ key: option.key, label: option.label, title: option.filename, onPick: () => setHdPlayKey(option.key) })),
     });
   }
   if (!prepared && prepare && prepare.chips.length > 0) {
     groups.push({
-      id: 'prepare', label: prepare.isPreparing ? 'Preparing…' : 'Prepare', icon: prepare.isPreparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />,
-      className: 'bg-cyan-500 text-slate-950 hover:bg-cyan-400', ariaLabel: `Prepare: choose a quality for ${title}`, disabled: prepare.disabled || prepare.isPreparing,
+      id: 'prepare', label: prepare.isPreparing ? 'Preparing…' : 'Prepare', className: 'bg-cyan-500 text-slate-950 hover:bg-cyan-400', ariaLabel: `Prepare: choose a quality for ${title}`, disabled: prepare.disabled || prepare.isPreparing,
       items: prepare.chips.map(chip => ({ key: chip.key, label: chip.label, title: chip.title, onPick: () => prepare.onPrepare(chip.key) })),
     });
   }
   if (hd.length > 0) {
     groups.push({
-      id: 'download-hd', label: 'Download HD', icon: <Download className="h-4 w-4" />, className: hdTone, ariaLabel: `Download HD: choose a quality for ${title}`,
+      id: 'download-hd', label: 'Download HD', className: hdTone, ariaLabel: `Download HD: choose a quality for ${title}`,
       items: hd.map(option => ({ key: option.key, label: option.label, title: option.filename, href: option.url, download: option.filename || undefined })),
     });
   }
   if (large.length > 0) {
     groups.push({
-      id: 'webtor', label: 'Webtor', icon: <Download className="h-4 w-4" />, className: 'border border-cyan-400/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25',
+      id: 'webtor', label: 'Webtor', className: 'border border-cyan-400/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25',
       ariaLabel: `Webtor: choose a quality for ${title}`,
       items: large.map(row => ({
         ...torrentChip(row),
@@ -138,9 +136,8 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
     const single = group.items.length === 1 ? group.items[0] : null;
     const content = (
       <>
-        {group.icon}
-        <span className="inline-flex max-w-full items-center gap-0.5"><span className="truncate">{group.label}</span>
-          {!single && <ChevronDown className={'h-3 w-3 shrink-0 transition-transform ' + (openId === group.id ? 'rotate-180' : '')} />}</span>
+        <span>{group.label}</span>
+        {!single && <ChevronDown className={'h-3 w-3 shrink-0 transition-transform ' + (openId === group.id ? 'rotate-180' : '')} />}
       </>
     );
     if (single?.href) {
@@ -157,7 +154,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
     play && (
       <button key="play" type="button" disabled={play.disabled} onClick={play.onClick}
         className={tileClass + ' border border-violet-400/40 bg-violet-500/15 text-violet-200 hover:bg-violet-500/25'}>
-        {play.resolving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4 fill-current" />}
+        {play.resolving && <Loader2 className="h-3 w-3 animate-spin" />}
         <span>{play.resolving ? 'Resolving…' : 'Play'}</span>
       </button>
     ),
@@ -169,7 +166,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
 
   return (
     <div className="min-w-0 space-y-2">
-      {tiles.length > 0 && <div className="grid grid-cols-3 gap-1.5">{tiles}</div>}
+      {tiles.length > 0 && <div className="flex flex-wrap gap-1.5">{tiles}</div>}
 
       {open && (
         <div role="menu" aria-label={open.ariaLabel} className="max-h-56 overflow-y-auto rounded-lg border border-slate-700 bg-slate-950 p-1">
