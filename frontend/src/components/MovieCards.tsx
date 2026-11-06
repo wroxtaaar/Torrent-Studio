@@ -270,6 +270,8 @@ export interface MoviePrepareCardProps {
   directStream?: { label: string; disabled: boolean; onClick: () => void };
   /** TV series: copies the selected magnet and opens Webtor. Omitted when no torrent is cached. */
   webtor?: { label: string; hint?: string; onClick: () => void };
+  /** Replaces the quality select and the whole button row (the movie action buttons). */
+  actions?: React.ReactNode;
   /** Omitted when the title has no torrent (no button is shown). */
   prepare?: { isPreparing: boolean; disabled: boolean; onClick: () => void };
   className?: string;
@@ -297,6 +299,7 @@ export const MoviePrepareCard: React.FC<MoviePrepareCardProps> = ({
   prepared,
   directStream,
   webtor,
+  actions,
   prepare,
   className = '',
 }) => {
@@ -448,7 +451,7 @@ export const MoviePrepareCard: React.FC<MoviePrepareCardProps> = ({
                     </div>
                   )}
 
-                  {variants.length > 1 && (
+                  {!actions && variants.length > 1 && (
                     <select
                       aria-label={variantsAriaLabel}
                       value={selectedVariantKey}
@@ -466,6 +469,7 @@ export const MoviePrepareCard: React.FC<MoviePrepareCardProps> = ({
                 </div>
               </div>
 
+              {actions ? <div className="mt-2">{actions}</div> : (
               <div className="mt-2 flex items-center justify-between gap-2">
                 {prepared ? (
                   <div className="min-w-0 max-w-full flex flex-wrap items-center justify-end gap-1.5">
@@ -543,6 +547,7 @@ export const MoviePrepareCard: React.FC<MoviePrepareCardProps> = ({
                   </div>
                 )}
               </div>
+              )}
               {webtor?.hint ? <div className="mt-1.5 text-[10px] leading-snug text-slate-400" role="status">{webtor.hint}</div> : null}
             </div>
           </div>

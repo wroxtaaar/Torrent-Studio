@@ -1,8 +1,8 @@
 import { api } from '../../../api/client.ts';
 import { formatBytes } from '../../../utils/formatters.ts';
 import { TvShowTile } from '../TvShowTile.tsx';
-import { MovieCompactCard, imdbTitleLink } from '../../MovieCards.tsx';
-import { MovieActionCard, orderTorrents, torrentChip } from '../../MovieActionCard.tsx';
+import { MovieCompactCard, MoviePrepareCard, imdbTitleLink } from '../../MovieCards.tsx';
+import { MovieActionButtons, orderTorrents, torrentChip } from '../../MovieActionButtons.tsx';
 import { compareReleaseDateDescending, episodeSeriesTitle, releaseDateSortValue, imdbRatingKey, normalizeGroupTitle, normalizeSavedOttTitle, searchMetadataForGroup, torrentQualityDetails, torrentResultKey } from '../grouping.ts';
 import { toCardProviders, uniqueOttProviders } from '../ottProviders.ts';
 import { normalizeTorrentTitleForNexStream } from '../nexstream.ts';
@@ -356,47 +356,90 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
               const prepareState = prepareStateFor(result);
               const playBusy = nexStreamResolvingId !== null || (nexStreamLoading && normalizeGroupTitle(nexStreamLoadingTitle) === normalizeGroupTitle(mediaDisplayTitle || group.title));
               return (
-                <MovieActionCard
+                <MoviePrepareCard
                   key={group.key || (group.title + '-' + index)}
+                  className="z-0"
+                  posterSrc={loadedSearchPosterUrl || lowQualityPosterUrl(sharedPosterUrl)}
+                  posterAlt={group.title}
+                  onPosterClick={() => setExpandedSearchGroupKey(null)}
+                  onPosterLoad={event => {
+                    const key = posterKeyFor(posterResult);
+                    searchPosterUrlsRef.current[key] = event.currentTarget.currentSrc || event.currentTarget.src;
+                    posterLoadedRef.current.add(key);
+                    event.currentTarget.style.display = '';
+                    event.currentTarget.parentElement?.querySelector('[data-poster-placeholder="true"]')?.classList.add('hidden');
+                  }}
+                  onPosterError={event => {
+                    const key = posterKeyFor(posterResult);
+                    delete searchPosterUrlsRef.current[key];
+                    posterLoadedRef.current.delete(key);
+                    setMetadataPosterFailed(previous => previous[key] ? previous : { ...previous, [key]: true });
+                    event.currentTarget.style.display = 'none';
+                    event.currentTarget.parentElement?.querySelector('[data-poster-placeholder="true"]')?.classList.remove('hidden');
+
+                    if (
+                      !posterBackgroundQueuedRef.current.has(key) &&
+                      !posterOverrides[key]
+                    ) {
+                      posterBackgroundQueuedRef.current.add(key);
+                      posterBackgroundQueueRef.current.unshift({ key, result: posterResult });
+                      startPosterBackgroundWorkers();
+                    }
+                  }}
+                  imdb={displayImdbRating}
+                  seeders={result.seeders}
+                  indexer={result.indexer}
+                  quality={extractedQuality(result)}
                   title={mediaDisplayTitle}
                   titleHref={imdbTitleHref}
                   year={mediaMetadata?.year || group.year}
-                  tmdbId={mediaMetadata?.tmdbId || mediaMetadata?.id || posterResult?.tmdbId || posterResult?.id}
                   onClose={() => setExpandedSearchGroupKey(null)}
-                  play={{
-                    disabled: playBusy,
-                    resolving: playBusy,
-                    onClick: () => {
-                      if (titleMatches.length > 0) {
-                        void playWithNexStream(titleMatches[0]);
-                        return;
-                      }
-                      const tmdbId = Number(mediaMetadata?.tmdbId || mediaMetadata?.id);
-                      if (Number.isInteger(tmdbId) && tmdbId > 0) {
-                        void playWithNexStream({
-                          id: tmdbId,
-                          title: mediaDisplayTitle || group.title,
-                          date: String(mediaMetadata?.year || group.year || ''),
-                          overview: mediaMetadata?.overview || '',
-                          poster: mediaMetadata?.posterUrl || null,
-                          type: 'movie',
-                        });
-                      } else {
-                        void searchNexStreamTitles(mediaDisplayTitle || group.title, 'movie');
-                      }
-                    },
-                  }}
-                  prepare={orderTorrents(group.variants).length === 0 ? undefined : {
-                    chips: orderTorrents(group.variants).map(torrentChip),
-                    isPreparing: prepareState.isPreparing,
-                    disabled: !prepareState.source || prepareState.isPreparing,
-                    onPrepare: key => {
-                      const chosen = group.variants.find(variant => torrentResultKey(variant) === key) || result;
-                      setSelectedQualityByGroup(previous => ({ ...previous, [group.key]: torrentResultKey(chosen) }));
-                      void prepareMovieTorrent(chosen);
-                    },
-                  }}
-                  prepared={prepareState.primaryFile ? preparedActionsFor(prepareState.torrentKey, prepareState.primaryFile) : null}
+                  variants={[]}
+                  selectedVariantKey=""
+                  onSelectVariant={() => {}}
+                  variantsAriaLabel=""
+                  prepared={null}
+                  actions={
+                    <MovieActionButtons
+                      title={mediaDisplayTitle}
+                      year={mediaMetadata?.year || group.year}
+                      tmdbId={mediaMetadata?.tmdbId || mediaMetadata?.id || posterResult?.tmdbId || posterResult?.id}
+                      play={{
+                        disabled: playBusy,
+                        resolving: playBusy,
+                        onClick: () => {
+                          if (titleMatches.length > 0) {
+                            void playWithNexStream(titleMatches[0]);
+                            return;
+                          }
+                          const tmdbId = Number(mediaMetadata?.tmdbId || mediaMetadata?.id);
+                          if (Number.isInteger(tmdbId) && tmdbId > 0) {
+                            void playWithNexStream({
+                              id: tmdbId,
+                              title: mediaDisplayTitle || group.title,
+                              date: String(mediaMetadata?.year || group.year || ''),
+                              overview: mediaMetadata?.overview || '',
+                              poster: mediaMetadata?.posterUrl || null,
+                              type: 'movie',
+                            });
+                          } else {
+                            void searchNexStreamTitles(mediaDisplayTitle || group.title, 'movie');
+                          }
+                        },
+                      }}
+                      prepare={orderTorrents(group.variants).length === 0 ? undefined : {
+                        chips: orderTorrents(group.variants).map(torrentChip),
+                        isPreparing: prepareState.isPreparing,
+                        disabled: !prepareState.source || prepareState.isPreparing,
+                        onPrepare: key => {
+                          const chosen = group.variants.find(variant => torrentResultKey(variant) === key) || result;
+                          setSelectedQualityByGroup(previous => ({ ...previous, [group.key]: torrentResultKey(chosen) }));
+                          void prepareMovieTorrent(chosen);
+                        },
+                      }}
+                      prepared={prepareState.primaryFile ? preparedActionsFor(prepareState.torrentKey, prepareState.primaryFile) : null}
+                    />
+                  }
                 />
               );
             })}
