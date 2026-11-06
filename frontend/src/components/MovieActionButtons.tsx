@@ -33,6 +33,7 @@ export interface MovieActionButtonsProps {
 interface MenuItem { key: string; label: string; title?: string; href?: string; download?: string; onPick?: () => void }
 interface Group {
   id: string;
+  icon?: React.ReactNode;
   label: string;
   className: string;
   ariaLabel: string;
@@ -98,7 +99,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
   const groups: Group[] = [];
   if (hd.length > 0) {
     groups.push({
-      id: 'play-hd', label: 'Play HD', className: hdTone, ariaLabel: `Play HD: choose a quality for ${title}`,
+      id: 'play-hd', label: 'Play HD', icon: <Play className="h-3 w-3 shrink-0 fill-current" />, className: hdTone, ariaLabel: `Play HD: choose a quality for ${title}`,
       items: hd.map(option => ({ key: option.key, label: option.label, title: option.filename, onPick: () => setHdPlayKey(option.key) })),
     });
   }
@@ -110,13 +111,13 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
   }
   if (hd.length > 0) {
     groups.push({
-      id: 'download-hd', label: 'Download HD', className: hdTone, ariaLabel: `Download HD: choose a quality for ${title}`,
+      id: 'download-hd', label: 'Download HD', icon: <Download className="h-3 w-3 shrink-0" />, className: hdTone, ariaLabel: `Download HD: choose a quality for ${title}`,
       items: hd.map(option => ({ key: option.key, label: option.label, title: option.filename, href: option.url, download: option.filename || undefined })),
     });
   }
   if (large.length > 0) {
     groups.push({
-      id: 'webtor', label: 'Webtor', className: 'border border-cyan-400/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25',
+      id: 'webtor', label: 'Webtor', icon: <Download className="h-3 w-3 shrink-0" />, className: 'border border-cyan-400/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25',
       ariaLabel: `Webtor: choose a quality for ${title}`,
       items: large.map(row => ({
         ...torrentChip(row),
@@ -136,6 +137,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
     const single = group.items.length === 1 ? group.items[0] : null;
     const content = (
       <>
+        {group.icon}
         <span>{group.label}</span>
         {!single && <ChevronDown className={'h-3 w-3 shrink-0 transition-transform ' + (openId === group.id ? 'rotate-180' : '')} />}
       </>
@@ -154,7 +156,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
     play && (
       <button key="play" type="button" disabled={play.disabled} onClick={play.onClick}
         className={tileClass + ' border border-violet-400/40 bg-violet-500/15 text-violet-200 hover:bg-violet-500/25'}>
-        {play.resolving && <Loader2 className="h-3 w-3 animate-spin" />}
+        {play.resolving ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : <Play className="h-3 w-3 shrink-0 fill-current" />}
         <span>{play.resolving ? 'Resolving…' : 'Play'}</span>
       </button>
     ),
