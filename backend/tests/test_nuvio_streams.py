@@ -18,6 +18,10 @@ PAYLOAD = {"streams": [
 ]}
 
 
+async def alive(url):
+    return True
+
+
 @pytest.fixture(autouse=True)
 def _clean():
     N.clear_cache()
@@ -47,8 +51,8 @@ def test_parse_handles_empty_or_odd_answers(payload):
 def test_lookup_is_unavailable_without_a_configured_add_on_or_valid_id():
     async def boom(url):
         raise AssertionError("must not be called")
-    assert asyncio.run(N.lookup("", 278, fetcher=boom)) == []
-    assert asyncio.run(N.lookup("http://x:7777", "abc", fetcher=boom)) == []
+    assert asyncio.run(N.lookup("", 278, fetcher=boom, prober=alive)) == []
+    assert asyncio.run(N.lookup("http://x:7777", "abc", fetcher=boom, prober=alive)) == []
 
 
 def test_lookup_calls_the_tmdb_stream_route_and_shares_one_scrape_between_clicks():
@@ -60,8 +64,8 @@ def test_lookup_calls_the_tmdb_stream_route_and_shares_one_scrape_between_clicks
         return PAYLOAD
 
     async def main():
-        first, second = await asyncio.gather(N.lookup("http://x:7777/", 278, fetcher=fetcher), N.lookup("http://x:7777", 278, fetcher=fetcher))
-        third = await N.lookup("http://x:7777", 278, fetcher=fetcher)
+        first, second = await asyncio.gather(N.lookup("http://x:7777/", 278, fetcher=fetcher, prober=alive), N.lookup("http://x:7777", 278, fetcher=fetcher, prober=alive))
+        third = await N.lookup("http://x:7777", 278, fetcher=fetcher, prober=alive)
         return first, second, third
 
     first, second, third = asyncio.run(main())
@@ -78,10 +82,10 @@ def test_empty_answers_are_remembered_briefly_then_retried():
         return {"streams": []}
 
     async def run():
-        await N.lookup("http://x", 1, fetcher=fetcher, now=lambda: clock[0])
-        await N.lookup("http://x", 1, fetcher=fetcher, now=lambda: clock[0])
+        await N.lookup("http://x", 1, fetcher=fetcher, prober=alive, now=lambda: clock[0])
+        await N.lookup("http://x", 1, fetcher=fetcher, prober=alive, now=lambda: clock[0])
         clock[0] += N.EMPTY_TTL_S + 1
-        await N.lookup("http://x", 1, fetcher=fetcher, now=lambda: clock[0])
+        await N.lookup("http://x", 1, fetcher=fetcher, prober=alive, now=lambda: clock[0])
 
     asyncio.run(run())
     assert len(calls) == 2
@@ -90,7 +94,7 @@ def test_empty_answers_are_remembered_briefly_then_retried():
 def test_a_failing_add_on_gives_no_options_not_an_error():
     async def fetcher(url):
         return None
-    assert asyncio.run(N.lookup("http://x", 5, fetcher=fetcher)) == []
+    assert asyncio.run(N.lookup("http://x", 5, fetcher=fetcher, prober=alive)) == []
 
 
 def test_remote_lookup_reads_another_apps_options_and_revalidates_them():
@@ -120,3 +124,34 @@ def test_remote_lookup_is_unavailable_without_an_address_or_when_the_other_app_i
     assert asyncio.run(N.remote_lookup("", 278, fetcher=down)) == []
     assert asyncio.run(N.remote_lookup("http://x", "abc", fetcher=down)) == []
     assert asyncio.run(N.remote_lookup("http://x", 278, fetcher=down)) == []
+
+
+def test_links_over_their_download_quota_are_not_offered():
+    probed: list[str] = []
+
+    async def fetcher(url):
+        return PAYLOAD
+
+    async def prober(url):
+        probed.append(url)
+        return "workers.dev/p/S2" in url or "a.workers.dev" in url      # the Drive quota is used up on the 1080p 2.4 GB file
+
+    options = asyncio.run(N.lookup("http://x", 278, fetcher=fetcher, prober=prober))
+    assert len(probed) == 3                                              # every candidate is checked
+    assert [o["label"] for o in options] == ["4K · 53.4 GB · REMUX HDR DV", "1080p · 10.8 GB"]
+    assert [o["key"] for o in options] == ["0", "1"]                     # renumbered
+
+
+def test_when_every_link_is_dead_there_are_no_options_and_a_failing_probe_counts_as_dead():
+    async def fetcher(url):
+        return PAYLOAD
+
+    async def dead(url):
+        return False
+
+    async def broken(url):
+        raise RuntimeError("network")
+
+    assert asyncio.run(N.lookup("http://x", 1, fetcher=fetcher, prober=dead)) == []
+    N.clear_cache()
+    assert asyncio.run(N.lookup("http://x", 1, fetcher=fetcher, prober=broken)) == []

@@ -40,6 +40,9 @@ _TAGS = (("REMUX", re.compile(r"\bremux\b", re.I)), ("HDR", re.compile(r"\bhdr(?
          ("DV", re.compile(r"\b(?:dv|dolby[ ._-]?vision)\b", re.I)), ("IMAX", re.compile(r"\bimax\b", re.I)))
 
 Fetcher = Callable[[str], Awaitable[dict[str, Any] | None]]
+Prober = Callable[[str], Awaitable[bool]]
+PROBE_CONCURRENCY = 6
+PLAYER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
 _CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 _INFLIGHT: dict[str, "asyncio.Future[list[dict[str, Any]]]"] = {}
 
@@ -122,6 +125,38 @@ async def http_fetcher(url: str, timeout_s: float = 45.0) -> dict[str, Any] | No
         return None
 
 
+async def http_prober(url: str, timeout_s: float = 15.0) -> bool:
+    """Is this file link usable right now? Asks the way a player does (open-ended range) and looks only at the status,
+    so no file data is read. The file hosts are often Google Drive files that are blocked for a day once their download
+    quota is used up (HTTP 403); those must not be offered."""
+    import httpx  # noqa: PLC0415 (only the live path needs it)
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=True) as client:
+            async with client.stream("GET", url, headers={"Range": "bytes=0-", "User-Agent": PLAYER_UA}) as response:
+                return response.status_code in (200, 206)
+    except Exception:
+        return False
+
+
+async def keep_alive(options: list[dict[str, Any]], prober: Prober) -> list[dict[str, Any]]:
+    """Only the options whose link the prober accepts, in the same order (keys renumbered)."""
+    gate = asyncio.Semaphore(PROBE_CONCURRENCY)
+
+    async def check(option: dict[str, Any]) -> bool:
+        async with gate:
+            try:
+                return bool(await prober(option["url"]))
+            except Exception:
+                return False
+
+    flags = await asyncio.gather(*(check(option) for option in options))
+    alive = [option for option, ok in zip(options, flags) if ok]
+    for index, option in enumerate(alive):
+        option["key"] = str(index)
+    return alive
+
+
 async def _cached(key: str, produce: Callable[[], Awaitable[list[dict[str, Any]]]], now: Callable[[], float]) -> list[dict[str, Any]]:
     """Answer from the cache, share one in-flight scrape between simultaneous clicks, remember empty answers briefly."""
     cached = _CACHE.get(key)
@@ -150,16 +185,20 @@ async def lookup(
     tmdb_id: str | int,
     *,
     fetcher: Fetcher | None = None,
+    prober: Prober | None = None,
     now: Callable[[], float] = time.monotonic,
 ) -> list[dict[str, Any]]:
-    """Quality options for one movie from the add-on at ``base_url``; ``[]`` when not configured, not found, or unavailable."""
+    """Quality options for one movie from the add-on at ``base_url``; ``[]`` when not configured, not found, or unavailable.
+
+    Links that are not usable right now (e.g. a Google Drive download quota used up) are dropped by probing each one."""
     base = str(base_url or "").strip().rstrip("/")
     tmdb = str(tmdb_id or "").strip()
     if not base or not tmdb.isdigit():
         return []
 
     async def produce() -> list[dict[str, Any]]:
-        return parse_streams(await (fetcher or http_fetcher)(f"{base}/stream/movie/tmdb:{tmdb}.json"))
+        options = parse_streams(await (fetcher or http_fetcher)(f"{base}/stream/movie/tmdb:{tmdb}.json"))
+        return await keep_alive(options, prober or http_prober) if options else []
 
     return await _cached(tmdb, produce, now)
 
@@ -209,4 +248,4 @@ def clear_cache() -> None:
     _INFLIGHT.clear()
 
 
-__all__ = ["clear_cache", "format_size", "lookup", "parse_streams", "remote_lookup", "safe_url"]
+__all__ = ["clear_cache", "format_size", "keep_alive", "lookup", "parse_streams", "remote_lookup", "safe_url"]
