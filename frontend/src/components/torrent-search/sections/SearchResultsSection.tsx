@@ -2,7 +2,7 @@ import { api } from '../../../api/client.ts';
 import { formatBytes } from '../../../utils/formatters.ts';
 import { TvShowTile } from '../TvShowTile.tsx';
 import { MovieCompactCard, imdbTitleLink } from '../../MovieCards.tsx';
-import { MovieActionCard, torrentChip } from '../../MovieActionCard.tsx';
+import { MovieActionCard, orderTorrents, torrentChip } from '../../MovieActionCard.tsx';
 import { compareReleaseDateDescending, episodeSeriesTitle, releaseDateSortValue, imdbRatingKey, normalizeGroupTitle, normalizeSavedOttTitle, searchMetadataForGroup, torrentQualityDetails, torrentResultKey } from '../grouping.ts';
 import { toCardProviders, uniqueOttProviders } from '../ottProviders.ts';
 import { normalizeTorrentTitleForNexStream } from '../nexstream.ts';
@@ -386,8 +386,8 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
                       }
                     },
                   }}
-                  prepare={{
-                    chips: group.variants.map(torrentChip),
+                  prepare={orderTorrents(group.variants).length === 0 ? undefined : {
+                    chips: orderTorrents(group.variants).map(torrentChip),
                     isPreparing: prepareState.isPreparing,
                     disabled: !prepareState.source || prepareState.isPreparing,
                     onPrepare: key => {

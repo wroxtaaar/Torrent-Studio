@@ -6,6 +6,9 @@ import { formatBytes } from '../utils/formatters.ts';
 import { torrentQualityDetails, torrentResultKey } from './torrent-search/grouping.ts';
 import { copyMagnetAndOpenWebtor } from './torrent-search/webtor.ts';
 import { HdPlayerModal } from './HdPlayerModal.tsx';
+import { orderHdOptions, orderTorrents } from './torrent-search/actionOrdering.ts';
+
+export { orderTorrents };
 
 export interface MovieActionChip {
   key: string;
@@ -99,14 +102,14 @@ export const MovieActionCard: React.FC<MovieActionCardProps> = ({ title, titleHr
     setLarge([]); setHd([]); setHint(''); setOpenId(''); setHdPlayKey('');
     setLargeLoading(true);
     void api.getTorrentOptions({ tmdbId, title, year }, controller.signal, 'all', 'movie', true)
-      .then(rows => { if (!controller.signal.aborted) setLarge(rows); })
+      .then(rows => { if (!controller.signal.aborted) setLarge(orderTorrents([...rows])); })
       .catch(() => {})
       .finally(() => { if (!controller.signal.aborted) setLargeLoading(false); });
     const id = Number(tmdbId);
     if (Number.isInteger(id) && id > 0) {
       setHdLoading(true);
       void api.getNuvioStreams(id, controller.signal)
-        .then(options => { if (!controller.signal.aborted) setHd(options); })
+        .then(options => { if (!controller.signal.aborted) setHd(orderHdOptions(options)); })
         .catch(() => {})
         .finally(() => { if (!controller.signal.aborted) setHdLoading(false); });
     }

@@ -2,7 +2,7 @@ import { Loader2 } from 'lucide-react';
 import { API_BASE } from '../../../api/client.ts';
 import { formatBytes } from '../../../utils/formatters.ts';
 import { MovieCompactCard, imdbTitleLink } from '../../MovieCards.tsx';
-import { MovieActionCard, torrentChip } from '../../MovieActionCard.tsx';
+import { MovieActionCard, orderTorrents, torrentChip } from '../../MovieActionCard.tsx';
 import { imdbRatingKey, torrentQualityDetails, torrentResultKey } from '../grouping.ts';
 import { toCardProviders, uniqueOttProviders } from '../ottProviders.ts';
 import { cataloguePosterOverride, cataloguePosterSource, imdbFallbackForCatalogueMovie, imdbRatingForCatalogueMovie, isTheCrow2024 } from '../cataloguePosters.ts';
@@ -183,8 +183,8 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                         });
                       },
                     }}
-                    prepare={!result ? undefined : {
-                      chips: previewGroup.variants.map(torrentChip),
+                    prepare={!result || orderTorrents(previewGroup.variants).length === 0 ? undefined : {
+                      chips: orderTorrents(previewGroup.variants).map(torrentChip),
                       isPreparing: prepareState.isPreparing,
                       disabled: !prepareState.source || prepareState.isPreparing,
                       onPrepare: key => {

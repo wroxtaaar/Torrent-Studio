@@ -80,7 +80,7 @@ def format_size(size: int) -> str:
 
 
 def parse_streams(payload: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """Quality options from the add-on's ``{"streams": [...]}`` answer, best quality first, smaller files first."""
+    """Quality options from the add-on's ``{"streams": [...]}`` answer, best quality first, bigger files first."""
     options: list[dict[str, Any]] = []
     seen: set[str] = set()
     for stream in (payload or {}).get("streams") or []:
@@ -104,7 +104,7 @@ def parse_streams(payload: dict[str, Any] | None) -> list[dict[str, Any]]:
             "filename": filename,
             "url": url,
         })
-    options.sort(key=lambda o: (-_RANK[o["quality"]], o["size"] or 1 << 60, o["filename"]))
+    options.sort(key=lambda o: (-_RANK[o["quality"]], -o["size"], o["filename"]))
     options = options[:MAX_OPTIONS]
     for index, option in enumerate(options):
         option["key"] = str(index)

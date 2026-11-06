@@ -25,10 +25,10 @@ def _clean():
     N.clear_cache()
 
 
-def test_parse_orders_by_quality_then_size_and_labels_options():
+def test_parse_orders_by_quality_then_bigger_size_and_labels_options():
     options = N.parse_streams(PAYLOAD)
     assert [o["quality"] for o in options] == ["2160p", "1080p", "1080p"]
-    assert [o["label"] for o in options] == ["4K · 53.4 GB · REMUX HDR DV", "1080p · 2.4 GB", "1080p · 10.8 GB"]
+    assert [o["label"] for o in options] == ["4K · 53.4 GB · REMUX HDR DV", "1080p · 10.8 GB", "1080p · 2.4 GB"]
     assert [o["key"] for o in options] == ["0", "1", "2"]
 
 
