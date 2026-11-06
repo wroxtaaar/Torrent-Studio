@@ -57,7 +57,20 @@ sets `NUVIO_URL` to `http://host.docker.internal:7777` and maps `host.docker.int
 button off. Check the container can reach the add-on:
 `docker exec torrent-studio python -c "import urllib.request;print(urllib.request.urlopen('http://host.docker.internal:7777/', timeout=5).status)"`.
 
-On Render leave `NUVIO_URL` unset (no button), or point it at a public address of the add-on that you have protected.
+## Render (Play HD / Download HD without an add-on of its own)
+
+Render cannot reach the add-on, but it can ask the VPS app, which already has a public address. In the Render
+dashboard (service -> Environment) add:
+
+```
+NUVIO_API_URL = http://<vps-ip>:3000
+```
+
+Render's backend then calls `GET <that address>/api/nuvio/streams?tmdb_id=...` (server to server, so no browser
+mixed-content problem) and gets the same quality list. The links in it are the file host's own `https` links, which the
+visitor's browser plays or downloads directly: no VPS bandwidth, and Render serves no video. It needs the VPS app and the
+add-on to be running; if either is down the two buttons just do not appear. `NUVIO_URL` (add-on on the same machine) wins
+over `NUVIO_API_URL` when both are set.
 
 ## How the app uses it
 

@@ -15,6 +15,10 @@ services:
       # (250 MB .. 2 GB). Decimals are fine; a restart applies it. Cached files have no upper size limit.
       # - key: TORRENT_MAX_SIZE_GB
       #   value: "5"
+      # Play HD / Download HD on the movie card: the address of a Torrent Studio that runs the Nuvio add-on (the VPS), e.g.
+      # http://<vps-ip>:3000 . Set it in the Render dashboard (docs/nuvio-streams.md); without it the two buttons do not appear.
+      - key: NUVIO_API_URL
+        sync: false
       # Use only self-contained section caches; metadata providers are never called at runtime.
       - key: CACHE_FIRST
         value: "true"

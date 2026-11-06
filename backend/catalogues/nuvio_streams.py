@@ -122,6 +122,29 @@ async def http_fetcher(url: str, timeout_s: float = 45.0) -> dict[str, Any] | No
         return None
 
 
+async def _cached(key: str, produce: Callable[[], Awaitable[list[dict[str, Any]]]], now: Callable[[], float]) -> list[dict[str, Any]]:
+    """Answer from the cache, share one in-flight scrape between simultaneous clicks, remember empty answers briefly."""
+    cached = _CACHE.get(key)
+    if cached is not None and cached[0] > now():
+        return cached[1]
+    pending = _INFLIGHT.get(key)
+    if pending is not None:
+        return await asyncio.shield(pending)
+    future: asyncio.Future[list[dict[str, Any]]] = asyncio.get_running_loop().create_future()
+    _INFLIGHT[key] = future
+    options: list[dict[str, Any]] = []
+    try:
+        options = await produce()
+        if len(_CACHE) >= MAX_CACHE_ENTRIES:
+            _CACHE.pop(next(iter(_CACHE)))
+        _CACHE[key] = (now() + (SUCCESS_TTL_S if options else EMPTY_TTL_S), options)
+        return options
+    finally:
+        _INFLIGHT.pop(key, None)
+        if not future.done():
+            future.set_result(options)
+
+
 async def lookup(
     base_url: str,
     tmdb_id: str | int,
@@ -129,31 +152,56 @@ async def lookup(
     fetcher: Fetcher | None = None,
     now: Callable[[], float] = time.monotonic,
 ) -> list[dict[str, Any]]:
-    """Quality options for one movie; ``[]`` when not configured, not found, or the add-on is unavailable."""
+    """Quality options for one movie from the add-on at ``base_url``; ``[]`` when not configured, not found, or unavailable."""
     base = str(base_url or "").strip().rstrip("/")
     tmdb = str(tmdb_id or "").strip()
     if not base or not tmdb.isdigit():
         return []
-    cached = _CACHE.get(tmdb)
-    if cached is not None and cached[0] > now():
-        return cached[1]
-    pending = _INFLIGHT.get(tmdb)
-    if pending is not None:            # two clicks on the same title share one scrape
-        return await asyncio.shield(pending)
-    future: asyncio.Future[list[dict[str, Any]]] = asyncio.get_running_loop().create_future()
-    _INFLIGHT[tmdb] = future
+
+    async def produce() -> list[dict[str, Any]]:
+        return parse_streams(await (fetcher or http_fetcher)(f"{base}/stream/movie/tmdb:{tmdb}.json"))
+
+    return await _cached(tmdb, produce, now)
+
+
+def _options_from_api(payload: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Options out of another Torrent Studio's /api/nuvio/streams answer. Re-validated: only https links, known fields."""
     options: list[dict[str, Any]] = []
-    try:
-        payload = await (fetcher or http_fetcher)(f"{base}/stream/movie/tmdb:{tmdb}.json")
-        options = parse_streams(payload)
-        if len(_CACHE) >= MAX_CACHE_ENTRIES:
-            _CACHE.pop(next(iter(_CACHE)))
-        _CACHE[tmdb] = (now() + (SUCCESS_TTL_S if options else EMPTY_TTL_S), options)
-        return options
-    finally:
-        _INFLIGHT.pop(tmdb, None)
-        if not future.done():
-            future.set_result(options)
+    for raw in (payload or {}).get("options") or []:
+        if not isinstance(raw, dict):
+            continue
+        url = safe_url(raw.get("url"))
+        quality = raw.get("quality") if raw.get("quality") in _RANK else "other"
+        if not url:
+            continue
+        try:
+            size = max(0, int(raw.get("size") or 0))
+        except (TypeError, ValueError):
+            size = 0
+        options.append({"key": str(len(options)), "quality": quality, "label": str(raw.get("label") or "")[:120], "size": size,
+                        "filename": str(raw.get("filename") or "")[:300], "url": url})
+    return options[:MAX_OPTIONS]
+
+
+async def remote_lookup(
+    api_base_url: str,
+    tmdb_id: str | int,
+    *,
+    fetcher: Fetcher | None = None,
+    now: Callable[[], float] = time.monotonic,
+) -> list[dict[str, Any]]:
+    """Same options, asked from another Torrent Studio that has the add-on (e.g. Render asking the VPS).
+
+    ``api_base_url`` is that app's address, e.g. http://203.0.113.5:3000 . The answer is cached here as well."""
+    base = str(api_base_url or "").strip().rstrip("/")
+    tmdb = str(tmdb_id or "").strip()
+    if not base or not tmdb.isdigit():
+        return []
+
+    async def produce() -> list[dict[str, Any]]:
+        return _options_from_api(await (fetcher or http_fetcher)(f"{base}/api/nuvio/streams?tmdb_id={tmdb}"))
+
+    return await _cached("remote:" + tmdb, produce, now)
 
 
 def clear_cache() -> None:
@@ -161,4 +209,4 @@ def clear_cache() -> None:
     _INFLIGHT.clear()
 
 
-__all__ = ["clear_cache", "format_size", "lookup", "parse_streams", "safe_url"]
+__all__ = ["clear_cache", "format_size", "lookup", "parse_streams", "remote_lookup", "safe_url"]

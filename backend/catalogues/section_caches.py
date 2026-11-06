@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from catalogues import nuvio_streams, torrent_options
-from core.settings import MAX_SEARCH_RESULT_SIZE_BYTES, MIN_SEARCH_RESULT_SIZE_BYTES, NUVIO_URL
+from core.settings import MAX_SEARCH_RESULT_SIZE_BYTES, MIN_SEARCH_RESULT_SIZE_BYTES, NUVIO_API_URL, NUVIO_URL
 
 router = APIRouter()
 SECTION_CACHE_NAMES = frozenset({
@@ -74,7 +74,8 @@ async def api_get_torrent_options(
 async def api_get_nuvio_streams(tmdb_id: str = Query(..., pattern=r"^\d{1,12}$")) -> dict[str, Any]:
     """HD download options for ONE movie from the Nuvio Streams add-on (called when a movie card opens).
 
-    ``status`` is ``unavailable`` when NUVIO_URL is not set or nothing came back, so the card shows no button.
+    ``status`` is ``unavailable`` when neither NUVIO_URL (add-on on this machine) nor NUVIO_API_URL (another Torrent Studio
+    that has one) is set, or nothing came back, so the card shows no button.
     """
-    options = await nuvio_streams.lookup(NUVIO_URL, tmdb_id)
+    options = await (nuvio_streams.lookup(NUVIO_URL, tmdb_id) if NUVIO_URL else nuvio_streams.remote_lookup(NUVIO_API_URL, tmdb_id))
     return {"status": "ready" if options else "unavailable", "options": options}

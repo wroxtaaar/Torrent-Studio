@@ -274,6 +274,8 @@ SEARCH_SIZE_LIMITS_PUBLIC = {
 # Optional HD download links from a self-hosted Nuvio Streams add-on (see catalogues/nuvio_streams.py).
 # Unset = the movie card shows no "Download HD" button. On the VPS: NUVIO_URL=http://localhost:7777
 NUVIO_URL = os.getenv("NUVIO_URL", "").strip().rstrip("/")
+# Where there is no add-on of its own (Render): ask another Torrent Studio that has one, e.g. http://<vps-ip>:3000
+NUVIO_API_URL = os.getenv("NUVIO_API_URL", "").strip().rstrip("/")
 SEARCH_COMPOUND_ALIASES = {
     "antman": "ant man",
     "spiderman": "spider man",

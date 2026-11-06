@@ -91,3 +91,32 @@ def test_a_failing_add_on_gives_no_options_not_an_error():
     async def fetcher(url):
         return None
     assert asyncio.run(N.lookup("http://x", 5, fetcher=fetcher)) == []
+
+
+def test_remote_lookup_reads_another_apps_options_and_revalidates_them():
+    api_answer = {"status": "ready", "options": [
+        {"key": "0", "quality": "1080p", "label": "1080p · 2.4 GB", "size": 2544768122, "filename": "a.mkv", "url": "https://b.workers.dev/p/a%20b.mkv"},
+        {"key": "1", "quality": "weird", "label": "x", "size": "junk", "filename": "b.mkv", "url": "https://c.workers.dev/b.mkv"},
+        {"key": "2", "quality": "720p", "label": "http", "size": 1, "filename": "c.mkv", "url": "http://insecure.example/c.mkv"},
+        {"key": "3", "quality": "720p", "label": "js", "size": 1, "filename": "d.mkv", "url": "javascript:alert(1)"},
+        "junk",
+    ]}
+    calls: list[str] = []
+
+    async def fetcher(url):
+        calls.append(url)
+        return api_answer
+
+    options = asyncio.run(N.remote_lookup("http://203.0.113.5:3000/", 278, fetcher=fetcher))
+    assert calls == ["http://203.0.113.5:3000/api/nuvio/streams?tmdb_id=278"]
+    assert [o["url"] for o in options] == ["https://b.workers.dev/p/a%20b.mkv", "https://c.workers.dev/b.mkv"]
+    assert [o["quality"] for o in options] == ["1080p", "other"] and options[1]["size"] == 0
+    assert asyncio.run(N.remote_lookup("http://203.0.113.5:3000", 278, fetcher=fetcher)) == options and len(calls) == 1   # cached
+
+
+def test_remote_lookup_is_unavailable_without_an_address_or_when_the_other_app_is_down():
+    async def down(url):
+        return None
+    assert asyncio.run(N.remote_lookup("", 278, fetcher=down)) == []
+    assert asyncio.run(N.remote_lookup("http://x", "abc", fetcher=down)) == []
+    assert asyncio.run(N.remote_lookup("http://x", 278, fetcher=down)) == []
