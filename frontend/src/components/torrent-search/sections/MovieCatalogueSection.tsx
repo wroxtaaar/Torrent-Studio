@@ -185,11 +185,13 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
                     }}
                     prepare={!result ? undefined : {
                       chips: previewGroup.variants.map(torrentChip),
-                      selectedKey: result ? torrentResultKey(result) : '',
-                      onSelect: key => setSelectedMovieTorrentQualityByGroup(previous => ({ ...previous, [previewGroup.key]: key })),
                       isPreparing: prepareState.isPreparing,
                       disabled: !prepareState.source || prepareState.isPreparing,
-                      onClick: () => void prepareMovieTorrent(result),
+                      onPrepare: key => {
+                        const chosen = previewGroup.variants.find(variant => torrentResultKey(variant) === key) || result;
+                        setSelectedMovieTorrentQualityByGroup(previous => ({ ...previous, [previewGroup.key]: torrentResultKey(chosen) }));
+                        void prepareMovieTorrent(chosen);
+                      },
                     }}
                     prepared={result && prepareState.primaryFile ? preparedActionsFor(prepareState.torrentKey, prepareState.primaryFile) : null}
                   />

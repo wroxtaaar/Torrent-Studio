@@ -388,11 +388,13 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
                   }}
                   prepare={{
                     chips: group.variants.map(torrentChip),
-                    selectedKey: torrentResultKey(result),
-                    onSelect: key => setSelectedQualityByGroup(previous => ({ ...previous, [group.key]: key })),
                     isPreparing: prepareState.isPreparing,
                     disabled: !prepareState.source || prepareState.isPreparing,
-                    onClick: () => void prepareMovieTorrent(result),
+                    onPrepare: key => {
+                      const chosen = group.variants.find(variant => torrentResultKey(variant) === key) || result;
+                      setSelectedQualityByGroup(previous => ({ ...previous, [group.key]: torrentResultKey(chosen) }));
+                      void prepareMovieTorrent(chosen);
+                    },
                   }}
                   prepared={prepareState.primaryFile ? preparedActionsFor(prepareState.torrentKey, prepareState.primaryFile) : null}
                 />
