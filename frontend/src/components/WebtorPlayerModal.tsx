@@ -47,7 +47,7 @@ export const WebtorPlayerModal: React.FC<{ title: string; magnetUrl: string; lab
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-black">
           {state === 'loading' && <div className="flex items-center justify-center gap-2 py-10 text-xs text-slate-400"><Loader2 className="h-4 w-4 animate-spin" />Loading Webtor player…</div>}
-          <div id={mountId} className="webtor w-full" />
+          <div id={mountId} className="webtor w-full [&_iframe]:block [&_iframe]:min-h-[640px] [&_iframe]:w-full" />
         </div>
         <div className="shrink-0 space-y-2 border-t border-slate-800 px-4 py-3">
           {state === 'failed' && <p className="text-xs text-amber-300">The Webtor player could not be loaded here. Use the button below to open webtor.io instead.</p>}

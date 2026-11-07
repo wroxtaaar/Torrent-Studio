@@ -30,7 +30,7 @@ export function webtorEmbedConfig(id: string, magnetUrl: string, title = ''): Re
   const magnet = String(magnetUrl || '').trim();
   if (!/^magnet:\?/i.test(magnet)) return null;
   return {
-    id, magnet, width: '100%', lang: 'en',
+    id, magnet, width: '100%', height: '640px', lang: 'en',
     ...(title ? { title } : {}),
     features: { chromecast: false, embed: false },
   };
