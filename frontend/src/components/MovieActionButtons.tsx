@@ -47,10 +47,73 @@ interface Group {
   disabled?: boolean;
   busy?: boolean;
   items: MenuItem[];
+  /** Set on the Download button: its menu is one row of resolution buttons; each shows its torrents. */
+  buckets?: Array<{ bucket: ResolutionBucket; label: string; items: MenuItem[] }>;
 }
 
 const tileClass = 'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-[11px] font-bold leading-tight disabled:cursor-not-allowed disabled:opacity-60';
 const rowClass = 'flex w-full min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-slate-200 hover:bg-slate-800';
+
+const GLOW: Record<ResolutionBucket, { idle: string; active: string }> = {
+  '720p': { idle: 'border-sky-400/50 text-sky-200 shadow-[0_0_10px_rgba(56,189,248,0.35)]', active: 'border-sky-300 bg-sky-500/25 text-white shadow-[0_0_18px_rgba(56,189,248,0.8)]' },
+  '1080p': { idle: 'border-violet-400/50 text-violet-200 shadow-[0_0_10px_rgba(167,139,250,0.35)]', active: 'border-violet-300 bg-violet-500/25 text-white shadow-[0_0_18px_rgba(167,139,250,0.8)]' },
+  '4k': { idle: 'border-emerald-400/50 text-emerald-200 shadow-[0_0_10px_rgba(52,211,153,0.35)]', active: 'border-emerald-300 bg-emerald-500/25 text-white shadow-[0_0_18px_rgba(52,211,153,0.8)]' },
+  other: { idle: 'border-slate-500/50 text-slate-300 shadow-[0_0_10px_rgba(148,163,184,0.25)]', active: 'border-slate-300 bg-slate-500/25 text-white shadow-[0_0_16px_rgba(148,163,184,0.6)]' },
+};
+
+/** Floating position for a menu opened from `rect`: under the button, above it near the bottom of the screen. */
+function menuPlacement(rect: DOMRect, width: number, height: number): React.CSSProperties {
+  const viewportWidth = typeof window === 'undefined' ? 360 : window.innerWidth;
+  const viewportHeight = typeof window === 'undefined' ? 640 : window.innerHeight;
+  const alignRight = rect.left + rect.width / 2 > viewportWidth / 2;
+  const above = rect.bottom + height > viewportHeight && rect.top > height;
+  return {
+    position: 'fixed',
+    width: Math.min(width, viewportWidth - 16),
+    ...(alignRight ? { right: Math.max(8, viewportWidth - rect.right) } : { left: Math.max(8, rect.left) }),
+    ...(above ? { bottom: viewportHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
+  };
+}
+
+/** The Download menu: one row of glowing resolution buttons; tapping one lists its torrents (sizes) underneath. */
+function DownloadPanel({ group, rect, close }: { group: Group; rect: DOMRect; close: () => void }) {
+  const [chosen, setChosen] = useState<ResolutionBucket | null>(null);
+  const buckets = group.buckets || [];
+  const shown = buckets.find(entry => entry.bucket === chosen);
+  const pills: Array<{ bucket: ResolutionBucket; label: string; items: MenuItem[] }> = [
+    ...(['720p', '1080p', '4k'] as ResolutionBucket[]).map(bucket => buckets.find(entry => entry.bucket === bucket) || { bucket, label: BUCKET_LABELS[bucket], items: [] }),
+    ...buckets.filter(entry => entry.bucket === 'other'),
+  ];
+  return (
+    <div data-action-menu="true" role="dialog" aria-label={group.ariaLabel} style={{ ...menuPlacement(rect, 300, 300), touchAction: 'pan-y' }}
+      className="z-[100] overflow-hidden rounded-xl border border-slate-700 bg-slate-950/95 p-2.5 shadow-2xl backdrop-blur">
+      <div className="flex gap-2" role="group" aria-label="Choose a resolution">
+        {pills.map(entry => {
+          const empty = entry.items.length === 0;
+          const active = chosen === entry.bucket;
+          return (
+            <button key={entry.bucket} type="button" disabled={empty} aria-pressed={active} onClick={() => setChosen(active ? null : entry.bucket)}
+              title={empty ? `No ${entry.label} torrents` : `${entry.items.length} ${entry.label} torrent${entry.items.length === 1 ? '' : 's'}`}
+              className={'flex min-w-0 flex-1 flex-col items-center rounded-lg border px-2 py-1.5 text-xs font-extrabold transition disabled:cursor-not-allowed disabled:opacity-30 disabled:shadow-none ' + (active ? GLOW[entry.bucket].active : 'bg-slate-900/70 hover:bg-slate-800 ' + GLOW[entry.bucket].idle)}>
+              <span>{entry.label}</span>
+              <span className="text-[9px] font-semibold opacity-70">{empty ? '—' : entry.items.length}</span>
+            </button>
+          );
+        })}
+      </div>
+      {shown ? (
+        <div role="menu" aria-label={`${shown.label} torrents`} className="mt-2 max-h-48 space-y-0.5 overflow-y-auto overscroll-contain rounded-lg border border-slate-800 bg-slate-900/60 p-1">
+          {shown.items.map(item => (
+            <button key={item.key} type="button" role="menuitem" title={item.title} disabled={item.disabled}
+              onClick={() => { close(); item.onPick?.(); }} className={rowClass + ' disabled:cursor-not-allowed disabled:opacity-50'}>{item.label}</button>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 px-1 text-center text-[10px] text-slate-500">Choose a resolution to see the torrents</p>
+      )}
+    </div>
+  );
+}
 
 /**
  * One group's quality list, floating just under its button (or above it near the bottom of the screen). It is drawn on
@@ -93,14 +156,14 @@ export const torrentChip = (row: TorrentSearchResult): MovieActionChip => ({
 
 /**
  * The action area of a movie's second card (shown under the poster and title):
- *   [Play] [Play HD ⌄] [720p ⌄] [1080p ⌄] [4K ⌄] [Download HD ⌄]
+ *   [Play] [Play HD ⌄] [Download ⌄] [Download HD ⌄]
  * Each ⌄ button opens a list of qualities (best resolution first, then bigger files); picking one runs the action.
  * With a single quality the button runs directly and shows no caret. A button is rendered only when its source has
  * something. The Webtor and HD lookups start when the card opens (never on page load) and their buttons appear when
  * they return.
  *   Play      the existing Vidrift / NexStream playback
  *   Play HD   the Nuvio Streams add-on's file in the browser, with VLC / MX Player as fallback (HdPlayerModal)
- *   720p / 1080p / 4K  torrents by resolution, sizes in the menu: up to the size limit goes to Seedr (prepare), larger to Webtor
+ *   Download  one row of glowing 720p / 1080p / 4K buttons; each lists its torrents by size. Up to the size limit goes to Seedr (prepare), larger to Webtor
  *   Download HD  the same files, saved by the browser straight from the file host
  */
 export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, year, tmdbId, play, prepare, prepared }) => {
@@ -185,22 +248,23 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
       onPick: () => setWebtorKey(String(row.magnetUrl || '') ? torrentResultKey(row) : '') };
   });
   const torrentItems = mergeByOrder(seedrItems, webtorItems);
-  for (const bucket of BUCKET_ORDER) {
-    const items = torrentItems.filter(item => item.bucket === bucket);
-    if (items.length === 0) continue;
+  const buckets = BUCKET_ORDER
+    .map(bucket => ({ bucket, label: BUCKET_LABELS[bucket], items: torrentItems.filter(item => item.bucket === bucket) }))
+    .filter(entry => entry.items.length > 0);
+  if (buckets.length > 0) {
     groups.push({
-      id: `res-${bucket}`, label: BUCKET_LABELS[bucket], className: 'border border-cyan-400/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25',
-      ariaLabel: `${BUCKET_LABELS[bucket]}: choose a size for ${title}`,
-      items, disabled: items.length === 1 && Boolean(items[0].disabled),
+      id: 'download', label: prepare?.isPreparing ? 'Preparing…' : 'Download', icon: <Download className="h-3 w-3 shrink-0" />,
+      className: 'bg-cyan-500 text-slate-950 hover:bg-cyan-400', ariaLabel: `Download ${title}: choose a resolution, then a size`,
+      items: torrentItems, buckets,
     });
   }
 
-  const open = menu ? groups.find(group => group.id === menu.id && group.items.length > 1) : undefined;
+  const open = menu ? groups.find(group => group.id === menu.id && (group.buckets || group.items.length > 1)) : undefined;
   const nothing = !play && !prepared && groups.length === 0;
   const checking = hdLoading || largeLoading;
 
   const tile = (group: Group) => {
-    const single = group.items.length === 1 ? group.items[0] : null;
+    const single = group.items.length === 1 && !group.buckets ? group.items[0] : null;
     const content = (
       <>
         {group.icon}
@@ -231,7 +295,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
       </button>
     ),
     byId('play-hd') && tile(byId('play-hd')!),
-    ...BUCKET_ORDER.map(bucket => byId(`res-${bucket}`) && tile(byId(`res-${bucket}`)!)),
+    byId('download') && tile(byId('download')!),
     byId('download-hd') && tile(byId('download-hd')!),
   ].filter(Boolean);
 
@@ -257,7 +321,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
         </div>
       )}
 
-      {open && menu && typeof document !== 'undefined' && createPortal(menuView(open, menu.rect, () => setMenu(null)), document.body)}
+      {open && menu && typeof document !== 'undefined' && createPortal(open.buckets ? <DownloadPanel key={open.id} group={open} rect={menu.rect} close={() => setMenu(null)} /> : menuView(open, menu.rect, () => setMenu(null)), document.body)}
       {prepare?.isPreparing && <div className="text-[10px] text-slate-400" role="status">Preparing…</div>}
       {hint ? <div className="text-[10px] leading-snug text-slate-400" role="status">{hint}</div> : null}
       {webtorRow && <WebtorPlayerModal title={title} magnetUrl={String(webtorRow.magnetUrl || '')} label={torrentChip(webtorRow).label} onClose={() => setWebtorKey('')} />}
