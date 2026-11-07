@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import React, { useEffect, useId, useState } from 'react';
 import { ExternalLink, Loader2, X } from 'lucide-react';
 import { copyMagnetAndOpenWebtor, loadWebtorSdk, webtorEmbedConfig } from './torrent-search/webtor.ts';
@@ -33,7 +34,7 @@ export const WebtorPlayerModal: React.FC<{ title: string; magnetUrl: string; lab
     return () => { cancelled = true; };
   }, [mountId, magnetUrl, title]);
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-3" role="dialog" aria-modal="true" aria-label={`Webtor player for ${title}`}
       onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
       <div className="max-h-full w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-2xl">
@@ -58,6 +59,7 @@ export const WebtorPlayerModal: React.FC<{ title: string; magnetUrl: string; lab
           {hint && <p className="text-[11px] text-slate-400" role="status">{hint}</p>}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
