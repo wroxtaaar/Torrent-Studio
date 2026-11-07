@@ -18,6 +18,8 @@ export function groupBySeason(rows: TorrentSearchResult[]): SeasonChip[] {
     else seasons.set(season, [...(seasons.get(season) || []), row]);
   }
   const chips: SeasonChip[] = [...seasons.entries()].sort((a, b) => a[0] - b[0]).map(([season, list]) => ({ id: 's' + season, label: 'S' + season, rows: list }));
+  // One season only: a complete-series pack is the same episodes, so its qualities and sizes join that season.
+  if (chips.length === 1 && complete.length) { chips[0] = { ...chips[0], rows: [...chips[0].rows, ...complete] }; return chips; }
   if (complete.length) chips.push({ id: 'complete', label: 'Complete series', rows: complete });
   return chips;
 }
