@@ -96,7 +96,7 @@ function DownloadPanel({ group, rect, close }: { group: Group; rect: DOMRect; cl
               title={empty ? `No ${entry.label} torrents` : `${entry.items.length} ${entry.label} torrent${entry.items.length === 1 ? '' : 's'}`}
               className={'flex min-w-0 flex-1 flex-col items-center rounded-lg border px-2 py-1.5 text-xs font-extrabold transition disabled:cursor-not-allowed disabled:opacity-30 disabled:shadow-none ' + (active ? GLOW[entry.bucket].active : 'bg-slate-900/70 hover:bg-slate-800 ' + GLOW[entry.bucket].idle)}>
               <span>{entry.label}</span>
-              <span className="text-[9px] font-semibold opacity-70">{empty ? '—' : entry.items.length}</span>
+              <ChevronDown aria-hidden="true" className={'mt-0.5 h-3 w-3 opacity-80 transition-transform ' + (active ? 'rotate-180' : '')} />
             </button>
           );
         })}
