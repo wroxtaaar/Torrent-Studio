@@ -8,7 +8,7 @@ import { torrentQualityDetails, torrentResultKey } from './torrent-search/groupi
 import { WebtorPlayerModal } from './WebtorPlayerModal.tsx';
 import { openWebtorDownload } from './torrent-search/webtor.ts';
 import { HdPlayerModal } from './HdPlayerModal.tsx';
-import { BUCKET_LABELS, BUCKET_ORDER, formatLabelOf, mergeByOrder, nuvioBucket, nuvioOrderValue, orderHdOptions, orderTorrents, resolutionBucket, torrentOrderValue, type ResolutionBucket } from './torrent-search/actionOrdering.ts';
+import { BUCKET_LABELS, BUCKET_ORDER, formatLabelOf, mergeByOrder, nuvioBucket, nuvioOrderValue, orderHdOptions, orderTorrents, resolutionBucket, torrentOrderValue, visibleBuckets, type ResolutionBucket } from './torrent-search/actionOrdering.ts';
 
 export { orderTorrents };
 
@@ -81,10 +81,7 @@ function DownloadPanel({ group, rect, close }: { group: Group; rect: DOMRect; cl
   const [chosen, setChosen] = useState<ResolutionBucket | null>(null);
   const buckets = group.buckets || [];
   const shown = buckets.find(entry => entry.bucket === chosen);
-  const pills: Array<{ bucket: ResolutionBucket; label: string; items: MenuItem[] }> = [
-    ...(['720p', '1080p', '4k'] as ResolutionBucket[]).map(bucket => buckets.find(entry => entry.bucket === bucket) || { bucket, label: BUCKET_LABELS[bucket], items: [] }),
-    ...buckets.filter(entry => entry.bucket === 'other'),
-  ];
+  const pills = visibleBuckets(buckets);
   return (
     <div data-action-menu="true" role="dialog" aria-label={group.ariaLabel} style={{ ...menuPlacement(rect, 300, 300), touchAction: 'pan-y' }}
       className="z-[100] overflow-hidden rounded-xl border border-slate-700 bg-slate-950/95 p-2.5 shadow-2xl backdrop-blur">

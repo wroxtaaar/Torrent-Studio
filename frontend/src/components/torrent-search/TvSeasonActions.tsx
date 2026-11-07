@@ -3,7 +3,7 @@ import { Download, ListVideo, Play } from 'lucide-react';
 import type { TorrentSearchResult } from '../../api/types.ts';
 import { formatBytes } from '../../utils/formatters.ts';
 import { GLOW } from '../MovieActionButtons.tsx';
-import { BUCKET_LABELS, BUCKET_ORDER, formatLabelOf, resolutionBucket, type ResolutionBucket } from './actionOrdering.ts';
+import { BUCKET_LABELS, BUCKET_ORDER, formatLabelOf, resolutionBucket, visibleBuckets, type ResolutionBucket } from './actionOrdering.ts';
 import { torrentQualityDetails, torrentResultKey } from './grouping.ts';
 
 export interface SeasonChip { id: string; label: string; rows: TorrentSearchResult[] }
@@ -26,11 +26,11 @@ export function groupBySeason(rows: TorrentSearchResult[]): SeasonChip[] {
 
 /** Per quality bucket (720p / 1080p / 4K) the packs of one season, bigger and better-seeded first. */
 export function groupByQuality(rows: TorrentSearchResult[]): { bucket: ResolutionBucket; rows: TorrentSearchResult[] }[] {
-  return BUCKET_ORDER.map(bucket => ({
+  return visibleBuckets(BUCKET_ORDER.map(bucket => ({
     bucket,
     rows: rows.filter(row => resolutionBucket(row) === bucket)
       .sort((a, b) => (Number(b.seeders) || 0) - (Number(a.seeders) || 0) || (Number(b.size) || 0) - (Number(a.size) || 0)),
-  })).filter(group => group.rows.length > 0);
+  })));
 }
 
 /**
@@ -70,7 +70,7 @@ export const TvSeasonActions: React.FC<{
       </div>
       {chips.length > 0 && (
         <>
-          <div role="tablist" aria-label="Season" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
+          {chips.length > 1 && <div role="tablist" aria-label="Season" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
             {chips.map(chip => {
               const on = chip.id === season?.id;
               return (
@@ -81,7 +81,7 @@ export const TvSeasonActions: React.FC<{
                 </button>
               );
             })}
-          </div>
+          </div>}
           <div className="flex gap-1">
             {qualities.map(group => {
               const on = group.bucket === activeBucket;

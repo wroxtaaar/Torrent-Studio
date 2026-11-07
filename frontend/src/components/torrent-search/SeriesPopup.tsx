@@ -87,7 +87,7 @@ export const SeriesPopup: React.FC<{
         </header>
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4">
-          <section aria-label="Season">
+          {seasons.length > 1 && <section aria-label="Season">
             <h3 className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">Season</h3>
             <div role="tablist" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
               {seasons.map(chip => {
@@ -100,7 +100,7 @@ export const SeriesPopup: React.FC<{
                 );
               })}
             </div>
-          </section>
+          </section>}
 
           <section aria-label="Quality">
             <h3 className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">Quality</h3>

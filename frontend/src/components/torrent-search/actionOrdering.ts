@@ -54,3 +54,14 @@ export function nuvioBucket(quality: NuvioStreamOption['quality']): ResolutionBu
 /** Same sort value as torrentOrderValue, so Nuvio files and torrents merge into one list. */
 export const nuvioOrderValue = (option: NuvioStreamOption): number =>
   (NUVIO_RESOLUTION[option.quality] ?? 0) * 1e13 + Math.min(Number(option.size) || 0, 9.9e12);
+
+/**
+ * Which resolution buttons to show: only the ones that have files. "Other" appears only when one of 720p / 1080p / 4K
+ * is missing, so there are never more than three buttons and they fit the card.
+ */
+export function visibleBuckets<T extends { bucket: ResolutionBucket; items?: unknown[]; rows?: unknown[] }>(groups: T[]): T[] {
+  const filled = groups.filter(group => (group.items || group.rows || []).length > 0);
+  const main = filled.filter(group => group.bucket !== 'other');
+  const other = filled.filter(group => group.bucket === 'other');
+  return main.length >= 3 ? main : [...main, ...other];
+}
