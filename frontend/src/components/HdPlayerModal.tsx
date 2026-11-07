@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Check, Copy, ExternalLink, Loader2, X } from 'lucide-react';
 import type { NuvioStreamOption } from '../api/types.ts';
 import { copyTextNow } from './torrent-search/webtor.ts';
-import { audioFromFilename, browserAudioTracks, currentPlatform, mxPlayerLink, playsSilently, vlcLink, type BrowserAudioTrack } from './torrent-search/hdPlayer.ts';
+import { audioFromFilename, browserAudioTracks, currentPlatform, hasHeavyAudio, mxPlayerLink, playsSilently, vlcLink, type BrowserAudioTrack } from './torrent-search/hdPlayer.ts';
 
 /**
  * Play HD: tries the file in the browser. If the browser cannot decode it (HEVC / DTS are common in these files) or it
@@ -18,6 +18,7 @@ export const HdPlayerModal: React.FC<{ title: string; option: NuvioStreamOption;
   const vlc = vlcLink(option.url, platform);
   const mx = mxPlayerLink(option.url, platform);
   const advertised = audioFromFilename(option.filename);
+  const heavyAudio = hasHeavyAudio(option.filename);
   const pickTrack = (id: string) => {
     const list = (videoRef.current as unknown as { audioTracks?: ArrayLike<{ id?: string; enabled: boolean }> } | null)?.audioTracks;
     if (!list) return;
@@ -84,18 +85,19 @@ export const HdPlayerModal: React.FC<{ title: string; option: NuvioStreamOption;
           ) : advertised.length > 1 ? (
             <p className="text-[11px] leading-snug text-slate-400">
               This file has {advertised.length} audio tracks: {advertised.map(track => track.label).join(', ')}. This browser cannot switch between them;
-              open it in VLC or MX Player to choose the audio track.
+              open it in VLC to choose the audio track.
             </p>
           ) : null}
           {problem && <div role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">{problem} Open it in a player app instead:</div>}
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] text-slate-500">Open in</span>
-            {vlc && <a href={vlc} className={linkClass}><ExternalLink className="h-3.5 w-3.5" />VLC</a>}
+            {vlc && <a href={vlc} className={linkClass} title="Plays every audio format and lets you choose the track"><ExternalLink className="h-3.5 w-3.5" />VLC (recommended)</a>}
             {mx && <a href={mx} className={linkClass}><ExternalLink className="h-3.5 w-3.5" />MX Player</a>}
             <button type="button" className={linkClass} onClick={() => { if (copyTextNow(option.url)) { setCopied(true); window.setTimeout(() => setCopied(false), 2000); } }}>
               {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}Copy link
             </button>
           </div>
+          {mx && heavyAudio && <p className="text-[10px] leading-snug text-amber-300/90">This file has Dolby Digital Plus / DTS audio. MX Player often plays it without sound; VLC plays it and lets you switch tracks.</p>}
           {platform === 'desktop' && <p className="text-[10px] text-slate-500">On a computer, paste the copied link in VLC: Media → Open Network Stream.</p>}
         </div>
       </section>

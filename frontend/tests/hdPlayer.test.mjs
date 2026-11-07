@@ -65,3 +65,13 @@ test('MX Player and VLC links accept the app\'s own (http or https) file address
   assert.equal(mxPlayerLink(url, 'android'), 'intent://129.154.242.170:3000/api/seedr/files/55/download#Intent;scheme=http;package=com.mxtech.videoplayer.ad;type=video/*;end');
   assert.equal(mxPlayerLink(url, 'desktop'), '', 'MX Player is Android only');
 });
+
+test('release names with Dolby Digital Plus / DTS audio are flagged for MX Player', async () => {
+  const { hasHeavyAudio } = await bundle('../src/components/torrent-search/hdPlayer.ts');
+  assert.equal(hasHeavyAudio('Oppenheimer (2023) IMAX 1080p BluRay [Hindi DDP 5.1 + English DTS-HDMA 5.1] x265.mkv'), true);
+  assert.equal(hasHeavyAudio('Film 2160p WEB-DL DDP5.1 Atmos x265.mkv'), true);
+  assert.equal(hasHeavyAudio('Film 1080p BluRay TrueHD 7.1.mkv'), true);
+  assert.equal(hasHeavyAudio('Film 1080p BluRay AAC 5.1 x264.mkv'), false);
+  assert.equal(hasHeavyAudio('Odds and Ends (2020) 1080p.mkv'), false, 'no false positive inside other words');
+  assert.equal(hasHeavyAudio(''), false);
+});

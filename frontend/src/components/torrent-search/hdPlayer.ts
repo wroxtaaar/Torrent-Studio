@@ -82,3 +82,7 @@ export function browserAudioTracks(video: unknown): BrowserAudioTrack[] {
     return { id: String(track.id ?? index), label: String(track.label || ''), language: String(track.language || ''), enabled: Boolean(track.enabled) };
   });
 }
+
+/** True when a release name advertises Dolby Digital Plus, DTS, TrueHD or Atmos audio, which MX Player often cannot decode. */
+export const hasHeavyAudio = (filename: string): boolean =>
+  /(?:^|[^a-z0-9])(?:ddp(?:\d(?:\.\d)?)?|dd\+|e-?ac-?3|dts(?:-?(?:hd(?:ma)?|x|es))?|true-?hd|atmos)(?:$|[^a-z0-9])/i.test(String(filename || ''));
