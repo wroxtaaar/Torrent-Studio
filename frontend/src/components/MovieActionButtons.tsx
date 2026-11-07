@@ -252,6 +252,8 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
       {open && menu && typeof document !== 'undefined' && createPortal(menuView(open, menu.rect, () => setMenu(null)), document.body)}
       {hint ? <div className="text-[10px] leading-snug text-slate-400" role="status">{hint}</div> : null}
       {playingHd && <HdPlayerModal title={title} option={playingHd} onClose={() => setHdPlayKey('')} />}
+      {!checking && !nothing && hd.length === 0 && Number.isInteger(Number(tmdbId)) && Number(tmdbId) > 0 &&
+        <div className="text-[10px] text-slate-500" role="status">No HD stream available right now.</div>}
       {checking && !nothing && <div className="text-[10px] text-slate-500" role="status">Checking more downloads…</div>}
       {nothing && <div className="text-xs text-slate-400" role="status">{checking ? 'Checking available downloads…' : 'Nothing available yet'}</div>}
     </div>
