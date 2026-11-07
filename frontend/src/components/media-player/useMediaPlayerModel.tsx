@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Hls from 'hls.js';
 import { api, API_BASE } from '../../api/client.ts';
 import type { MediaPlayerModalProps } from './types.ts';
+import { loadResume, resumeKey, saveResume, shortcutForKey, tapZone } from './playerExtras.ts';
 
 export function useMediaPlayerModel(props: MediaPlayerModalProps) {
   const { file, onClose, onPlaybackStarted, isMinimized, onToggleMinimize } = props;
@@ -891,14 +892,27 @@ export function useMediaPlayerModel(props: MediaPlayerModalProps) {
     }
   };
   // Time update
+  const lastSavedRef = useRef(0);
+  const resumeAppliedRef = useRef('');
   const onTimeUpdate = () => {
     if (mediaRef.current) {
       setCurrentTime(mediaRef.current.currentTime);
+      const now = Date.now();
+      if (file && now - lastSavedRef.current > 5000) {
+        lastSavedRef.current = now;
+        saveResume(resumeKey(file), mediaRef.current.currentTime, mediaRef.current.duration || 0);
+      }
     }
   };
   const onLoadedMetadata = () => {
     if (mediaRef.current) {
       setDuration(mediaRef.current.duration || file.duration || 600);
+      const key = resumeKey(file);
+      if (key && resumeAppliedRef.current !== key && resumeTimeRef.current === 0) {
+        resumeAppliedRef.current = key;
+        const saved = loadResume(key, mediaRef.current.duration || 0);
+        if (saved > 0) mediaRef.current.currentTime = saved;   // continue where the viewer stopped
+      }
 
       if (resumePlayingRef.current) {
         mediaRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
@@ -908,7 +922,47 @@ export function useMediaPlayerModel(props: MediaPlayerModalProps) {
     }
   };
 
+  const shortcutsRef = useRef<{ act: (key: string, mods: { ctrl?: boolean; meta?: boolean; alt?: boolean }) => boolean }>({ act: () => false });
+  shortcutsRef.current.act = (key, mods) => {
+    const action = shortcutForKey(key, mods);
+    const media = mediaRef.current;
+    if (!action || !media) return false;
+    if (action.type === 'toggle') togglePlay();
+    else if (action.type === 'seek') skip(action.seconds);
+    else if (action.type === 'volume') {
+      const next = Math.max(0, Math.min(1, (isMuted ? 0 : volume) + action.delta));
+      handleVolume({ target: { value: String(next) } } as React.ChangeEvent<HTMLInputElement>);
+    }
+    else if (action.type === 'mute') toggleMute();
+    else if (action.type === 'fullscreen') void toggleFullscreen();
+    else if (action.type === 'jump') {
+      const total = duration || media.duration || 0;
+      if (total > 0) handleSeek({ target: { value: String(total * action.fraction) } } as React.ChangeEvent<HTMLInputElement>);
+    }
+    return true;
+  };
+  useEffect(() => {
+    if (!file || isMinimized) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.('input, textarea, select, [contenteditable="true"]') && !(target as HTMLInputElement).type?.match?.(/range/)) return;
+      if (target?.closest?.('button, a') && event.key === ' ') return;   // keep Space working on a focused button
+      if (shortcutsRef.current.act(event.key, { ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey })) event.preventDefault();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [file, isMinimized]);
+
+  const onDoubleTap = (event: React.MouseEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const zone = tapZone(event.clientX - rect.left, rect.width);
+    if (zone === 'back') skip(-10);
+    else if (zone === 'forward') skip(10);
+    else void toggleFullscreen();
+  };
+
   return {
+    onDoubleTap,
     file,
     onClose,
     onPlaybackStarted,

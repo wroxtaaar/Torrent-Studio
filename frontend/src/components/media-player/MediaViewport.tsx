@@ -3,7 +3,7 @@ import { API_BASE } from '../../api/client.ts';
 import type { PanelModel } from './useMediaPlayerModel.tsx';
 
 export function MediaViewport({ vm }: { vm: PanelModel }) {
-  const { alternateAudioRef, audioRef, file, handleMediaError, isFullscreen, isPlaying, isVideo, mediaError, onLoadedMetadata, onSeeked, onSeeking, onTimeUpdate, selectedSubtitleIndex, setFullscreenControlsVisible, setIsPlaying, setIsSeeking, setTrackNotice, subtitleCueOriginalsRef, subtitleOffset, subtitleTrackRef, subtitleTracks, trackNotice, videoRef } = vm;
+  const { alternateAudioRef, audioRef, file, handleMediaError, onDoubleTap, isFullscreen, isPlaying, isVideo, mediaError, onLoadedMetadata, onSeeked, onSeeking, onTimeUpdate, selectedSubtitleIndex, setFullscreenControlsVisible, setIsPlaying, setIsSeeking, setTrackNotice, subtitleCueOriginalsRef, subtitleOffset, subtitleTrackRef, subtitleTracks, trackNotice, videoRef } = vm;
   return (
     <>
         <div
@@ -60,6 +60,7 @@ export function MediaViewport({ vm }: { vm: PanelModel }) {
                   setFullscreenControlsVisible(prev => !prev);
                 }
               }}
+              onDoubleClick={onDoubleTap}
               onTimeUpdate={onTimeUpdate}
               onSeeking={onSeeking}
               onSeeked={onSeeked}
