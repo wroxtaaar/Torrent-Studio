@@ -2,16 +2,17 @@ import React, { useState, useRef, useEffect } from 'react';
 import Hls from 'hls.js';
 import { api, API_BASE } from '../../api/client.ts';
 import type { MediaPlayerModalProps } from './types.ts';
-import { loadResume, resumeKey, saveResume, shortcutForKey, tapZone } from './playerExtras.ts';
+import { bufferedEnd as bufferedEndOf, loadPrefs, loadResume, resumeKey, savePrefs, saveResume, shortcutForKey, tapZone } from './playerExtras.ts';
 
 export function useMediaPlayerModel(props: MediaPlayerModalProps) {
   const { file, onClose, onPlaybackStarted, isMinimized, onToggleMinimize } = props;
   const [isPlaying, setIsPlaying] = useState(true);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
+  const [volume, setVolume] = useState(() => loadPrefs().volume);
+  const [bufferedEnd, setBufferedEnd] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [playbackSpeed, setPlaybackSpeed] = useState(() => loadPrefs().speed);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenControlsVisible, setFullscreenControlsVisible] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -569,6 +570,7 @@ export function useMediaPlayerModel(props: MediaPlayerModalProps) {
   const handleVolume = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
     setVolume(val);
+    savePrefs({ volume: val });
     setIsMuted(val === 0);
     if (mediaRef.current) {
       mediaRef.current.volume = val;
@@ -778,6 +780,7 @@ export function useMediaPlayerModel(props: MediaPlayerModalProps) {
   // Speed
   const handleSpeedChange = (speed: number) => {
     setPlaybackSpeed(speed);
+    savePrefs({ speed });
     if (mediaRef.current) {
       mediaRef.current.playbackRate = speed;
     }
@@ -897,6 +900,7 @@ export function useMediaPlayerModel(props: MediaPlayerModalProps) {
   const onTimeUpdate = () => {
     if (mediaRef.current) {
       setCurrentTime(mediaRef.current.currentTime);
+      setBufferedEnd(Math.floor(bufferedEndOf(mediaRef.current.buffered, mediaRef.current.currentTime)));
       const now = Date.now();
       if (file && now - lastSavedRef.current > 5000) {
         lastSavedRef.current = now;
@@ -907,6 +911,9 @@ export function useMediaPlayerModel(props: MediaPlayerModalProps) {
   const onLoadedMetadata = () => {
     if (mediaRef.current) {
       setDuration(mediaRef.current.duration || file.duration || 600);
+      const prefs = loadPrefs();
+      mediaRef.current.volume = prefs.volume;
+      mediaRef.current.playbackRate = prefs.speed;
       const key = resumeKey(file);
       if (key && resumeAppliedRef.current !== key && resumeTimeRef.current === 0) {
         resumeAppliedRef.current = key;
@@ -971,6 +978,7 @@ export function useMediaPlayerModel(props: MediaPlayerModalProps) {
     isPlaying,
     setIsPlaying,
     currentTime,
+    bufferedEnd,
     duration,
     volume,
     isMuted,

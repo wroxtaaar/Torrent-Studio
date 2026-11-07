@@ -64,3 +64,43 @@ export function tapZone(x: number, width: number): 'back' | 'forward' | 'center'
   const ratio = x / width;
   return ratio < 1 / 3 ? 'back' : ratio > 2 / 3 ? 'forward' : 'center';
 }
+
+const PREFS_KEY = 'ts-player-prefs';
+export interface PlayerPrefs { volume: number; speed: number }
+
+/** Volume and speed the viewer used last time (clamped), or the defaults. */
+export function loadPrefs(storage: StorageLike | null = defaultStorage()): PlayerPrefs {
+  const fallback: PlayerPrefs = { volume: 1, speed: 1 };
+  if (!storage) return fallback;
+  try {
+    const raw = JSON.parse(storage.getItem(PREFS_KEY) || '{}');
+    const volume = Number(raw?.volume);
+    const speed = Number(raw?.speed);
+    return {
+      volume: Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1,
+      speed: Number.isFinite(speed) && speed >= 0.25 && speed <= 4 ? speed : 1,
+    };
+  } catch { return fallback; }
+}
+
+export function savePrefs(prefs: Partial<PlayerPrefs>, storage: StorageLike | null = defaultStorage()): void {
+  if (!storage) return;
+  try { storage.setItem(PREFS_KEY, JSON.stringify({ ...loadPrefs(storage), ...prefs })); } catch { /* convenience only */ }
+}
+
+/** How far ahead of the playhead the browser has already downloaded, as seconds (end of the buffered range holding `time`). */
+export function bufferedEnd(ranges: { length: number; start(i: number): number; end(i: number): number } | null | undefined, time: number): number {
+  if (!ranges) return 0;
+  for (let index = 0; index < ranges.length; index += 1) {
+    if (ranges.start(index) <= time + 0.25 && ranges.end(index) >= time) return ranges.end(index);
+  }
+  return 0;
+}
+
+/** Background for the seek bar: played (cyan), buffered (slate), rest (dark). */
+export function seekGradient(time: number, buffered: number, duration: number): string {
+  if (!(duration > 0)) return '';
+  const played = Math.min(100, Math.max(0, (time / duration) * 100));
+  const loaded = Math.min(100, Math.max(played, (buffered / duration) * 100));
+  return `linear-gradient(to right, #22d3ee 0%, #22d3ee ${played}%, #64748b ${played}%, #64748b ${loaded}%, #1e293b ${loaded}%, #1e293b 100%)`;
+}

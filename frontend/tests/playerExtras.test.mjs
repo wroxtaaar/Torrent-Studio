@@ -43,3 +43,25 @@ test('keyboard shortcuts and tap zones', async () => {
   assert.equal(tapZone(150, 300), 'center');
   assert.equal(tapZone(1, 0), 'center');
 });
+
+test('player preferences, buffered range and seek bar gradient', async () => {
+  const { loadPrefs, savePrefs, bufferedEnd, seekGradient } = await bundle('../src/components/media-player/playerExtras.ts');
+  const data = new Map();
+  const storage = { getItem: k => data.get(k) ?? null, setItem: (k, v) => data.set(k, v), removeItem: k => data.delete(k) };
+  assert.deepEqual(loadPrefs(storage), { volume: 1, speed: 1 });
+  savePrefs({ volume: 0.4 }, storage);
+  savePrefs({ speed: 1.5 }, storage);
+  assert.deepEqual(loadPrefs(storage), { volume: 0.4, speed: 1.5 });
+  data.set('ts-player-prefs', '{"volume": 9, "speed": 99}');
+  assert.deepEqual(loadPrefs(storage), { volume: 1, speed: 1 }, 'out-of-range values fall back');
+  data.set('ts-player-prefs', 'not json');
+  assert.deepEqual(loadPrefs(storage), { volume: 1, speed: 1 });
+  assert.deepEqual(loadPrefs(null), { volume: 1, speed: 1 });
+  const ranges = { length: 2, start: i => [0, 100][i], end: i => [50, 180][i] };
+  assert.equal(bufferedEnd(ranges, 30), 50);
+  assert.equal(bufferedEnd(ranges, 120), 180);
+  assert.equal(bufferedEnd(ranges, 70), 0, 'playhead in a gap');
+  assert.equal(bufferedEnd(null, 5), 0);
+  assert.equal(seekGradient(10, 20, 0), '');
+  assert.match(seekGradient(25, 50, 100), /#22d3ee 25%.*#64748b 50%/);
+});

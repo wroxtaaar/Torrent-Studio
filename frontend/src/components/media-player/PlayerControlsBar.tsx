@@ -1,9 +1,10 @@
 import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, RotateCcw, RotateCw, ExternalLink, Captions, Languages, Loader2, Timer, Minus, Plus } from 'lucide-react';
 import { formatDuration } from '../../utils/formatters.ts';
+import { seekGradient } from './playerExtras.ts';
 import type { PanelModel } from './useMediaPlayerModel.tsx';
 
 export function PlayerControlsBar({ vm }: { vm: PanelModel }) {
-  const { audioTracks, currentTime, duration, file, formatTrackLabel, fullscreenControlsVisible, handleAudioTrackChange, handleSeek, handleSpeedChange, handleSubtitleTrackChange, handleVolume, hlsSubtitleTracks, isFullscreen, isMuted, isPlaying, isVideo, playbackSpeed, selectedAudioIndex, selectedHlsSubtitleIndex, selectedSubtitleIndex, setSubtitleOffset, setSubtitleSyncOpen, skip, subtitleOffset, subtitleSyncOpen, subtitleTracks, toggleFullscreen, toggleMute, togglePip, togglePlay, tracksLoading, volume } = vm;
+  const { audioTracks, bufferedEnd, currentTime, duration, file, formatTrackLabel, fullscreenControlsVisible, handleAudioTrackChange, handleSeek, handleSpeedChange, handleSubtitleTrackChange, handleVolume, hlsSubtitleTracks, isFullscreen, isMuted, isPlaying, isVideo, playbackSpeed, selectedAudioIndex, selectedHlsSubtitleIndex, selectedSubtitleIndex, setSubtitleOffset, setSubtitleSyncOpen, skip, subtitleOffset, subtitleSyncOpen, subtitleTracks, toggleFullscreen, toggleMute, togglePip, togglePlay, tracksLoading, volume } = vm;
   return (
     <>
         <div
@@ -27,6 +28,8 @@ export function PlayerControlsBar({ vm }: { vm: PanelModel }) {
                 max={duration || file.duration || 100}
                 value={currentTime}
                 onChange={handleSeek}
+                style={{ background: seekGradient(currentTime, bufferedEnd, duration || file.duration || 0) || undefined }}
+                aria-label="Seek"
                 className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 hover:h-2.5 transition-all"
               />
             </div>
