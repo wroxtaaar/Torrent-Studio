@@ -472,6 +472,21 @@ export function useMediaPlayerModel(props: MediaPlayerModalProps) {
 
     loadAlternateAudio(selectedTrack.index, position, wasPlaying);
   }, [audioTracks, currentTime, file, isVideo, selectedAudioIndex]);
+  // Hooks that must run on every render: keep them above the `if (!file) return null` below.
+  const lastSavedRef = useRef(0);
+  const resumeAppliedRef = useRef('');
+  const shortcutsRef = useRef<{ act: (key: string, mods: { ctrl?: boolean; meta?: boolean; alt?: boolean }) => boolean }>({ act: () => false });
+  useEffect(() => {
+    if (!file || isMinimized) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.('input, textarea, select, [contenteditable="true"]') && !(target as HTMLInputElement).type?.match?.(/range/)) return;
+      if (target?.closest?.('button, a') && event.key === ' ') return;   // keep Space working on a focused button
+      if (shortcutsRef.current.act(event.key, { ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey })) event.preventDefault();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [file, isMinimized]);
   if (!file) return null;
   const handleMediaError = () => {
     // When Hls.js owns the video element, Chrome can briefly report
@@ -895,8 +910,6 @@ export function useMediaPlayerModel(props: MediaPlayerModalProps) {
     }
   };
   // Time update
-  const lastSavedRef = useRef(0);
-  const resumeAppliedRef = useRef('');
   const onTimeUpdate = () => {
     if (mediaRef.current) {
       setCurrentTime(mediaRef.current.currentTime);
@@ -929,7 +942,6 @@ export function useMediaPlayerModel(props: MediaPlayerModalProps) {
     }
   };
 
-  const shortcutsRef = useRef<{ act: (key: string, mods: { ctrl?: boolean; meta?: boolean; alt?: boolean }) => boolean }>({ act: () => false });
   shortcutsRef.current.act = (key, mods) => {
     const action = shortcutForKey(key, mods);
     const media = mediaRef.current;
@@ -948,17 +960,6 @@ export function useMediaPlayerModel(props: MediaPlayerModalProps) {
     }
     return true;
   };
-  useEffect(() => {
-    if (!file || isMinimized) return undefined;
-    const onKey = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest?.('input, textarea, select, [contenteditable="true"]') && !(target as HTMLInputElement).type?.match?.(/range/)) return;
-      if (target?.closest?.('button, a') && event.key === ' ') return;   // keep Space working on a focused button
-      if (shortcutsRef.current.act(event.key, { ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey })) event.preventDefault();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [file, isMinimized]);
 
   const onDoubleTap = (event: React.MouseEvent<HTMLElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
