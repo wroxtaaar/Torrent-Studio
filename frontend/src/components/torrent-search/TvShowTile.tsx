@@ -10,6 +10,7 @@ import { createTvTorrentStore, packScopeLabel, tvShowKey } from './tvTorrentStor
 import { WebtorPlayerModal } from '../WebtorPlayerModal.tsx';
 import { openWebtorDownload } from './webtor.ts';
 import { TvSeasonActions } from './TvSeasonActions.tsx';
+import { SeriesPopup } from './SeriesPopup.tsx';
 import type { TorrentSearchResult } from '../../api/types.ts';
 
 // One store for the whole app: one open series card at a time, lookups cached for the session.
@@ -32,6 +33,9 @@ export const TvShowTile: React.FC<{
 }> = ({ show, imdb, onPlay }) => {
   const openKey = useSyncExternalStore(tvTorrents.subscribe, tvTorrents.getOpenKey, tvTorrents.getOpenKey);
   const [webtorRow, setWebtorRow] = useState<TorrentSearchResult | null>(null);
+  const [webtorPath, setWebtorPath] = useState('');
+  const [webtorLabel, setWebtorLabel] = useState('');
+  const [browseOpen, setBrowseOpen] = useState(false);
   const open = () => tvTorrents.open(show, onPlay);
   if (openKey !== tvShowKey(show)) return <TvShowCard show={show} imdb={imdb} onOpen={open} />;
 
@@ -57,14 +61,20 @@ export const TvShowTile: React.FC<{
       variantsAriaLabel={`Seasons and quality for ${show.title}`}
       prepared={null}
       actions={releases.length > 0 ? (
-        <TvSeasonActions releases={releases} onPlay={onPlay}
-          onWebtorPlay={row => setWebtorRow(row)}
+        <TvSeasonActions releases={releases} onPlay={onPlay} onBrowse={() => setBrowseOpen(true)}
+          onWebtorPlay={row => { setWebtorPath(''); setWebtorLabel(''); setWebtorRow(row); }}
           onWebtorDownload={row => { openWebtorDownload(String(row.magnetUrl)); }} />
       ) : undefined}
       directStream={{ label: 'Play', disabled: false, onClick: onPlay }}
     />
+    {browseOpen && (
+      <SeriesPopup title={show.title} year={displayYear} posterSrc={show.posterUrl ? lowQualityPosterUrl(show.posterUrl) : ''} releases={releases}
+        onClose={() => setBrowseOpen(false)}
+        onPlayEpisode={(pack, path, label) => { setWebtorPath(path); setWebtorLabel(label); setWebtorRow(pack); }} />
+    )}
     {webtorRow?.magnetUrl && (
-      <WebtorPlayerModal title={show.title} magnetUrl={String(webtorRow.magnetUrl)} label={`${packScopeLabel(webtorRow)} · ${torrentQualityDetails(webtorRow).label || ''}`.trim()} onClose={() => setWebtorRow(null)} />
+      <WebtorPlayerModal title={show.title} magnetUrl={String(webtorRow.magnetUrl)} path={webtorPath || undefined}
+        label={webtorLabel || `${packScopeLabel(webtorRow)} · ${torrentQualityDetails(webtorRow).label || ''}`.trim()} onClose={() => setWebtorRow(null)} />
     )}
     </>
   );

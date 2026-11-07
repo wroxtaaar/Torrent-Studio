@@ -26,12 +26,13 @@ export function copyMagnetAndOpenWebtor(magnetUrl: string): boolean {
 export const WEBTOR_SDK_URL = 'https://cdn.jsdelivr.net/npm/@webtor/embed-sdk-js/dist/index.min.js';
 
 /** Config for Webtor's embed SDK (MIT). Only magnet links are accepted; anything else returns null. */
-export function webtorEmbedConfig(id: string, magnetUrl: string, title = ''): Record<string, unknown> | null {
+export function webtorEmbedConfig(id: string, magnetUrl: string, title = '', path = ''): Record<string, unknown> | null {
   const magnet = String(magnetUrl || '').trim();
   if (!/^magnet:\?/i.test(magnet)) return null;
   return {
     id, magnet, width: '100%', height: '640px', lang: 'en',
     ...(title ? { title } : {}),
+    ...(path ? { path } : {}),
     features: { chromecast: false, embed: false },
   };
 }

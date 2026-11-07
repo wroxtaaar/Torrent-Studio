@@ -8,7 +8,7 @@ import { copyMagnetAndOpenWebtor, loadWebtorSdk, openWebtorDownload, webtorEmbed
  * convert it for the browser, which is why large HEVC / DTS releases play there. If the player cannot load, the old
  * route stays available: copy the magnet and open webtor.io.
  */
-export const WebtorPlayerModal: React.FC<{ title: string; magnetUrl: string; label?: string; onClose: () => void }> = ({ title, magnetUrl, label, onClose }) => {
+export const WebtorPlayerModal: React.FC<{ title: string; magnetUrl: string; label?: string; path?: string; onClose: () => void }> = ({ title, magnetUrl, label, path, onClose }) => {
   const reactId = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const mountId = `webtor-${reactId}`;
   const [state, setState] = useState<'loading' | 'ready' | 'failed'>('loading');
@@ -21,7 +21,7 @@ export const WebtorPlayerModal: React.FC<{ title: string; magnetUrl: string; lab
   }, [onClose]);
 
   useEffect(() => {
-    const config = webtorEmbedConfig(mountId, magnetUrl, title);
+    const config = webtorEmbedConfig(mountId, magnetUrl, title, path);
     if (!config) { setState('failed'); return undefined; }
     let cancelled = false;
     setState('loading');
@@ -32,7 +32,7 @@ export const WebtorPlayerModal: React.FC<{ title: string; magnetUrl: string; lab
       setState('ready');
     }).catch(() => { if (!cancelled) setState('failed'); });
     return () => { cancelled = true; };
-  }, [mountId, magnetUrl, title]);
+  }, [mountId, magnetUrl, title, path]);
 
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-3" role="dialog" aria-modal="true" aria-label={`Webtor player for ${title}`}

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Download, Loader2, Play } from 'lucide-react';
+import { Download, ListVideo, Play } from 'lucide-react';
 import type { TorrentSearchResult } from '../../api/types.ts';
 import { formatBytes } from '../../utils/formatters.ts';
 import { GLOW } from '../MovieActionButtons.tsx';
@@ -42,7 +42,8 @@ export const TvSeasonActions: React.FC<{
   onPlay: () => void;
   onWebtorPlay: (row: TorrentSearchResult) => void;
   onWebtorDownload: (row: TorrentSearchResult) => void;
-}> = ({ releases, onPlay, onWebtorPlay, onWebtorDownload }) => {
+  onBrowse?: () => void;
+}> = ({ releases, onPlay, onWebtorPlay, onWebtorDownload, onBrowse }) => {
   const chips = useMemo(() => groupBySeason(releases.filter(row => row.magnetUrl)), [releases]);
   const [seasonId, setSeasonId] = useState('');
   const [bucket, setBucket] = useState<ResolutionBucket | ''>('');
@@ -55,10 +56,18 @@ export const TvSeasonActions: React.FC<{
 
   return (
     <div className="space-y-2">
-      <button type="button" onClick={onPlay}
-        className="inline-flex w-full items-center justify-center gap-1 rounded-lg border border-violet-400/40 bg-violet-500/15 px-2 py-1.5 text-[11px] font-bold text-violet-200 hover:bg-violet-500/25">
-        <Play className="h-3 w-3 fill-current" />Play
-      </button>
+      <div className="grid grid-cols-2 gap-1.5">
+        <button type="button" onClick={onPlay}
+          className={'inline-flex items-center justify-center gap-1 rounded-lg border border-violet-400/40 bg-violet-500/15 px-2 py-1.5 text-[11px] font-bold text-violet-200 hover:bg-violet-500/25 ' + (onBrowse ? 'col-span-1' : 'col-span-2')}>
+          <Play className="h-3 w-3 fill-current" />Play
+        </button>
+        {onBrowse && (
+          <button type="button" onClick={onBrowse}
+            className="inline-flex items-center justify-center gap-1 rounded-lg border border-cyan-300/60 bg-cyan-500/20 px-2 py-1.5 text-[11px] font-extrabold text-white shadow-[0_0_14px_rgba(34,211,238,0.45)] hover:bg-cyan-500/30">
+            <ListVideo className="h-3 w-3" />Episodes
+          </button>
+        )}
+      </div>
       {chips.length > 0 && (
         <>
           <div role="tablist" aria-label="Season" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
