@@ -5,7 +5,7 @@ import { api } from '../api/client.ts';
 import type { NuvioStreamOption, TorrentSearchResult } from '../api/types.ts';
 import { formatBytes } from '../utils/formatters.ts';
 import { torrentQualityDetails, torrentResultKey } from './torrent-search/grouping.ts';
-import { copyMagnetAndOpenWebtor } from './torrent-search/webtor.ts';
+import { WebtorPlayerModal } from './WebtorPlayerModal.tsx';
 import { HdPlayerModal } from './HdPlayerModal.tsx';
 import { orderHdOptions, orderTorrents } from './torrent-search/actionOrdering.ts';
 
@@ -101,12 +101,13 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
   const [hd, setHd] = useState<NuvioStreamOption[]>([]);
   const [menu, setMenu] = useState<{ id: string; rect: DOMRect } | null>(null);
   const [hdPlayKey, setHdPlayKey] = useState('');
+  const [webtorKey, setWebtorKey] = useState('');
   const [hdLoading, setHdLoading] = useState(false);
   const [largeLoading, setLargeLoading] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
-    setLarge([]); setHd([]); setHint(''); setMenu(null); setHdPlayKey('');
+    setLarge([]); setHd([]); setHint(''); setMenu(null); setHdPlayKey(''); setWebtorKey('');
     setLargeLoading(true);
     void api.getTorrentOptions({ tmdbId, title, year }, controller.signal, 'all', 'movie', true)
       .then(rows => { if (!controller.signal.aborted) setLarge(orderTorrents([...rows])); })
@@ -151,6 +152,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
     };
   }, [menu]);
 
+  const webtorRow = webtorKey ? large.find(row => torrentResultKey(row) === webtorKey) : undefined;
   const playingHd = hd.find(option => option.key === hdPlayKey);
   const hdTone = 'border border-emerald-400/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25';
   const groups: Group[] = [];
@@ -178,10 +180,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
       ariaLabel: `Webtor: choose a quality for ${title}`,
       items: large.map(row => ({
         ...torrentChip(row),
-        onPick: () => {
-          const copied = copyMagnetAndOpenWebtor(String(row.magnetUrl || ''));
-          setHint(copied ? 'Magnet copied. Paste it on Webtor to stream or download.' : 'Webtor opened, but the magnet could not be copied. Pick another quality and try again.');
-        },
+        onPick: () => setWebtorKey(String(row.magnetUrl || '') ? torrentResultKey(row) : ''),
       })),
     });
   }
@@ -251,6 +250,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
 
       {open && menu && typeof document !== 'undefined' && createPortal(menuView(open, menu.rect, () => setMenu(null)), document.body)}
       {hint ? <div className="text-[10px] leading-snug text-slate-400" role="status">{hint}</div> : null}
+      {webtorRow && <WebtorPlayerModal title={title} magnetUrl={String(webtorRow.magnetUrl || '')} label={torrentChip(webtorRow).label} onClose={() => setWebtorKey('')} />}
       {playingHd && <HdPlayerModal title={title} option={playingHd} onClose={() => setHdPlayKey('')} />}
       {!checking && !nothing && hd.length === 0 && Number.isInteger(Number(tmdbId)) && Number(tmdbId) > 0 &&
         <div className="text-[10px] text-slate-500" role="status">No HD stream available right now.</div>}

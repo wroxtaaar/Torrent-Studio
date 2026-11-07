@@ -8,7 +8,7 @@ import { toCardProviders } from './ottProviders.ts';
 import { lowQualityPosterUrl } from './posterUrls.ts';
 import { TvShowCard, tvCardModel, tvPosterErrorHandler } from './TvShowCard.tsx';
 import { createTvTorrentStore, packScopeLabel, tvShowKey } from './tvTorrentStore.ts';
-import { copyMagnetAndOpenWebtor } from './webtor.ts';
+import { WebtorPlayerModal } from '../WebtorPlayerModal.tsx';
 
 // One store for the whole app: one open series card at a time, lookups cached for the session.
 // The lookup runs only from a card tap (see tvTorrentStore.open), never on page load or paging.
@@ -31,6 +31,7 @@ export const TvShowTile: React.FC<{
   const openKey = useSyncExternalStore(tvTorrents.subscribe, tvTorrents.getOpenKey, tvTorrents.getOpenKey);
   const [selectedKey, setSelectedKey] = useState('');
   const [hint, setHint] = useState('');
+  const [webtorOpen, setWebtorOpen] = useState(false);
   const open = () => tvTorrents.open(show, onPlay);
   if (openKey !== tvShowKey(show)) return <TvShowCard show={show} imdb={imdb} onOpen={open} />;
 
@@ -38,6 +39,7 @@ export const TvShowTile: React.FC<{
   const { rating, displayYear, providers } = tvCardModel(show, imdb);
   const selected = releases.find(row => torrentResultKey(row) === selectedKey) || releases[0];
   return (
+    <>
     <MoviePrepareCard
       posterSrc={show.posterUrl ? lowQualityPosterUrl(show.posterUrl) : ''}
       posterAlt={show.title}
@@ -65,13 +67,12 @@ export const TvShowTile: React.FC<{
       webtor={selected?.magnetUrl ? {
         label: 'Webtor',
         hint,
-        onClick: () => {
-          const copied = copyMagnetAndOpenWebtor(String(selected.magnetUrl));
-          setHint(copied
-            ? 'Magnet copied. Paste it on Webtor to stream or download.'
-            : 'Webtor opened, but the magnet could not be copied. Select another pack and try again.');
-        },
+        onClick: () => setWebtorOpen(true),
       } : undefined}
     />
+    {webtorOpen && selected?.magnetUrl && (
+      <WebtorPlayerModal title={show.title} magnetUrl={String(selected.magnetUrl)} label={`${packScopeLabel(selected)} · ${torrentQualityDetails(selected).label || ''}`.trim()} onClose={() => setWebtorOpen(false)} />
+    )}
+    </>
   );
 };

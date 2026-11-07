@@ -22,3 +22,32 @@ export function copyMagnetAndOpenWebtor(magnetUrl: string): boolean {
   window.open(WEBTOR_URL, '_blank', 'noopener,noreferrer');
   return copied;
 }
+
+export const WEBTOR_SDK_URL = 'https://cdn.jsdelivr.net/npm/@webtor/embed-sdk-js/dist/index.min.js';
+
+/** Config for Webtor's embed SDK (MIT). Only magnet links are accepted; anything else returns null. */
+export function webtorEmbedConfig(id: string, magnetUrl: string, title = ''): Record<string, unknown> | null {
+  const magnet = String(magnetUrl || '').trim();
+  if (!/^magnet:\?/i.test(magnet)) return null;
+  return {
+    id, magnet, width: '100%', lang: 'en',
+    ...(title ? { title } : {}),
+    features: { chromecast: false, embed: false },
+  };
+}
+
+/** Loads the SDK once; later calls reuse the same promise. Rejects when the script cannot load (blocked / offline). */
+let sdkPromise: Promise<void> | null = null;
+export function loadWebtorSdk(): Promise<void> {
+  if (sdkPromise) return sdkPromise;
+  sdkPromise = new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = WEBTOR_SDK_URL;
+    script.async = true;
+    script.charset = 'utf-8';
+    script.onload = () => resolve();
+    script.onerror = () => { sdkPromise = null; script.remove(); reject(new Error('Webtor player could not be loaded')); };
+    document.head.appendChild(script);
+  });
+  return sdkPromise;
+}
