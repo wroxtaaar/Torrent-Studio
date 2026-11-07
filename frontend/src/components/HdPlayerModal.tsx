@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Check, Copy, ExternalLink, Loader2, X } from 'lucide-react';
 import type { NuvioStreamOption } from '../api/types.ts';
 import { copyTextNow } from './torrent-search/webtor.ts';
-import { currentPlatform, mxPlayerLink, playsSilently, vlcLink } from './torrent-search/hdPlayer.ts';
+import { audioFromFilename, browserAudioTracks, currentPlatform, mxPlayerLink, playsSilently, vlcLink, type BrowserAudioTrack } from './torrent-search/hdPlayer.ts';
 
 /**
  * Play HD: tries the file in the browser. If the browser cannot decode it (HEVC / DTS are common in these files) or it
@@ -12,9 +12,17 @@ export const HdPlayerModal: React.FC<{ title: string; option: NuvioStreamOption;
   const videoRef = useRef<HTMLVideoElement>(null);
   const [state, setState] = useState<'loading' | 'playing' | 'failed' | 'silent'>('loading');
   const [copied, setCopied] = useState(false);
+  const [tracks, setTracks] = useState<BrowserAudioTrack[]>([]);
   const platform = currentPlatform();
   const vlc = vlcLink(option.url, platform);
   const mx = mxPlayerLink(option.url, platform);
+  const advertised = audioFromFilename(option.filename);
+  const pickTrack = (id: string) => {
+    const list = (videoRef.current as unknown as { audioTracks?: ArrayLike<{ id?: string; enabled: boolean }> } | null)?.audioTracks;
+    if (!list) return;
+    for (let index = 0; index < list.length; index += 1) list[index].enabled = String(list[index].id ?? index) === id;
+    setTracks(browserAudioTracks(videoRef.current));
+  };
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
@@ -57,10 +65,27 @@ export const HdPlayerModal: React.FC<{ title: string; option: NuvioStreamOption;
             className="max-h-[60vh] w-full"
             onPlaying={() => setState(previous => (previous === 'silent' ? previous : 'playing'))}
             onError={() => setState('failed')}
+            onLoadedMetadata={() => setTracks(browserAudioTracks(videoRef.current))}
           />
           {state === 'loading' && <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-slate-300"><Loader2 className="h-6 w-6 animate-spin" /></div>}
         </div>
         <div className="space-y-2 px-4 py-3">
+          {tracks.length > 1 ? (
+            <label className="flex items-center gap-2 text-[11px] text-slate-300">
+              <span className="font-semibold uppercase tracking-wide text-slate-500">Audio</span>
+              <select value={tracks.find(track => track.enabled)?.id ?? tracks[0].id} onChange={event => pickTrack(event.target.value)}
+                className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-cyan-500" aria-label="Audio track">
+                {tracks.map((track, index) => (
+                  <option key={track.id} value={track.id}>{track.label || track.language || `Track ${index + 1}`}{track.language && track.label ? ` · ${track.language}` : ''}</option>
+                ))}
+              </select>
+            </label>
+          ) : advertised.length > 1 ? (
+            <p className="text-[11px] leading-snug text-slate-400">
+              This file has {advertised.length} audio tracks: {advertised.map(track => track.label).join(', ')}. This browser cannot switch between them;
+              open it in VLC or MX Player to choose the audio track.
+            </p>
+          ) : null}
           {problem && <div role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">{problem} Open it in a player app instead:</div>}
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] text-slate-500">Open in</span>

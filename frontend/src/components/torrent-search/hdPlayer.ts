@@ -44,3 +44,40 @@ export function playsSilently(video: Pick<HTMLVideoElement, 'currentTime' | 'mut
   if (typeof video.mozHasAudio === 'boolean') return !video.mozHasAudio;
   return false;
 }
+
+export interface FileAudio { language: string; detail: string; label: string }
+
+const LANGUAGES = 'hindi|english|tamil|telugu|malayalam|kannada|bengali|punjabi|marathi|gujarati|urdu|korean|japanese|chinese|mandarin|cantonese|spanish|french|german|italian|russian|portuguese|arabic|turkish|thai|multi|dual|org';
+const AUDIO_PART = new RegExp(`^(${LANGUAGES})\\b[ ._-]*(.*)$`, 'i');
+
+/**
+ * The audio tracks a release name advertises, e.g. "[Hindi DDP 2.0 + English DTS-HDMA 5.1]" gives
+ * Hindi (DDP 2.0) and English (DTS-HDMA 5.1). Only the name is read, so this is a hint, not the file's real track list.
+ */
+export function audioFromFilename(filename: string): FileAudio[] {
+  for (const group of String(filename || '').match(/[\[(][^\])]*[\])]/g) || []) {
+    const parts = group.slice(1, -1).split(/\s*\+\s*|\s*&\s*|\s*,\s*/).map(part => part.trim()).filter(Boolean);
+    const tracks: FileAudio[] = [];
+    for (const part of parts) {
+      const match = part.match(AUDIO_PART);
+      if (!match) { tracks.length = 0; break; }
+      const language = match[1][0].toUpperCase() + match[1].slice(1).toLowerCase();
+      const detail = match[2].replace(/\s+/g, ' ').trim();
+      tracks.push({ language, detail, label: detail ? `${language} (${detail})` : language });
+    }
+    if (tracks.length > 0) return tracks;
+  }
+  return [];
+}
+
+export interface BrowserAudioTrack { id: string; label: string; language: string; enabled: boolean }
+
+/** The audio tracks the browser itself exposes (Safari; Chrome and Firefox keep this behind a flag), or []. */
+export function browserAudioTracks(video: unknown): BrowserAudioTrack[] {
+  const list = (video as { audioTracks?: ArrayLike<BrowserAudioTrack> } | null)?.audioTracks;
+  if (!list || typeof list.length !== 'number') return [];
+  return Array.from({ length: list.length }, (_, index) => {
+    const track = list[index];
+    return { id: String(track.id ?? index), label: String(track.label || ''), language: String(track.language || ''), enabled: Boolean(track.enabled) };
+  });
+}

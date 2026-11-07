@@ -45,3 +45,16 @@ test('silent playback is detected only when the browser reports zero decoded aud
   assert.equal(playsSilently({ currentTime: 5, muted: false }), false, 'unknown browsers count as having sound');
   assert.equal(playsSilently({ currentTime: 5, muted: false, mozHasAudio: false }), true);
 });
+
+test('audio tracks advertised by a release name', async () => {
+  const { audioFromFilename, browserAudioTracks } = await bundle('../src/components/torrent-search/hdPlayer.ts');
+  const dual = audioFromFilename('The Shawshank Redemption (1994) 1080p BluRay [Hindi DDP 2.0 + English DTS-HDMA 5.1] x264 (Hallowed-4kHdHub.com).mkv');
+  assert.deepEqual(dual.map(track => track.label), ['Hindi (DDP 2.0)', 'English (DTS-HDMA 5.1)']);
+  assert.deepEqual(audioFromFilename('Film 2160p [Hindi NF HE-AAC 2.0 128kbps + English AAC 5.1] ESub.mkv').map(track => track.language), ['Hindi', 'English']);
+  assert.deepEqual(audioFromFilename('Film (1994) 1080p BluRay REMUX AVC (UnKn0wn-4kHdHub.com).mkv'), [], 'no audio group in the name');
+  assert.deepEqual(audioFromFilename('Film [1080p] [x264] (2020).mkv'), [], 'brackets that are not audio are ignored');
+  assert.deepEqual(audioFromFilename(''), []);
+  assert.deepEqual(browserAudioTracks({}), [], 'browsers without audioTracks');
+  const two = browserAudioTracks({ audioTracks: { length: 2, 0: { id: 'a', label: 'English', language: 'en', enabled: true }, 1: { id: 'b', label: '', language: 'hi', enabled: false } } });
+  assert.deepEqual(two.map(track => [track.id, track.enabled]), [['a', true], ['b', false]]);
+});

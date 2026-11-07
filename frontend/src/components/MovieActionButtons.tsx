@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Copy, Download, Loader2, Play } from 'lucide-react';
 import { api } from '../api/client.ts';
 import type { NuvioStreamOption, TorrentSearchResult } from '../api/types.ts';
@@ -45,6 +46,34 @@ interface Group {
 const tileClass = 'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-[11px] font-bold leading-tight disabled:cursor-not-allowed disabled:opacity-60';
 const rowClass = 'flex w-full min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-slate-200 hover:bg-slate-800';
 
+/**
+ * One group's quality list, floating just under its button (or above it near the bottom of the screen). It is drawn on
+ * document.body so the card never grows and the lists of the other buttons are not affected; one list is open at a time.
+ */
+function menuView(group: Group, rect: DOMRect, close: () => void): React.ReactElement {
+  const viewportWidth = typeof window === 'undefined' ? 360 : window.innerWidth;
+  const viewportHeight = typeof window === 'undefined' ? 640 : window.innerHeight;
+  const alignRight = rect.left + rect.width / 2 > viewportWidth / 2;
+  const above = rect.bottom + 232 > viewportHeight && rect.top > 232;
+  const style: React.CSSProperties = {
+    position: 'fixed',
+    maxWidth: Math.min(288, viewportWidth - 16),
+    ...(alignRight ? { right: Math.max(8, viewportWidth - rect.right) } : { left: Math.max(8, rect.left) }),
+    ...(above ? { bottom: viewportHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
+  };
+  return (
+    <div data-action-menu="true" role="menu" aria-label={group.ariaLabel} style={style}
+      className="z-[100] max-h-56 w-max min-w-[9rem] overflow-y-auto rounded-lg border border-slate-700 bg-slate-950 p-1 shadow-2xl">
+      {group.items.map(item => item.href ? (
+        <a key={item.key} role="menuitem" href={item.href} target="_blank" rel="noreferrer noopener" download={item.download} title={item.title}
+          onClick={close} className={rowClass}>{item.label}</a>
+      ) : (
+        <button key={item.key} type="button" role="menuitem" title={item.title} onClick={() => { close(); item.onPick?.(); }} className={rowClass}>{item.label}</button>
+      ))}
+    </div>
+  );
+}
+
 /** Quality text for a torrent: "1080p · 3.4 GB". */
 export const torrentChip = (row: TorrentSearchResult): MovieActionChip => ({
   key: torrentResultKey(row),
@@ -70,14 +99,14 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
   const [large, setLarge] = useState<TorrentSearchResult[]>([]);
   const [hint, setHint] = useState('');
   const [hd, setHd] = useState<NuvioStreamOption[]>([]);
-  const [openId, setOpenId] = useState('');
+  const [menu, setMenu] = useState<{ id: string; rect: DOMRect } | null>(null);
   const [hdPlayKey, setHdPlayKey] = useState('');
   const [hdLoading, setHdLoading] = useState(false);
   const [largeLoading, setLargeLoading] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
-    setLarge([]); setHd([]); setHint(''); setOpenId(''); setHdPlayKey('');
+    setLarge([]); setHd([]); setHint(''); setMenu(null); setHdPlayKey('');
     setLargeLoading(true);
     void api.getTorrentOptions({ tmdbId, title, year }, controller.signal, 'all', 'movie', true)
       .then(rows => { if (!controller.signal.aborted) setLarge(orderTorrents([...rows])); })
@@ -93,6 +122,29 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
     }
     return () => controller.abort();
   }, [tmdbId, title, year]);
+
+  useEffect(() => {
+    if (!menu) return undefined;
+    const close = () => setMenu(null);
+    const onDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest?.('[data-action-menu]') || target?.closest?.('[data-action-menu-button]')) return;
+      close();
+    };
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', close, true);   // a fixed menu would drift from its button
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [menu]);
 
   const playingHd = hd.find(option => option.key === hdPlayKey);
   const hdTone = 'border border-emerald-400/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25';
@@ -129,7 +181,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
     });
   }
 
-  const open = groups.find(group => group.id === openId && group.items.length > 1);
+  const open = menu ? groups.find(group => group.id === menu.id && group.items.length > 1) : undefined;
   const nothing = !play && !prepare && !prepared && groups.length === 0;
   const checking = hdLoading || largeLoading;
 
@@ -139,15 +191,19 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
       <>
         {group.icon}
         <span>{group.label}</span>
-        {!single && <ChevronDown className={'h-3 w-3 shrink-0 transition-transform ' + (openId === group.id ? 'rotate-180' : '')} />}
+        {!single && <ChevronDown className={'h-3 w-3 shrink-0 transition-transform ' + (menu?.id === group.id ? 'rotate-180' : '')} />}
       </>
     );
     if (single?.href) {
       return <a key={group.id} href={single.href} target="_blank" rel="noreferrer noopener" download={single.download} title={single.title} aria-label={group.ariaLabel} className={tileClass + ' ' + group.className}>{content}</a>;
     }
     return (
-      <button key={group.id} type="button" disabled={group.disabled} aria-label={group.ariaLabel} aria-haspopup={single ? undefined : 'menu'} aria-expanded={single ? undefined : openId === group.id}
-        onClick={() => { if (single) single.onPick?.(); else setOpenId(openId === group.id ? '' : group.id); }} className={tileClass + ' ' + group.className}>{content}</button>
+      <button key={group.id} type="button" disabled={group.disabled} aria-label={group.ariaLabel} aria-haspopup={single ? undefined : 'menu'} aria-expanded={single ? undefined : menu?.id === group.id}
+        data-action-menu-button={single ? undefined : 'true'}
+        onClick={event => {
+          if (single) { single.onPick?.(); return; }
+          setMenu(menu?.id === group.id ? null : { id: group.id, rect: event.currentTarget.getBoundingClientRect() });
+        }} className={tileClass + ' ' + group.className}>{content}</button>
     );
   };
 
@@ -170,17 +226,6 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
     <div className="min-w-0 space-y-2">
       {tiles.length > 0 && <div className="flex flex-wrap gap-1.5">{tiles}</div>}
 
-      {open && (
-        <div role="menu" aria-label={open.ariaLabel} className="max-h-56 overflow-y-auto rounded-lg border border-slate-700 bg-slate-950 p-1">
-          {open.items.map(item => item.href ? (
-            <a key={item.key} role="menuitem" href={item.href} target="_blank" rel="noreferrer noopener" download={item.download} title={item.title}
-              onClick={() => setOpenId('')} className={rowClass}>{item.label}</a>
-          ) : (
-            <button key={item.key} type="button" role="menuitem" title={item.title} onClick={() => { setOpenId(''); item.onPick?.(); }} className={rowClass}>{item.label}</button>
-          ))}
-        </div>
-      )}
-
       {prepared && (
         <div>
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Prepared in Seedr</div>
@@ -199,6 +244,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
         </div>
       )}
 
+      {open && menu && typeof document !== 'undefined' && createPortal(menuView(open, menu.rect, () => setMenu(null)), document.body)}
       {hint ? <div className="text-[10px] leading-snug text-slate-400" role="status">{hint}</div> : null}
       {playingHd && <HdPlayerModal title={title} option={playingHd} onClose={() => setHdPlayKey('')} />}
       {checking && !nothing && <div className="text-[10px] text-slate-500" role="status">Checking more downloads…</div>}
