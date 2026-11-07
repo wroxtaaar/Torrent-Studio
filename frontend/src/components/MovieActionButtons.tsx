@@ -62,8 +62,8 @@ function menuView(group: Group, rect: DOMRect, close: () => void): React.ReactEl
     ...(above ? { bottom: viewportHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
   };
   return (
-    <div data-action-menu="true" role="menu" aria-label={group.ariaLabel} style={style}
-      style={{ touchAction: "pan-y" }} className="z-[100] max-h-56 w-max min-w-[9rem] overflow-y-auto overscroll-contain rounded-lg border border-slate-700 bg-slate-950 p-1 shadow-2xl">
+    <div data-action-menu="true" role="menu" aria-label={group.ariaLabel} style={{ ...style, touchAction: "pan-y" }}
+      className="z-[100] max-h-56 w-max min-w-[9rem] overflow-y-auto overscroll-contain rounded-lg border border-slate-700 bg-slate-950 p-1 shadow-2xl">
       {group.items.map(item => item.href ? (
         <a key={item.key} role="menuitem" href={item.href} target="_blank" rel="noreferrer noopener" download={item.download} title={item.title}
           onClick={close} className={rowClass}>{item.label}</a>
