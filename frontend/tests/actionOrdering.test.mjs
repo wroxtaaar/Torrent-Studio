@@ -41,3 +41,19 @@ test('merged torrent list: best resolution first, then size, regardless of sourc
   assert.deepEqual(mergeByOrder(seedr, webtor).map(item => item.key), ['w1', 'w2', 's1', 's2', 'w3']);
   assert.deepEqual(mergeByOrder([], []), []);
 });
+
+test('resolution buttons: buckets and source tags', async () => {
+  const { resolutionBucket, formatLabelOf } = await bundle('../src/components/torrent-search/actionOrdering.ts');
+  const row = title => ({ title, quality: '', size: 1e9, seeders: 5, magnetUrl: 'magnet:?xt=urn:btih:a' });
+  assert.equal(resolutionBucket(row('Film 2024 2160p BluRay')), '4k');
+  assert.equal(resolutionBucket(row('Film 2024 4K WEB-DL')), '4k');
+  assert.equal(resolutionBucket(row('Film 2024 1080p WEBRip')), '1080p');
+  assert.equal(resolutionBucket(row('Film 2024 1440p')), '1080p');
+  assert.equal(resolutionBucket(row('Film 2024 720p HDTV')), '720p');
+  assert.equal(resolutionBucket(row('Film 2024 480p DVDRip')), '720p', 'lower resolutions share the 720p button');
+  assert.equal(resolutionBucket(row('Film 2024 Some Release')), 'other');
+  assert.equal(formatLabelOf('2160P BluRay'), 'BluRay');
+  assert.equal(formatLabelOf('2160P (4K) WEB-DL'), 'WEB-DL');
+  assert.equal(formatLabelOf('1080P'), 'Release');
+  assert.equal(formatLabelOf('Other release'), 'Release');
+});

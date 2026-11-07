@@ -24,3 +24,21 @@ export function mergeByOrder<T extends { order?: number }>(...lists: T[][]): T[]
     .sort((a, b) => (b.item.order ?? -1) - (a.item.order ?? -1) || a.index - b.index)
     .map(entry => entry.item);
 }
+
+export type ResolutionBucket = '720p' | '1080p' | '4k' | 'other';
+export const BUCKET_LABELS: Record<ResolutionBucket, string> = { '720p': '720p', '1080p': '1080p', '4k': '4K', other: 'Other' };
+export const BUCKET_ORDER: ResolutionBucket[] = ['720p', '1080p', '4k', 'other'];
+
+/** Which resolution button a torrent belongs to: up to 720p, 1080p / 1440p, 2160p and above, or unknown. */
+export function resolutionBucket(row: TorrentSearchResult): ResolutionBucket {
+  const resolution = resolutionOf(row);
+  if (resolution >= 2160) return '4k';
+  if (resolution >= 1080) return '1080p';
+  if (resolution > 0) return '720p';
+  return 'other';
+}
+
+/** The source tag without the resolution, e.g. "2160P BluRay" gives "BluRay" (or "Release" when unknown). */
+export function formatLabelOf(label: string): string {
+  return String(label || '').replace(/^(?:2160P \(4K\)|\d{3,4}P)\s*/i, '').replace(/^Other release$/i, '').trim() || 'Release';
+}

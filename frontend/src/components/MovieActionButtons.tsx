@@ -7,7 +7,7 @@ import { formatBytes } from '../utils/formatters.ts';
 import { torrentQualityDetails, torrentResultKey } from './torrent-search/grouping.ts';
 import { WebtorPlayerModal } from './WebtorPlayerModal.tsx';
 import { HdPlayerModal } from './HdPlayerModal.tsx';
-import { mergeByOrder, orderHdOptions, orderTorrents, torrentOrderValue } from './torrent-search/actionOrdering.ts';
+import { BUCKET_LABELS, BUCKET_ORDER, formatLabelOf, mergeByOrder, orderHdOptions, orderTorrents, resolutionBucket, torrentOrderValue, type ResolutionBucket } from './torrent-search/actionOrdering.ts';
 
 export { orderTorrents };
 
@@ -17,6 +17,10 @@ export interface MovieActionChip {
   title?: string;
   /** Sort value (resolution, then size) so lists from different sources can be merged. */
   order?: number;
+  /** The resolution button this torrent is listed under, and its source tag (BluRay, WEB-DL...). */
+  bucket?: ResolutionBucket;
+  format?: string;
+  size?: number;
 }
 
 export interface MovieActionButtonsProps {
@@ -33,7 +37,7 @@ export interface MovieActionButtonsProps {
   prepared?: null | { isPlaying: boolean; isCopied: boolean; onPlay: () => void; onDownload: () => void; onCopy: () => void };
 }
 
-interface MenuItem { key: string; label: string; title?: string; href?: string; download?: string; onPick?: () => void; disabled?: boolean; order?: number }
+interface MenuItem { key: string; label: string; title?: string; href?: string; download?: string; onPick?: () => void; disabled?: boolean; order?: number; bucket?: ResolutionBucket }
 interface Group {
   id: string;
   icon?: React.ReactNode;
@@ -82,18 +86,21 @@ export const torrentChip = (row: TorrentSearchResult): MovieActionChip => ({
   label: `${torrentQualityDetails(row).label || 'Unknown'} · ${formatBytes(Number(row.size) || 0)}`,
   title: `${row.title} · ▲${Number(row.seeders) || 0}${row.indexer ? ` · ${row.indexer}` : ''}`,
   order: torrentOrderValue(row),
+  bucket: resolutionBucket(row),
+  format: formatLabelOf(torrentQualityDetails(row).label),
+  size: Number(row.size) || 0,
 });
 
 /**
  * The action area of a movie's second card (shown under the poster and title):
- *   [Play] [Play HD ⌄] [Torrents ⌄] [Download HD ⌄]
+ *   [Play] [Play HD ⌄] [720p ⌄] [1080p ⌄] [4K ⌄] [Download HD ⌄]
  * Each ⌄ button opens a list of qualities (best resolution first, then bigger files); picking one runs the action.
  * With a single quality the button runs directly and shows no caret. A button is rendered only when its source has
  * something. The Webtor and HD lookups start when the card opens (never on page load) and their buttons appear when
  * they return.
  *   Play      the existing Vidrift / NexStream playback
  *   Play HD   the Nuvio Streams add-on's file in the browser, with VLC / MX Player as fallback (HdPlayerModal)
- *   Torrents  one list: up to the size limit goes to Seedr (prepare), larger ones to Webtor (in-app player)
+ *   720p / 1080p / 4K  torrents by resolution, sizes in the menu: up to the size limit goes to Seedr (prepare), larger to Webtor
  *   Download HD  the same files, saved by the browser straight from the file host
  */
 export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, year, tmdbId, play, prepare, prepared }) => {
@@ -163,31 +170,31 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
       items: hd.map(option => ({ key: option.key, label: option.label, title: option.filename, onPick: () => setHdPlayKey(option.key) })),
     });
   }
-  // One torrent list: up to the size limit goes to Seedr (prepared, then played or downloaded from there), larger ones to Webtor.
+  // Torrents are listed by resolution (720p, 1080p, 4K); each button's menu lists sizes, biggest first. Up to the size
+  // limit a pick goes to Seedr (prepared, then played or downloaded from there); larger ones open the Webtor player.
+  const rowLabel = (chip: MovieActionChip) => `${chip.format || 'Release'} · ${formatBytes(chip.size || 0)}`;
   const seedrItems: MenuItem[] = !prepared && prepare
     ? prepare.chips.map(chip => ({
-        key: chip.key, label: `${chip.label} · Seedr`, title: chip.title, order: chip.order,
+        key: chip.key, label: rowLabel(chip), title: chip.title, order: chip.order, bucket: chip.bucket,
         disabled: prepare.disabled || prepare.isPreparing, onPick: () => prepare.onPrepare(chip.key),
       }))
     : [];
-  const webtorItems: MenuItem[] = large.map(row => ({
-    ...torrentChip(row), label: `${torrentChip(row).label} · Webtor`,
-    onPick: () => setWebtorKey(String(row.magnetUrl || '') ? torrentResultKey(row) : ''),
-  }));
+  const webtorItems: MenuItem[] = large.map(row => {
+    const chip = torrentChip(row);
+    return { key: chip.key, label: rowLabel(chip), title: chip.title, order: chip.order, bucket: chip.bucket,
+      onPick: () => setWebtorKey(String(row.magnetUrl || '') ? torrentResultKey(row) : '') };
+  });
   const torrentItems = mergeByOrder(seedrItems, webtorItems);
-  if (torrentItems.length > 0) {
+  for (const bucket of BUCKET_ORDER) {
+    const items = torrentItems.filter(item => item.bucket === bucket);
+    if (items.length === 0) continue;
     groups.push({
-      id: 'torrents', label: prepare?.isPreparing ? 'Preparing…' : 'Torrents', className: 'bg-cyan-500 text-slate-950 hover:bg-cyan-400',
-      ariaLabel: `Torrents: choose a quality for ${title}. Up to the size limit goes to Seedr, larger ones to Webtor`,
-      items: torrentItems, disabled: torrentItems.length === 1 && Boolean(torrentItems[0].disabled),
+      id: `res-${bucket}`, label: BUCKET_LABELS[bucket], className: 'border border-cyan-400/40 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/25',
+      ariaLabel: `${BUCKET_LABELS[bucket]}: choose a size for ${title}`,
+      items, disabled: items.length === 1 && Boolean(items[0].disabled),
     });
   }
-  if (hd.length > 0) {
-    groups.push({
-      id: 'download-hd', label: 'Download HD', icon: <Download className="h-3 w-3 shrink-0" />, className: hdTone, ariaLabel: `Download HD: choose a quality for ${title}`,
-      items: hd.map(option => ({ key: option.key, label: option.label, title: option.filename, href: option.url, download: option.filename || undefined })),
-    });
-  }
+
   const open = menu ? groups.find(group => group.id === menu.id && group.items.length > 1) : undefined;
   const nothing = !play && !prepared && groups.length === 0;
   const checking = hdLoading || largeLoading;
@@ -224,7 +231,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
       </button>
     ),
     byId('play-hd') && tile(byId('play-hd')!),
-    byId('torrents') && tile(byId('torrents')!),
+    ...BUCKET_ORDER.map(bucket => byId(`res-${bucket}`) && tile(byId(`res-${bucket}`)!)),
     byId('download-hd') && tile(byId('download-hd')!),
   ].filter(Boolean);
 
@@ -251,6 +258,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
       )}
 
       {open && menu && typeof document !== 'undefined' && createPortal(menuView(open, menu.rect, () => setMenu(null)), document.body)}
+      {prepare?.isPreparing && <div className="text-[10px] text-slate-400" role="status">Preparing…</div>}
       {hint ? <div className="text-[10px] leading-snug text-slate-400" role="status">{hint}</div> : null}
       {webtorRow && <WebtorPlayerModal title={title} magnetUrl={String(webtorRow.magnetUrl || '')} label={torrentChip(webtorRow).label} onClose={() => setWebtorKey('')} />}
       {playingHd && <HdPlayerModal title={title} option={playingHd} onClose={() => setHdPlayKey('')} />}
