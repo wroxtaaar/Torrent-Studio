@@ -430,11 +430,11 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
                       prepare={orderTorrents(group.variants).length === 0 ? undefined : {
                         chips: orderTorrents(group.variants).map(torrentChip),
                         isPreparing: prepareState.isPreparing,
-                        disabled: !prepareState.source || prepareState.isPreparing,
+                        disabled: !prepareState.source,
                         onPrepare: key => {
                           const chosen = group.variants.find(variant => torrentResultKey(variant) === key) || result;
                           setSelectedQualityByGroup(previous => ({ ...previous, [group.key]: torrentResultKey(chosen) }));
-                          void prepareMovieTorrent(chosen);
+                          void prepareMovieTorrent(chosen, group.variants);
                         },
                       }}
                       prepared={prepareState.primaryFile ? preparedActionsFor(prepareState.torrentKey, prepareState.primaryFile) : null}

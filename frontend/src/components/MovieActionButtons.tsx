@@ -52,7 +52,7 @@ interface Group {
   buckets?: Array<{ bucket: ResolutionBucket; label: string; items: MenuItem[] }>;
 }
 
-const tileClass = 'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-[11px] font-bold leading-tight disabled:cursor-not-allowed disabled:opacity-60';
+const tileClass = 'inline-flex w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-[11px] font-bold leading-tight disabled:cursor-not-allowed disabled:opacity-60';
 const rowClass = 'flex w-full min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-slate-200 hover:bg-slate-800';
 
 const GLOW: Record<ResolutionBucket, { idle: string; active: string }> = {
@@ -244,10 +244,10 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
     bucket: nuvioBucket(option.quality),
     order: nuvioOrderValue(option),
   }));
-  const seedrItems: MenuItem[] = !prepared && prepare
+  const seedrItems: MenuItem[] = prepare
     ? prepare.chips.map(chip => ({
         key: chip.key, label: rowLabel(chip.format || '', chip.size || 0), title: chip.title, order: chip.order, bucket: chip.bucket,
-        disabled: prepare.disabled || prepare.isPreparing, onPick: () => prepare.onPrepare(chip.key),
+        disabled: prepare.disabled, onPick: () => prepare.onPrepare(chip.key),
       }))
     : [];
   const webtorRows = large.map(row => ({ row, chip: torrentChip(row) }));
@@ -287,7 +287,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
   const nothing = !play && !prepared && groups.length === 0;
   const checking = hdLoading || largeLoading;
 
-  const tile = (group: Group) => {
+  const tile = (group: Group, layout = '') => {
     const single = group.items.length === 1 ? group.items[0] : null;
     const content = (
       <>
@@ -297,7 +297,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
       </>
     );
     if (single?.href) {
-      return <a key={group.id} href={single.href} target="_blank" rel="noreferrer noopener" download={single.download} title={single.title} aria-label={group.ariaLabel} className={tileClass + ' ' + group.className}>{content}</a>;
+      return <a key={group.id} href={single.href} target="_blank" rel="noreferrer noopener" download={single.download} title={single.title} aria-label={group.ariaLabel} className={tileClass + ' ' + group.className + ' ' + layout}>{content}</a>;
     }
     return (
       <button key={group.id} type="button" disabled={group.disabled} aria-label={group.ariaLabel} aria-haspopup={single ? undefined : 'menu'} aria-expanded={single ? undefined : menu?.id === group.id}
@@ -305,26 +305,30 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
         onClick={event => {
           if (single) { single.onPick?.(); return; }
           setMenu(menu?.id === group.id ? null : { id: group.id, rect: event.currentTarget.getBoundingClientRect() });
-        }} className={tileClass + ' ' + group.className}>{content}</button>
+        }} className={tileClass + ' ' + group.className + ' ' + layout}>{content}</button>
     );
   };
 
   const byId = (id: string) => groups.find(group => group.id === id);
+  // A two-column grid: Play and Play HD take half the row each (the whole row when only one of them exists) and
+  // Download takes the full row under them.
+  const playButtons = (play ? 1 : 0) + (byId('play-hd') ? 1 : 0);
+  const playSpan = playButtons === 1 ? 'col-span-2' : 'col-span-1';
   const tiles = [
     play && (
       <button key="play" type="button" disabled={play.disabled} onClick={play.onClick}
-        className={tileClass + ' border border-violet-400/40 bg-violet-500/15 text-violet-200 hover:bg-violet-500/25'}>
+        className={tileClass + ' ' + playSpan + ' border border-violet-400/40 bg-violet-500/15 text-violet-200 hover:bg-violet-500/25'}>
         {play.resolving ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : <Play className="h-3 w-3 shrink-0 fill-current" />}
         <span>{play.resolving ? 'Resolving…' : 'Play'}</span>
       </button>
     ),
-    byId('play-hd') && tile(byId('play-hd')!),
-    byId('download') && tile(byId('download')!),
+    byId('play-hd') && tile(byId('play-hd')!, playSpan),
+    byId('download') && tile(byId('download')!, 'col-span-2'),
   ].filter(Boolean);
 
   return (
     <div className="min-w-0 space-y-2">
-      {tiles.length > 0 && <div className="flex flex-wrap gap-1">{tiles}</div>}
+      {tiles.length > 0 && <div className="grid grid-cols-2 gap-1.5">{tiles}</div>}
 
       {prepared && (
         <div>

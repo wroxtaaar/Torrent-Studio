@@ -32,10 +32,23 @@ export function usePrepareActions({ preparedByKeyRef, preparingTorrentKey, setPr
     const localFiles = local?.files?.filter(file => !deletedIds.has(String(file.folderId))) || [];
     return localFiles.length ? localFiles : findPreparedFiles(result);
   };
-  const prepareMovieTorrent = async (result: TorrentSearchResult) => {
+  const torrentKeyOf = (result: TorrentSearchResult) => result.infoHash || result.magnetUrl || result.downloadUrl || result.sourceUrl || result.title;
+  /**
+   * `siblings` are the other torrents of the same movie. One movie keeps one torrent in Seedr: a sibling that is already
+   * prepared is deleted before the new one is added. A different movie is left alone unless Seedr runs out of space,
+   * in which case the backend frees the oldest completed folders.
+   */
+  const prepareMovieTorrent = async (result: TorrentSearchResult, siblings: TorrentSearchResult[] = []) => {
     const source = result.magnetUrl || result.downloadUrl || result.sourceUrl;
     const torrentKey = result.infoHash || source || result.title;
     if (!source || preparingTorrentKey === torrentKey) return;
+    if (preparedForResult(result).length > 0) return;   // already in Seedr: its Play / Download buttons are showing
+    const replaceFolderIds = Array.from(new Set(
+      siblings
+        .filter(sibling => torrentKeyOf(sibling) !== torrentKey)
+        .flatMap(sibling => preparedForResult(sibling).map(file => String(file.folderId || '').trim()))
+        .filter(Boolean)
+    ));
 
     setPrepareError('');
     setMovieTorrentSearchError('');
@@ -46,7 +59,7 @@ export function usePrepareActions({ preparedByKeyRef, preparingTorrentKey, setPr
 
     try {
       const metadata = metadataCacheRef.current.get(torrentKey);
-      const prepared = await onPrepare(result, metadata);
+      const prepared = await onPrepare(result, metadata, replaceFolderIds.length > 0 ? { replaceFolderIds } : undefined);
       const deletedFolderIds = new Set(
         (prepared?.deletedFolderIds || []).map(id => String(id).trim()).filter(Boolean)
       );

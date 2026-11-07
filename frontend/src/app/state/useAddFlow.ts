@@ -30,7 +30,8 @@ export function useAddFlow({ torrents, setFiles, setStorageStats, setNotificatio
       hash: string;
       files: { index: number; name: string; size: number; path: string; type: string; priority?: number }[];
       totalSize: number;
-    }
+    },
+    options?: { replaceFolderIds?: string[] }
   ): Promise<{ files: Array<{
     id: string;
     streamId?: string;
@@ -103,6 +104,19 @@ export function useAddFlow({ torrents, setFiles, setStorageStats, setNotificatio
     if (prepareGeneration !== seedrPrepareGenerationRef.current) {
       throw new Error('Seedr preparation was replaced by a newer selection.');
     }
+
+    // Another torrent of the same movie replaces the one already in Seedr: delete it first so its space is free.
+    // A failed delete is not fatal; the backend still frees the oldest completed folders when space runs short.
+    const replacedFolderIds: string[] = [];
+    for (const folderId of Array.from(new Set((options?.replaceFolderIds || []).map(id => String(id).trim()).filter(Boolean)))) {
+      try {
+        await api.deleteSeedrFolder(folderId);
+        replacedFolderIds.push(folderId);
+      } catch (replaceError) {
+        console.warn('[SEEDR] Could not delete the previous torrent of this movie:', replaceError);
+      }
+    }
+    if (replacedFolderIds.length > 0) forgetSeedrFolders(replacedFolderIds);
 
     const prepared = await api.prepareSeedrMagnet(
       magnet,
@@ -177,7 +191,7 @@ export function useAddFlow({ torrents, setFiles, setStorageStats, setNotificatio
     const completed = await waitForCompletion;
     return {
       ...completed,
-      deletedFolderIds,
+      deletedFolderIds: Array.from(new Set([...replacedFolderIds, ...deletedFolderIds])),
     };
   }, [
     seedrConnected,

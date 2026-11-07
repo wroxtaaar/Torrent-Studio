@@ -18,7 +18,9 @@ export interface TorrentSearchPanelProps {
       hash: string;
       files: { index: number; name: string; size: number; path: string; type: string; priority?: number }[];
       totalSize: number;
-    }
+    },
+    /** Seedr folders of the same movie to delete before the new torrent is added. */
+    options?: { replaceFolderIds?: string[] }
   ) => Promise<{ files: SeedrSearchFile[]; deletedFolderIds?: string[] }>;
   onCancelPrepare?: () => void | Promise<void>;
   onOpenProgress?: () => void;
