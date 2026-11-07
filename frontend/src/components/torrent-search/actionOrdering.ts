@@ -42,3 +42,15 @@ export function resolutionBucket(row: TorrentSearchResult): ResolutionBucket {
 export function formatLabelOf(label: string): string {
   return String(label || '').replace(/^(?:2160P \(4K\)|\d{3,4}P)\s*/i, '').replace(/^Other release$/i, '').trim() || 'Release';
 }
+
+const NUVIO_RESOLUTION: Record<NuvioStreamOption['quality'], number> = { '2160p': 2160, '1080p': 1080, '720p': 720, '480p': 480, other: 0 };
+
+/** Which resolution button a Nuvio file belongs to (same buckets as torrents). */
+export function nuvioBucket(quality: NuvioStreamOption['quality']): ResolutionBucket {
+  const resolution = NUVIO_RESOLUTION[quality] ?? 0;
+  return resolution >= 2160 ? '4k' : resolution >= 1080 ? '1080p' : resolution > 0 ? '720p' : 'other';
+}
+
+/** Same sort value as torrentOrderValue, so Nuvio files and torrents merge into one list. */
+export const nuvioOrderValue = (option: NuvioStreamOption): number =>
+  (NUVIO_RESOLUTION[option.quality] ?? 0) * 1e13 + Math.min(Number(option.size) || 0, 9.9e12);

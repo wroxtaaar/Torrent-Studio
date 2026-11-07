@@ -57,3 +57,18 @@ test('resolution buttons: buckets and source tags', async () => {
   assert.equal(formatLabelOf('1080P'), 'Release');
   assert.equal(formatLabelOf('Other release'), 'Release');
 });
+
+test('Nuvio files share the resolution buckets and sort values with torrents', async () => {
+  const { nuvioBucket, nuvioOrderValue, mergeByOrder, torrentOrderValue } = await bundle('../src/components/torrent-search/actionOrdering.ts');
+  assert.equal(nuvioBucket('2160p'), '4k');
+  assert.equal(nuvioBucket('1080p'), '1080p');
+  assert.equal(nuvioBucket('720p'), '720p');
+  assert.equal(nuvioBucket('480p'), '720p');
+  assert.equal(nuvioBucket('other'), 'other');
+  const file = { key: 'a', quality: '1080p', size: 4e9 };
+  const torrent = { title: 'Film 2024 1080p BluRay', quality: '', size: 2e9, seeders: 5 };
+  assert.ok(nuvioOrderValue(file) > torrentOrderValue(torrent), 'same resolution: the bigger file first');
+  assert.equal(nuvioOrderValue({ key: 'b', quality: '2160p', size: 1 }) > nuvioOrderValue(file), true, '4K above 1080p');
+  const merged = mergeByOrder([{ k: 'n', order: nuvioOrderValue(file) }], [{ k: 't', order: torrentOrderValue(torrent) }]);
+  assert.deepEqual(merged.map(item => item.k), ['n', 't']);
+});
