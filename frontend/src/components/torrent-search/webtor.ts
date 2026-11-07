@@ -84,3 +84,16 @@ export function openWebtorDownload(magnetUrl: string): { copied: boolean; opened
   window.open(page || WEBTOR_URL, '_blank', 'noopener,noreferrer');
   return { copied, opened: Boolean(page) };
 }
+
+/** Webtor page of one file inside a torrent (it shows that file with Play and Download); the torrent page when unknown. */
+export function webtorFilePageUrl(magnetUrl: string, filePath: string): string {
+  const base = webtorTorrentPageUrl(magnetUrl);
+  const path = String(filePath || '').replace(/^\/+/, '');
+  return base && path ? `${base}/${encodeURIComponent(path)}` : base;
+}
+
+/** Copies the magnet (fallback if Webtor does not know the torrent yet) and opens the file's Webtor page. */
+export function openWebtorFileDownload(magnetUrl: string, filePath: string): void {
+  copyTextNow(magnetUrl);
+  window.open(webtorFilePageUrl(magnetUrl, filePath) || WEBTOR_URL, '_blank', 'noopener,noreferrer');
+}
