@@ -24,8 +24,8 @@ from typing import Any
 from urllib.parse import quote, urlsplit, urlunsplit
 
 MAX_OPTIONS = 12
-SUCCESS_TTL_S = 20 * 60      # links may expire, so do not keep them long
-EMPTY_TTL_S = 10 * 60        # remember "nothing" briefly so repeated clicks do not rescrape
+SUCCESS_TTL_S = 5 * 60       # links may expire, so do not keep them long
+EMPTY_TTL_S = 2 * 60         # remember "nothing" briefly so repeated clicks do not rescrape
 MAX_CACHE_ENTRIES = 500
 
 _QUALITY = (("2160p", re.compile(r"\b(?:2160p|4k|uhd)\b", re.I)),
