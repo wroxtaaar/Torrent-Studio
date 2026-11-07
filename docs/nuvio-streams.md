@@ -76,7 +76,11 @@ over `NUVIO_API_URL` when both are set.
 
 `GET /api/nuvio/streams?tmdb_id=<id>` (called once when a movie card opens, never by page loads or paging)
 asks the add-on for `/stream/movie/tmdb:<id>.json`, keeps up to 12 options (best quality first), caches a
-good answer for 20 minutes and an empty one for 10, and shares one scrape between simultaneous clicks.
+good answer for 5 minutes and an empty one for 10, and shares one scrape between simultaneous clicks.
 Before a list is returned each link is probed (an open-ended range request, status only, no file data is read): links that answer 403 or fail are dropped. The hosts are often Google Drive files that are blocked for about a day (`downloadQuotaExceeded`) once their download quota is used up, which happens quickly for popular films, so those titles will often show no Play HD / Download HD until the quota resets.
 Links are https only and percent-encoded; the browser downloads straight from the file host (no VPS bandwidth).
 Never check these links with a HEAD request: the file host answers 403 to HEAD but serves GET and range requests.
+
+## Stale links ("Access Denied! Please Generate Link Again")
+
+The add-on caches generated links on disk (`.streams_cache`, `.cache/4khdhub`), and they survive restarts. The provider's links are short-lived tokens, so run the add-on with `DISABLE_CACHE=true` and `DISABLE_STREAM_CACHE=true` (e.g. `Environment=` lines in the systemd unit) and clear those folders if every link returns 403.
