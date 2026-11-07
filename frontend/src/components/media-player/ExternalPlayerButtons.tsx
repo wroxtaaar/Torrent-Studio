@@ -1,7 +1,7 @@
 import React from 'react';
 import { currentPlatform, mxPlayerLink, vlcLink } from '../torrent-search/hdPlayer.ts';
 
-const chip = 'inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-slate-700/80 bg-slate-800/80 px-2.5 py-2 text-[11px] font-bold text-slate-200 transition hover:bg-slate-700';
+const chip = 'inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-slate-700/80 bg-slate-800/80 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:bg-slate-700';
 
 /**
  * Hands the original file to VLC or MX Player (Android only), which list every audio track and subtitle and play

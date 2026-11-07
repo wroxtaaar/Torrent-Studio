@@ -55,7 +55,7 @@ interface Group {
 const tileClass = 'inline-flex w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-[11px] font-bold leading-tight disabled:cursor-not-allowed disabled:opacity-60';
 const rowClass = 'flex w-full min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-slate-200 hover:bg-slate-800';
 
-const GLOW: Record<ResolutionBucket, { idle: string; active: string }> = {
+export const GLOW: Record<ResolutionBucket, { idle: string; active: string }> = {
   '720p': { idle: 'border-sky-400/50 text-sky-200 shadow-[0_0_10px_rgba(56,189,248,0.35)]', active: 'border-sky-300 bg-sky-500/25 text-white shadow-[0_0_18px_rgba(56,189,248,0.8)]' },
   '1080p': { idle: 'border-violet-400/50 text-violet-200 shadow-[0_0_10px_rgba(167,139,250,0.35)]', active: 'border-violet-300 bg-violet-500/25 text-white shadow-[0_0_18px_rgba(167,139,250,0.8)]' },
   '4k': { idle: 'border-emerald-400/50 text-emerald-200 shadow-[0_0_10px_rgba(52,211,153,0.35)]', active: 'border-emerald-300 bg-emerald-500/25 text-white shadow-[0_0_18px_rgba(52,211,153,0.8)]' },

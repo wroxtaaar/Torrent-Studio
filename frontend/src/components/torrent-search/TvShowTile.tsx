@@ -1,14 +1,16 @@
 import React, { useState, useSyncExternalStore } from 'react';
 import { api } from '../../api/client.ts';
 import type { TvCatalogueItem } from '../../api/client.ts';
-import { formatBytes } from '../../utils/formatters.ts';
 import { MoviePrepareCard, imdbTitleLink, type MovieCardImdb } from '../MovieCards.tsx';
-import { torrentQualityDetails, torrentResultKey } from './grouping.ts';
+import { torrentQualityDetails } from './grouping.ts';
 import { toCardProviders } from './ottProviders.ts';
 import { lowQualityPosterUrl } from './posterUrls.ts';
 import { TvShowCard, tvCardModel, tvPosterErrorHandler } from './TvShowCard.tsx';
 import { createTvTorrentStore, packScopeLabel, tvShowKey } from './tvTorrentStore.ts';
 import { WebtorPlayerModal } from '../WebtorPlayerModal.tsx';
+import { openWebtorDownload } from './webtor.ts';
+import { TvSeasonActions } from './TvSeasonActions.tsx';
+import type { TorrentSearchResult } from '../../api/types.ts';
 
 // One store for the whole app: one open series card at a time, lookups cached for the session.
 // The lookup runs only from a card tap (see tvTorrentStore.open), never on page load or paging.
@@ -29,15 +31,12 @@ export const TvShowTile: React.FC<{
   onPlay: () => void;
 }> = ({ show, imdb, onPlay }) => {
   const openKey = useSyncExternalStore(tvTorrents.subscribe, tvTorrents.getOpenKey, tvTorrents.getOpenKey);
-  const [selectedKey, setSelectedKey] = useState('');
-  const [hint, setHint] = useState('');
-  const [webtorOpen, setWebtorOpen] = useState(false);
+  const [webtorRow, setWebtorRow] = useState<TorrentSearchResult | null>(null);
   const open = () => tvTorrents.open(show, onPlay);
   if (openKey !== tvShowKey(show)) return <TvShowCard show={show} imdb={imdb} onOpen={open} />;
 
   const releases = tvTorrents.releasesFor(show);
   const { rating, displayYear, providers } = tvCardModel(show, imdb);
-  const selected = releases.find(row => torrentResultKey(row) === selectedKey) || releases[0];
   return (
     <>
     <MoviePrepareCard
@@ -47,31 +46,25 @@ export const TvShowTile: React.FC<{
       onPosterLoad={() => {}}
       onPosterError={tvPosterErrorHandler(show.title, displayYear)}
       imdb={rating}
-      seeders={selected?.seeders}
-      indexer={selected?.indexer}
-      quality={selected ? torrentQualityDetails(selected).label : undefined}
       title={show.title}
       titleHref={imdbTitleLink(rating, show.title, displayYear)}
       year={displayYear}
       onClose={tvTorrents.close}
       providers={toCardProviders(providers)}
-      variants={releases.map(row => ({
-        key: torrentResultKey(row),
-        label: `${packScopeLabel(row)} · ${torrentQualityDetails(row).label || 'Unknown'} · ${formatBytes(Number(row.size) || 0)} · ▲${Number(row.seeders) || 0}${row.indexer ? ` · ${row.indexer}` : ''}`,
-      }))}
-      selectedVariantKey={selected ? torrentResultKey(selected) : ''}
-      onSelectVariant={key => { setSelectedKey(key); setHint(''); }}
-      variantsAriaLabel={`Choose season or quality for ${show.title}`}
+      variants={[]}
+      selectedVariantKey=""
+      onSelectVariant={() => {}}
+      variantsAriaLabel={`Seasons and quality for ${show.title}`}
       prepared={null}
+      actions={releases.length > 0 ? (
+        <TvSeasonActions releases={releases} onPlay={onPlay}
+          onWebtorPlay={row => setWebtorRow(row)}
+          onWebtorDownload={row => { openWebtorDownload(String(row.magnetUrl)); }} />
+      ) : undefined}
       directStream={{ label: 'Play', disabled: false, onClick: onPlay }}
-      webtor={selected?.magnetUrl ? {
-        label: 'Webtor',
-        hint,
-        onClick: () => setWebtorOpen(true),
-      } : undefined}
     />
-    {webtorOpen && selected?.magnetUrl && (
-      <WebtorPlayerModal title={show.title} magnetUrl={String(selected.magnetUrl)} label={`${packScopeLabel(selected)} · ${torrentQualityDetails(selected).label || ''}`.trim()} onClose={() => setWebtorOpen(false)} />
+    {webtorRow?.magnetUrl && (
+      <WebtorPlayerModal title={show.title} magnetUrl={String(webtorRow.magnetUrl)} label={`${packScopeLabel(webtorRow)} · ${torrentQualityDetails(webtorRow).label || ''}`.trim()} onClose={() => setWebtorRow(null)} />
     )}
     </>
   );
