@@ -32,8 +32,9 @@ test('iOS and desktop VLC links; MX Player only on Android', () => {
   assert.equal(mxPlayerLink(url, 'desktop'), '');
 });
 
-test('only https links are handed to other apps', () => {
-  assert.equal(vlcLink('http://plain.example/x.mkv', 'android'), '');
+test('only http(s) links are handed to other apps', () => {
+  assert.match(vlcLink('http://plain.example/x.mkv', 'android'), /^intent:\/\/plain\.example\/x\.mkv#Intent;scheme=http;package=org\.videolan\.vlc;/);
+  assert.equal(vlcLink('ftp://plain.example/x.mkv', 'android'), '');
   assert.equal(mxPlayerLink('file:///x', 'android'), '');
 });
 
@@ -57,4 +58,10 @@ test('audio tracks advertised by a release name', async () => {
   assert.deepEqual(browserAudioTracks({}), [], 'browsers without audioTracks');
   const two = browserAudioTracks({ audioTracks: { length: 2, 0: { id: 'a', label: 'English', language: 'en', enabled: true }, 1: { id: 'b', label: '', language: 'hi', enabled: false } } });
   assert.deepEqual(two.map(track => [track.id, track.enabled]), [['a', true], ['b', false]]);
+});
+
+test('MX Player and VLC links accept the app\'s own (http or https) file address', async () => {
+  const url = 'http://129.154.242.170:3000/api/seedr/files/55/download';
+  assert.equal(mxPlayerLink(url, 'android'), 'intent://129.154.242.170:3000/api/seedr/files/55/download#Intent;scheme=http;package=com.mxtech.videoplayer.ad;type=video/*;end');
+  assert.equal(mxPlayerLink(url, 'desktop'), '', 'MX Player is Android only');
 });

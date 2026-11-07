@@ -12,10 +12,11 @@ export function platformFromUserAgent(userAgent: string, maxTouchPoints = 0): Pl
 export const currentPlatform = (): PlayerPlatform =>
   typeof navigator === 'undefined' ? 'desktop' : platformFromUserAgent(navigator.userAgent || '', navigator.maxTouchPoints || 0);
 
-/** Android "intent:" link that opens the stream in a specific app (https URL only). */
+/** Android "intent:" link that opens the stream in a specific app (http or https URL). */
 export function androidIntent(url: string, androidPackage: string): string {
-  const withoutScheme = url.replace(/^https:/i, '');
-  return `intent:${withoutScheme}#Intent;scheme=https;package=${androidPackage};type=video/*;end`;
+  const scheme = /^http:/i.test(url) ? 'http' : 'https';
+  const withoutScheme = url.replace(/^https?:/i, '');
+  return `intent:${withoutScheme}#Intent;scheme=${scheme};package=${androidPackage};type=video/*;end`;
 }
 
 export const MX_PLAYER_PACKAGE = 'com.mxtech.videoplayer.ad';
@@ -23,7 +24,7 @@ export const VLC_PACKAGE = 'org.videolan.vlc';
 
 /** Link that opens the stream in VLC, or '' when this platform has no reliable VLC link. */
 export function vlcLink(url: string, platform: PlayerPlatform): string {
-  if (!/^https:\/\//i.test(url)) return '';
+  if (!/^https?:\/\//i.test(url)) return '';
   if (platform === 'android') return androidIntent(url, VLC_PACKAGE);
   if (platform === 'ios') return `vlc-x-callback://x-callback-url/stream?url=${encodeURIComponent(url)}`;
   return `vlc://${url}`;   // desktop: works when VLC registered its protocol handler; "Copy link" is the fallback
@@ -31,7 +32,7 @@ export function vlcLink(url: string, platform: PlayerPlatform): string {
 
 /** MX Player exists only on Android. */
 export function mxPlayerLink(url: string, platform: PlayerPlatform): string {
-  return platform === 'android' && /^https:\/\//i.test(url) ? androidIntent(url, MX_PLAYER_PACKAGE) : '';
+  return platform === 'android' && /^https?:\/\//i.test(url) ? androidIntent(url, MX_PLAYER_PACKAGE) : '';
 }
 
 /**

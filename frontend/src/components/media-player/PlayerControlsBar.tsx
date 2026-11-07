@@ -1,5 +1,6 @@
 import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, RotateCcw, RotateCw, ExternalLink, Captions, Languages, Loader2, Timer, Minus, Plus } from 'lucide-react';
 import { formatDuration } from '../../utils/formatters.ts';
+import { ExternalPlayerButtons } from './ExternalPlayerButtons.tsx';
 import { seekGradient } from './playerExtras.ts';
 import type { PanelModel } from './useMediaPlayerModel.tsx';
 
@@ -212,6 +213,8 @@ export function PlayerControlsBar({ vm }: { vm: PanelModel }) {
               </div>
 
               {/* PiP (video only) */}
+              {isVideo && file.downloadUrl && <ExternalPlayerButtons url={file.downloadUrl} />}
+
               {isVideo && (
                 <button
                   onClick={togglePip}
