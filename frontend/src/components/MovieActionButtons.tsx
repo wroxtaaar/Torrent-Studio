@@ -43,7 +43,7 @@ interface Group {
   items: MenuItem[];
 }
 
-const tileClass = 'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-[11px] font-bold leading-tight disabled:cursor-not-allowed disabled:opacity-60';
+const tileClass = 'inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-[11px] font-bold leading-tight disabled:cursor-not-allowed disabled:opacity-60';
 const rowClass = 'flex w-full min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-slate-200 hover:bg-slate-800';
 
 /**
@@ -63,7 +63,7 @@ function menuView(group: Group, rect: DOMRect, close: () => void): React.ReactEl
   };
   return (
     <div data-action-menu="true" role="menu" aria-label={group.ariaLabel} style={style}
-      className="z-[100] max-h-56 w-max min-w-[9rem] overflow-y-auto rounded-lg border border-slate-700 bg-slate-950 p-1 shadow-2xl">
+      style={{ touchAction: "pan-y" }} className="z-[100] max-h-56 w-max min-w-[9rem] overflow-y-auto overscroll-contain rounded-lg border border-slate-700 bg-slate-950 p-1 shadow-2xl">
       {group.items.map(item => item.href ? (
         <a key={item.key} role="menuitem" href={item.href} target="_blank" rel="noreferrer noopener" download={item.download} title={item.title}
           onClick={close} className={rowClass}>{item.label}</a>
@@ -126,6 +126,11 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
   useEffect(() => {
     if (!menu) return undefined;
     const close = () => setMenu(null);
+    const onScroll = (event: Event) => {
+      const target = event.target as Element | null;
+      if (target?.closest?.('[data-action-menu]')) return;   // scrolling the list itself must not close it
+      close();
+    };
     const onDown = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Element | null;
       if (target?.closest?.('[data-action-menu]') || target?.closest?.('[data-action-menu-button]')) return;
@@ -135,13 +140,13 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
     document.addEventListener('mousedown', onDown);
     document.addEventListener('touchstart', onDown);
     document.addEventListener('keydown', onKey);
-    window.addEventListener('scroll', close, true);   // a fixed menu would drift from its button
+    window.addEventListener('scroll', onScroll, true);   // a fixed menu would drift from its button
     window.addEventListener('resize', close);
     return () => {
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('touchstart', onDown);
       document.removeEventListener('keydown', onKey);
-      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', close);
     };
   }, [menu]);
@@ -224,7 +229,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
 
   return (
     <div className="min-w-0 space-y-2">
-      {tiles.length > 0 && <div className="flex flex-wrap gap-1.5">{tiles}</div>}
+      {tiles.length > 0 && <div className="flex flex-wrap gap-1">{tiles}</div>}
 
       {prepared && (
         <div>
