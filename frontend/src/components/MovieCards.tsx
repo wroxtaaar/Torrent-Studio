@@ -509,14 +509,14 @@ export const MoviePrepareCard: React.FC<MoviePrepareCardProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <div className="min-w-0 max-w-full">
+                  <div className="w-full min-w-0 max-w-full">
                     <div className="flex w-full items-center justify-between gap-2">
                       {directStream && (
                       <button
                         type="button"
                         disabled={directStream.disabled}
                         onClick={directStream.onClick}
-                        className={(prepare || webtor ? 'min-w-0 flex-1' : 'w-full') + ' whitespace-nowrap rounded-lg border border-violet-400/40 bg-violet-500/15 px-1.5 py-1.5 text-[10px] font-bold text-violet-200 hover:bg-violet-500/25 disabled:opacity-60'}
+                        className={(prepare || webtor ? 'min-w-0 flex-1' : 'w-full') + ' inline-flex items-center justify-center overflow-hidden whitespace-nowrap rounded-lg border border-violet-400/40 bg-violet-500/15 px-1.5 py-1.5 text-[10px] font-bold text-violet-200 hover:bg-violet-500/25 disabled:opacity-60'}
                       >
                         {directStream.label === 'Resolving…' ? <><Loader2 className="inline-block w-3.5 h-3.5 mr-1 animate-spin" />Resolving…</> : <><Play className="inline-block w-3.5 h-3.5 mr-1 fill-current" />Play</>}
                       </button>
@@ -526,9 +526,9 @@ export const MoviePrepareCard: React.FC<MoviePrepareCardProps> = ({
                         type="button"
                         onClick={webtor.onClick}
                         title="Copy the magnet link and open Webtor"
-                        className="min-w-0 flex-1 whitespace-nowrap rounded-lg border border-cyan-400/40 bg-cyan-500/15 px-1.5 py-1.5 text-[10px] font-bold text-cyan-200 hover:bg-cyan-500/25"
+                        className="inline-flex min-w-0 flex-1 items-center justify-center overflow-hidden whitespace-nowrap rounded-lg border border-cyan-400/40 bg-cyan-500/15 px-1.5 py-1.5 text-[10px] font-bold text-cyan-200 hover:bg-cyan-500/25"
                       >
-                        <Download className="inline-block w-3.5 h-3.5 mr-1" />{webtor.label}
+                        <Download className="mr-1 h-3.5 w-3.5 shrink-0" /><span className="min-w-0 truncate">{webtor.label}</span>
                       </button>
                       )}
                       {prepare && (
