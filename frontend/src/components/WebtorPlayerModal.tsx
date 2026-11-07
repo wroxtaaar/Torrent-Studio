@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import React, { useEffect, useId, useState } from 'react';
-import { ExternalLink, Loader2, X } from 'lucide-react';
-import { copyMagnetAndOpenWebtor, loadWebtorSdk, webtorEmbedConfig } from './torrent-search/webtor.ts';
+import { Download, ExternalLink, Loader2, X } from 'lucide-react';
+import { copyMagnetAndOpenWebtor, loadWebtorSdk, openWebtorDownload, webtorEmbedConfig } from './torrent-search/webtor.ts';
 
 /**
  * Plays a torrent inside the app with Webtor's own player (their embed SDK, MIT). Webtor's servers fetch the torrent and
@@ -51,11 +51,23 @@ export const WebtorPlayerModal: React.FC<{ title: string; magnetUrl: string; lab
         </div>
         <div className="space-y-2 px-4 py-3">
           {state === 'failed' && <p className="text-xs text-amber-300">The Webtor player could not be loaded here. Use the button below to open webtor.io instead.</p>}
+          <div className="flex flex-wrap gap-2">
+          <button type="button"
+            onClick={() => {
+              const result = openWebtorDownload(magnetUrl);
+              setHint(result.opened
+                ? 'Webtor opened on this torrent. Tap Download there. If it says the torrent is not found, paste the magnet (copied).'
+                : 'Webtor opened. Paste the magnet (copied) to continue.');
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-500 px-2.5 py-1.5 text-[11px] font-bold text-slate-950 hover:bg-cyan-400">
+            <Download className="h-3 w-3" />Download on Webtor
+          </button>
           <button type="button"
             onClick={() => setHint(copyMagnetAndOpenWebtor(magnetUrl) ? 'Magnet copied. Paste it on Webtor to stream or download.' : 'Webtor opened, but the magnet could not be copied.')}
             className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/40 bg-cyan-500/15 px-2.5 py-1.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-500/25">
             <ExternalLink className="h-3 w-3" />Open on webtor.io
           </button>
+          </div>
           {hint && <p className="text-[11px] text-slate-400" role="status">{hint}</p>}
         </div>
       </div>

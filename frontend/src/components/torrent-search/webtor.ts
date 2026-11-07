@@ -51,3 +51,35 @@ export function loadWebtorSdk(): Promise<void> {
   });
   return sdkPromise;
 }
+
+const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+/** The 40-character hex info hash of a magnet link (hex or base32 `btih`), or '' when there is none. */
+export function magnetInfoHash(magnetUrl: string): string {
+  const match = String(magnetUrl || '').match(/[?&]xt=urn:btih:([A-Za-z0-9]+)/i);
+  if (!match) return '';
+  const value = match[1];
+  if (/^[0-9a-fA-F]{40}$/.test(value)) return value.toLowerCase();
+  if (/^[A-Za-z2-7]{32}$/.test(value)) {
+    let bits = '';
+    for (const char of value.toUpperCase()) bits += BASE32.indexOf(char).toString(2).padStart(5, '0');
+    let hex = '';
+    for (let index = 0; index + 4 <= bits.length && hex.length < 40; index += 4) hex += parseInt(bits.slice(index, index + 4), 2).toString(16);
+    return hex.slice(0, 40);
+  }
+  return '';
+}
+
+/** Webtor's page for a torrent (Stream and Download buttons live there), or '' for a magnet without a hash. */
+export function webtorTorrentPageUrl(magnetUrl: string): string {
+  const hash = magnetInfoHash(magnetUrl);
+  return hash ? `${WEBTOR_URL}${hash}` : '';
+}
+
+/** Copies the magnet (in case Webtor does not know the torrent yet) and opens its torrent page where Download is one tap. */
+export function openWebtorDownload(magnetUrl: string): { copied: boolean; opened: boolean } {
+  const copied = copyTextNow(magnetUrl);
+  const page = webtorTorrentPageUrl(magnetUrl);
+  window.open(page || WEBTOR_URL, '_blank', 'noopener,noreferrer');
+  return { copied, opened: Boolean(page) };
+}
