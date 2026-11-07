@@ -33,3 +33,11 @@ test('HD options: 4K, 1080p, 720p, other; bigger first inside a quality; input i
   assert.deepEqual(orderHdOptions(input).map(o => o.key), ['2', '3', '0', '4', '1']);
   assert.deepEqual(input.map(o => o.key), ['0', '1', '2', '3', '4']);
 });
+
+test('merged torrent list: best resolution first, then size, regardless of source', async () => {
+  const { mergeByOrder } = await bundle('../src/components/torrent-search/actionOrdering.ts');
+  const seedr = [{ key: 's1', order: 3e13 + 1.5e9 }, { key: 's2', order: 2e13 + 1e9 }];
+  const webtor = [{ key: 'w1', order: 4e13 + 9e9 }, { key: 'w2', order: 3e13 + 4e9 }, { key: 'w3' }];
+  assert.deepEqual(mergeByOrder(seedr, webtor).map(item => item.key), ['w1', 'w2', 's1', 's2', 'w3']);
+  assert.deepEqual(mergeByOrder([], []), []);
+});
