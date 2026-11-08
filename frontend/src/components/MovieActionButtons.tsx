@@ -300,7 +300,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
   // Download takes the full row under them.
   const playButtons = (play ? 1 : 0) + (byId('play-hd') ? 1 : 0);
   const playSpan = playButtons === 1 ? 'col-span-2' : 'col-span-1';
-  const tiles = [
+  const playTiles = [
     play && (
       <button key="play" type="button" disabled={play.disabled} onClick={play.onClick}
         className={tileClass + ' ' + playSpan + ' border border-violet-400/40 bg-violet-500/15 text-violet-200 hover:bg-violet-500/25'}>
@@ -309,12 +309,20 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
       </button>
     ),
     byId('play-hd') && tile(byId('play-hd')!, playSpan),
-    byId('download') && tile(byId('download')!, 'col-span-2'),
   ].filter(Boolean);
+  const downloadTile = byId('download');
+  // Each resolution bar opens right under its own button, so Play HD's bar sits between the Play row and Download,
+  // and Download's bar sits under Download.
+  const panelFor = (id: string) => open && menu && open.buckets && open.id === id
+    ? <DownloadPanel key={open.id} group={open} close={() => setMenu(null)} />
+    : null;
 
   return (
     <div className="min-w-0 space-y-2">
-      {tiles.length > 0 && <div className="grid grid-cols-2 gap-1.5">{tiles}</div>}
+      {playTiles.length > 0 && <div className="grid grid-cols-2 gap-1.5">{playTiles}</div>}
+      {panelFor('play-hd')}
+      {downloadTile && <div className="grid grid-cols-2 gap-1.5">{tile(downloadTile, 'col-span-2')}</div>}
+      {panelFor('download')}
 
       {prepared && (
         <div>
@@ -334,7 +342,6 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
         </div>
       )}
 
-      {open && menu && open.buckets && <DownloadPanel key={open.id} group={open} close={() => setMenu(null)} />}
       {open && menu && !open.buckets && typeof document !== 'undefined' && createPortal(menuView(open, menu.rect, () => setMenu(null)), document.body)}
       {prepare?.isPreparing && <div className="text-[10px] text-slate-400" role="status">Preparing…</div>}
       {hint ? <div className="text-[10px] leading-snug text-slate-400" role="status">{hint}</div> : null}
