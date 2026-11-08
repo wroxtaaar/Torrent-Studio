@@ -38,7 +38,7 @@ export interface MovieActionButtonsProps {
   prepared?: null | { isPlaying: boolean; isCopied: boolean; onPlay: () => void; onDownload: () => void; onCopy: () => void };
 }
 
-interface MenuItem { key: string; label: string; title?: string; href?: string; download?: string; onPick?: () => void; disabled?: boolean; order?: number; bucket?: ResolutionBucket }
+export interface MenuItem { key: string; label: string; title?: string; href?: string; download?: string; onPick?: () => void; disabled?: boolean; order?: number; bucket?: ResolutionBucket }
 interface Group {
   id: string;
   icon?: React.ReactNode;
@@ -52,7 +52,7 @@ interface Group {
   buckets?: Array<{ bucket: ResolutionBucket; label: string; items: MenuItem[] }>;
 }
 
-const tileClass = 'inline-flex w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-[11px] font-bold leading-tight disabled:cursor-not-allowed disabled:opacity-60';
+export const tileClass = 'inline-flex w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-[11px] font-bold leading-tight disabled:cursor-not-allowed disabled:opacity-60';
 const rowClass = 'flex w-full min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold text-slate-200 hover:bg-slate-800';
 
 export const GLOW: Record<ResolutionBucket, { idle: string; active: string }> = {
@@ -63,14 +63,15 @@ export const GLOW: Record<ResolutionBucket, { idle: string; active: string }> = 
 };
 
 /** The Download menu: one row of glowing resolution buttons; tapping one lists its torrents (sizes) underneath. */
-function DownloadPanel({ group, close }: { group: Group; close: () => void }) {
+export function QualityPanel({ buckets, ariaLabel, close }: { buckets: Array<{ bucket: ResolutionBucket; label: string; items: MenuItem[] }>; ariaLabel: string; close: () => void }) {
   const [chosen, setChosen] = useState<ResolutionBucket | null>(null);
-  const buckets = group.buckets || [];
   const shown = buckets.find(entry => entry.bucket === chosen);
   const pills = visibleBuckets(buckets);
   return (
-    <div data-action-menu="true" role="group" aria-label={group.ariaLabel}
-      className="w-full min-w-0 overflow-hidden rounded-xl border border-slate-700 bg-slate-950/80 p-2">
+    // The sizes list is drawn over what is below (absolute), so opening it never makes the card taller. The card is raised
+    // while it is open (see MoviePrepareCard) so the list sits above the next card.
+    <div data-action-menu="true" role="group" aria-label={ariaLabel} data-sizes-open={shown ? 'true' : undefined}
+      className="relative w-full min-w-0 rounded-xl border border-slate-700 bg-slate-950/80 p-2">
       <div className="flex gap-2" role="group" aria-label="Choose a resolution">
         {pills.map(entry => {
           const empty = entry.items.length === 0;
@@ -86,7 +87,8 @@ function DownloadPanel({ group, close }: { group: Group; close: () => void }) {
         })}
       </div>
       {shown ? (
-        <div role="menu" aria-label={`${shown.label} options`} className="mt-2 max-h-48 space-y-0.5 overflow-y-auto overscroll-contain rounded-lg border border-slate-800 bg-slate-900/60 p-1">
+        <div role="menu" aria-label={`${shown.label} options`} style={{ touchAction: 'pan-y' }}
+          className="absolute inset-x-0 top-full z-50 mt-1 max-h-48 space-y-0.5 overflow-y-auto overscroll-contain rounded-xl border border-slate-700 bg-slate-950 p-1 shadow-2xl">
           {shown.items.map(item => item.href ? (
             <a key={item.key} role="menuitem" href={item.href} target="_blank" rel="noreferrer noopener" download={item.download} title={item.title}
               onClick={close} className={rowClass}>{item.label}</a>
@@ -312,7 +314,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
   // Each resolution bar opens right under its own button, so Play HD's bar sits between the Play row and Download,
   // and Download's bar sits under Download.
   const panelFor = (id: string) => open && menu && open.buckets && open.id === id
-    ? <DownloadPanel key={open.id} group={open} close={() => setMenu(null)} />
+    ? <QualityPanel key={open.id} buckets={open.buckets || []} ariaLabel={open.ariaLabel} close={() => setMenu(null)} />
     : null;
 
   return (

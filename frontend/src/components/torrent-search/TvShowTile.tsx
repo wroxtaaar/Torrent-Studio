@@ -54,7 +54,6 @@ export const TvShowTile: React.FC<{
       titleHref={imdbTitleLink(rating, show.title, displayYear)}
       year={displayYear}
       onClose={tvTorrents.close}
-      providers={toCardProviders(providers)}
       variants={[]}
       selectedVariantKey=""
       onSelectVariant={() => {}}
@@ -62,7 +61,6 @@ export const TvShowTile: React.FC<{
       prepared={null}
       actions={releases.length > 0 ? (
         <TvSeasonActions releases={releases} onPlay={onPlay} onBrowse={() => setBrowseOpen(true)}
-          onWebtorPlay={row => { setWebtorPath(''); setWebtorLabel(''); setWebtorRow(row); }}
           onWebtorDownload={row => { openWebtorDownload(String(row.magnetUrl)); }} />
       ) : undefined}
       directStream={{ label: 'Play', disabled: false, onClick: onPlay }}
