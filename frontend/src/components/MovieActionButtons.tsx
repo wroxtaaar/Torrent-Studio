@@ -95,9 +95,7 @@ function DownloadPanel({ group, close }: { group: Group; close: () => void }) {
               onClick={() => { close(); item.onPick?.(); }} className={rowClass + ' disabled:cursor-not-allowed disabled:opacity-50'}>{item.label}</button>
           ))}
         </div>
-      ) : (
-        <p className="mt-1.5 px-1 text-center text-[10px] text-slate-500">Choose a resolution to see the options</p>
-      )}
+      ) : null}
     </div>
   );
 }
