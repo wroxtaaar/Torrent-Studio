@@ -62,29 +62,15 @@ export const GLOW: Record<ResolutionBucket, { idle: string; active: string }> = 
   other: { idle: 'border-slate-500/50 text-slate-300 shadow-[0_0_10px_rgba(148,163,184,0.25)]', active: 'border-slate-300 bg-slate-500/25 text-white shadow-[0_0_16px_rgba(148,163,184,0.6)]' },
 };
 
-/** Floating position for a menu opened from `rect`: under the button, above it near the bottom of the screen. */
-function menuPlacement(rect: DOMRect, width: number, height: number): React.CSSProperties {
-  const viewportWidth = typeof window === 'undefined' ? 360 : window.innerWidth;
-  const viewportHeight = typeof window === 'undefined' ? 640 : window.innerHeight;
-  const alignRight = rect.left + rect.width / 2 > viewportWidth / 2;
-  const above = rect.bottom + height > viewportHeight && rect.top > height;
-  return {
-    position: 'fixed',
-    width: Math.min(width, viewportWidth - 16),
-    ...(alignRight ? { right: Math.max(8, viewportWidth - rect.right) } : { left: Math.max(8, rect.left) }),
-    ...(above ? { bottom: viewportHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
-  };
-}
-
 /** The Download menu: one row of glowing resolution buttons; tapping one lists its torrents (sizes) underneath. */
-function DownloadPanel({ group, rect, close }: { group: Group; rect: DOMRect; close: () => void }) {
+function DownloadPanel({ group, close }: { group: Group; close: () => void }) {
   const [chosen, setChosen] = useState<ResolutionBucket | null>(null);
   const buckets = group.buckets || [];
   const shown = buckets.find(entry => entry.bucket === chosen);
   const pills = visibleBuckets(buckets);
   return (
-    <div data-action-menu="true" role="dialog" aria-label={group.ariaLabel} style={{ ...menuPlacement(rect, 300, 300), touchAction: 'pan-y' }}
-      className="z-[100] overflow-hidden rounded-xl border border-slate-700 bg-slate-950/95 p-2.5 shadow-2xl backdrop-blur">
+    <div data-action-menu="true" role="group" aria-label={group.ariaLabel}
+      className="w-full min-w-0 overflow-hidden rounded-xl border border-slate-700 bg-slate-950/80 p-2">
       <div className="flex gap-2" role="group" aria-label="Choose a resolution">
         {pills.map(entry => {
           const empty = entry.items.length === 0;
@@ -110,7 +96,7 @@ function DownloadPanel({ group, rect, close }: { group: Group; rect: DOMRect; cl
           ))}
         </div>
       ) : (
-        <p className="mt-2 px-1 text-center text-[10px] text-slate-500">Choose a resolution to see the options</p>
+        <p className="mt-1.5 px-1 text-center text-[10px] text-slate-500">Choose a resolution to see the options</p>
       )}
     </div>
   );
@@ -170,7 +156,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
   const [large, setLarge] = useState<TorrentSearchResult[]>([]);
   const [hint, setHint] = useState('');
   const [hd, setHd] = useState<NuvioStreamOption[]>([]);
-  const [menu, setMenu] = useState<{ id: string; rect: DOMRect } | null>(null);
+  const [menu, setMenu] = useState<{ id: string; rect: DOMRect; inline: boolean } | null>(null);
   const [hdPlayKey, setHdPlayKey] = useState('');
   const [webtorKey, setWebtorKey] = useState('');
   const [hdLoading, setHdLoading] = useState(false);
@@ -209,9 +195,12 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
       close();
     };
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    // The resolution bar sits inside the card, so scrolling or tapping elsewhere must not close it; only the floating
+    // single-list menus need that.
+    if (menu.inline) return () => document.removeEventListener('keydown', onKey);
     document.addEventListener('mousedown', onDown);
     document.addEventListener('touchstart', onDown);
-    document.addEventListener('keydown', onKey);
     window.addEventListener('scroll', onScroll, true);   // a fixed menu would drift from its button
     window.addEventListener('resize', close);
     return () => {
@@ -301,7 +290,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
         data-action-menu-button={single ? undefined : 'true'}
         onClick={event => {
           if (single) { single.onPick?.(); return; }
-          setMenu(menu?.id === group.id ? null : { id: group.id, rect: event.currentTarget.getBoundingClientRect() });
+          setMenu(menu?.id === group.id ? null : { id: group.id, rect: event.currentTarget.getBoundingClientRect(), inline: Boolean(group.buckets) });
         }} className={tileClass + ' ' + group.className + ' ' + layout}>{content}</button>
     );
   };
@@ -345,7 +334,8 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
         </div>
       )}
 
-      {open && menu && typeof document !== 'undefined' && createPortal(open.buckets ? <DownloadPanel key={open.id} group={open} rect={menu.rect} close={() => setMenu(null)} /> : menuView(open, menu.rect, () => setMenu(null)), document.body)}
+      {open && menu && open.buckets && <DownloadPanel key={open.id} group={open} close={() => setMenu(null)} />}
+      {open && menu && !open.buckets && typeof document !== 'undefined' && createPortal(menuView(open, menu.rect, () => setMenu(null)), document.body)}
       {prepare?.isPreparing && <div className="text-[10px] text-slate-400" role="status">Preparing…</div>}
       {hint ? <div className="text-[10px] leading-snug text-slate-400" role="status">{hint}</div> : null}
       {webtorRow && <WebtorPlayerModal title={title} magnetUrl={String(webtorRow.magnetUrl || '')} label={torrentChip(webtorRow).label} onClose={() => setWebtorKey('')} />}
