@@ -34,15 +34,6 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
     <>
       {movieCatalogue && (
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-            <div className="text-xs text-slate-400">
-              {movieCatalogue.catalogue.startsWith('trending-')
-                ? movieCatalogue.results.length + ' trending titles on this page · Page ' + movieCatalogue.page + ' of ' + movieCatalogue.totalPages
-                : movieCatalogue.totalResults.toLocaleString() + ' movies · Page ' + movieCatalogue.page + ' of ' + movieCatalogue.totalPages.toLocaleString()
-              } · Metadata by {movieCatalogue.provider}
-            </div>
-            <div className="text-[11px] text-slate-500">Select a movie to search torrent providers</div>
-          </div>
 
 
 
@@ -350,7 +341,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
             >
               Previous
             </button>
-            <span className="text-xs text-slate-500">Browse all pages to explore older releases too</span>
+            <span className="text-xs text-slate-500">Page {movieCatalogue.page} of {movieCatalogue.totalPages.toLocaleString()}</span>
             <button
               type="button"
               disabled={isSearching || movieCatalogue.page >= movieCatalogue.totalPages}

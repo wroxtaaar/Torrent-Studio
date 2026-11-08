@@ -100,14 +100,6 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
 
   return (
     <section className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-        <div className="text-xs text-slate-400">
-          {title}
-          {catalogue && <> · {catalogue.totalResults.toLocaleString()} series · Page {page} of {totalPages.toLocaleString()}</>}
-          {catalogue && <> · Metadata by {catalogue.provider}</>}
-        </div>
-      </div>
-
       {regionalWebSeriesLoading && (
         <div className="flex items-center gap-3 rounded-xl border border-cyan-500/30 bg-slate-950 px-3 py-3 text-sm text-slate-200">
           <Loader2 className="h-5 w-5 shrink-0 animate-spin text-cyan-400" />
