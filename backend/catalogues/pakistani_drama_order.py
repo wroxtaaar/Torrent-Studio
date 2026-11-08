@@ -1,20 +1,15 @@
 """Fixed Pakistani drama display order: original 30 first, then IMDb-only titles in IMDb order."""
 
 PAKISTANI_DRAMA_POPULARITY_ORDER: tuple[str, ...] = (
+    "Dar-e-Nijaat",
     "Humsafar",
-    "Daam",
-    "Mora Piya",
     "Kankar",
     "Zindagi Gulzar Hai",
-    "Shehr-e-Zaat",
     "Dastaan",
     "Dur e Shahwar",
-    "Jackson Heights",
     "Thakan",
     "Mere Qatil Mere Dildar",
-    "Maat",
     "Khuda Aur Muhabbat",
-    "Diyar-e-Dil",
     "Chup Raho",
     "Ishq Gumshuda",
     "Meri Zaat Zarrae Benishan",
