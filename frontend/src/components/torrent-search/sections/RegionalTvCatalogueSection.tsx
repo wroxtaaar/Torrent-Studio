@@ -69,6 +69,26 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
   const navigate = (nextPage: number) => {
     if (group && mode) void openRegionalTvCatalogue(group, mode, nextPage, false);
   };
+  // One bar with Previous, the sort buttons, the page number and Next (shown above and below the grid).
+  const paginationBar = (
+    <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900 px-2.5 py-2">
+      <button type="button" disabled={regionalWebSeriesLoading || page <= 1 || !canNavigate} onClick={() => navigate(page - 1)}
+        className="shrink-0 rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-slate-300 disabled:opacity-40">← <span className="hidden sm:inline">Previous</span><span className="sm:hidden">Prev</span></button>
+      {sortedShows.length > 0 && (
+        <div className="flex shrink-0 items-center gap-1" role="group" aria-label="Sort catalogue">
+          {(['popularity', 'rating', 'year'] as const).map(option => (
+            <button key={option} type="button" aria-pressed={catalogueSort === option} onClick={() => vm.setCatalogueSort(option)}
+              className={'rounded-lg border px-2 py-1.5 text-[11px] font-bold transition-colors ' + (catalogueSort === option ? 'border-cyan-400 bg-cyan-500 text-slate-950' : 'border-slate-800 bg-slate-950 text-slate-400 hover:text-slate-200')}>
+              {option === 'popularity' ? 'Popular' : option === 'rating' ? 'Rating' : 'Year'}
+            </button>
+          ))}
+        </div>
+      )}
+      <span className="min-w-0 truncate text-xs text-slate-400"><span className="hidden sm:inline">Page </span>{page}<span className="sm:hidden">/</span><span className="hidden sm:inline"> of </span>{totalPages.toLocaleString()}</span>
+      <button type="button" disabled={regionalWebSeriesLoading || page >= totalPages || !canNavigate} onClick={() => navigate(page + 1)}
+        className="shrink-0 rounded-lg bg-cyan-500 px-2.5 py-1.5 text-xs font-bold text-slate-950 disabled:opacity-40">Next →</button>
+    </div>
+  );
   const title = ({
     'highest-rated': 'Highest Rated TV Shows',
     hollywood: 'Hollywood Web Series',
@@ -100,49 +120,9 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
         </div>
       )}
 
-      {catalogue && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
-          <button
-            type="button"
-            disabled={regionalWebSeriesLoading || page <= 1 || !canNavigate}
-            onClick={() => navigate(page - 1)}
-            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-300 disabled:opacity-40"
-          >
-            Previous
-          </button>
-          <span className="text-xs text-slate-500">Page {page} of {totalPages.toLocaleString()}</span>
-          <button
-            type="button"
-            disabled={regionalWebSeriesLoading || page >= totalPages || !canNavigate}
-            onClick={() => navigate(page + 1)}
-            className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-40"
-          >
-            Next
-          </button>
-        </div>
-      )}
+      {catalogue && paginationBar}
 
 
-
-      {catalogue && sortedShows.length > 0 && !regionalWebSeriesLoading && showSortButtons && (
-        <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort catalogue">
-          {(['popularity', 'rating', 'year'] as const).map(option => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={catalogueSort === option}
-              onClick={() => vm.setCatalogueSort(option)}
-              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
-                catalogueSort === option
-                  ? 'border-cyan-400 bg-cyan-500 text-slate-950'
-                  : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-cyan-500/60'
-              }`}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-      )}
 
       {catalogue && sortedShows.length > 0 && !regionalWebSeriesLoading && (
         <>
@@ -165,27 +145,7 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
 
 
 
-      {catalogue && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
-          <button
-            type="button"
-            disabled={regionalWebSeriesLoading || page <= 1 || !canNavigate}
-            onClick={() => navigate(page - 1)}
-            className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-300 disabled:opacity-40"
-          >
-            Previous
-          </button>
-          <span className="text-xs text-slate-500">Page {page} of {totalPages.toLocaleString()}</span>
-          <button
-            type="button"
-            disabled={regionalWebSeriesLoading || page >= totalPages || !canNavigate}
-            onClick={() => navigate(page + 1)}
-            className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-40"
-          >
-            Next
-          </button>
-        </div>
-      )}
+      {catalogue && paginationBar}
 
 
 
