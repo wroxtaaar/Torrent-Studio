@@ -3,6 +3,7 @@ import type { RegionalTvGroup, RegionalTvMode } from '../types.ts';
 import { imdbRatingKey } from '../grouping.ts';
 import { TvShowTile } from '../TvShowTile.tsx';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
+import { CatalogueBar, CATALOGUE_SORTS } from '../CatalogueBar.tsx';
 
 const REGIONAL_SECTIONS = ['hollywood', 'bollywood', 'korean', 'pakistani', 'anime'] as const;
 
@@ -69,25 +70,10 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
   const navigate = (nextPage: number) => {
     if (group && mode) void openRegionalTvCatalogue(group, mode, nextPage, false);
   };
-  // One bar with Previous, the sort buttons, the page number and Next (shown above and below the grid).
-  const paginationBar = (
-    <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900 px-2.5 py-2">
-      <button type="button" disabled={regionalWebSeriesLoading || page <= 1 || !canNavigate} onClick={() => navigate(page - 1)}
-        className="shrink-0 rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-slate-300 disabled:opacity-40">← <span className="hidden sm:inline">Previous</span><span className="sm:hidden">Prev</span></button>
-      {sortedShows.length > 0 && (
-        <div className="flex shrink-0 items-center gap-1" role="group" aria-label="Sort catalogue">
-          {(['popularity', 'rating', 'year'] as const).map(option => (
-            <button key={option} type="button" aria-pressed={catalogueSort === option} onClick={() => vm.setCatalogueSort(option)}
-              className={'rounded-lg border px-2 py-1.5 text-[11px] font-bold transition-colors ' + (catalogueSort === option ? 'border-cyan-400 bg-cyan-500 text-slate-950' : 'border-slate-800 bg-slate-950 text-slate-400 hover:text-slate-200')}>
-              {option === 'popularity' ? 'Popular' : option === 'rating' ? 'Rating' : 'Year'}
-            </button>
-          ))}
-        </div>
-      )}
-      <span className="min-w-0 truncate text-xs text-slate-400"><span className="hidden sm:inline">Page </span>{page}<span className="sm:hidden">/</span><span className="hidden sm:inline"> of </span>{totalPages.toLocaleString()}</span>
-      <button type="button" disabled={regionalWebSeriesLoading || page >= totalPages || !canNavigate} onClick={() => navigate(page + 1)}
-        className="shrink-0 rounded-lg bg-cyan-500 px-2.5 py-1.5 text-xs font-bold text-slate-950 disabled:opacity-40">Next →</button>
-    </div>
+  const bar = (withSort: boolean) => (
+    <CatalogueBar page={page} totalPages={totalPages} busy={regionalWebSeriesLoading || !canNavigate}
+      onPrev={() => navigate(page - 1)} onNext={() => navigate(page + 1)}
+      sort={withSort && sortedShows.length > 0 ? { options: CATALOGUE_SORTS.map(option => ({ ...option, active: catalogueSort === option.key })), onPick: key => vm.setCatalogueSort(key as typeof catalogueSort) } : undefined} />
   );
   const title = ({
     'highest-rated': 'Highest Rated TV Shows',
@@ -112,7 +98,7 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
         </div>
       )}
 
-      {catalogue && paginationBar}
+      {catalogue && bar(true)}
 
 
 
@@ -137,7 +123,7 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
 
 
 
-      {catalogue && paginationBar}
+      {catalogue && bar(false)}
 
 
 

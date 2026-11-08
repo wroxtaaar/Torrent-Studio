@@ -67,13 +67,10 @@ test('DC Web Series UI uses one section-backed pagination system above and below
   const start = resultsSource.indexOf(') : showDcWebSeries ? (');
   const end = resultsSource.indexOf(') : showMarvelWebSeries ? (', start);
   const branch = resultsSource.slice(start, end);
-  const paginationHelper = resultsSource.slice(0, start);
 
   assert.ok(start >= 0 && end > start);
-  assert.equal((branch.match(/renderDcWebSeriesPagination\(\)/g) || []).length, 2);
-  assert.match(branch, /dcWebSeriesCatalogue\.results\.map/);
-  assert.match(paginationHelper, /loadDcWebSeriesPage\(page - 1\)/);
-  assert.match(paginationHelper, /loadDcWebSeriesPage\(page \+ 1\)/);
+  assert.equal((branch.match(/renderFranchisePagination\(dcWebSeriesCatalogue\.results\.length/g) || []).length, 2);
+  assert.match(branch, /\.\.\.dcWebSeriesCatalogue\.results\][\s\S]*\.map\(/);
   assert.doesNotMatch(branch, /Load More/i);
   assert.match(loaderSource, /loadTvCataloguePage\('dc-live-action', page\)/);
   assert.match(loaderSource, /setFranchiseGridPage\(1\)/);

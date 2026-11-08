@@ -7,6 +7,7 @@ import { CachedFranchiseSearchMode, persistImdbRatings, persistSearchAvailabilit
 import { readPosterTitleCache } from './posterCache.ts';
 import { lowQualityPosterUrl } from './posterUrls.ts';
 import { isDefaultClassicsSort, nextClassicsSort } from './classicsSort.ts';
+import { CatalogueBar } from './CatalogueBar.tsx';
 import { franchiseCatalogueSection, franchiseRowsFromSection, franchiseSectionDocumentFromCache } from '../../api/sectionCache.ts';
 import { CachedFranchiseKey, FranchiseTmdbKey, RegionalCatalogueGroup, RegionalCatalogueMode, RegionalTvGroup, RegionalTvMode } from './types.ts';
 import { useNexStreamState } from './state/useNexStreamState.ts';
@@ -52,32 +53,24 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
   useEffect(() => persistSearchMetadata(searchMetadata), [searchMetadata]);
   useEffect(() => persistSearchAvailability(searchAvailabilityByGroup), [searchAvailabilityByGroup]);
   useEffect(() => persistImdbRatings(imdbRatingsByKey), [imdbRatingsByKey]);
-  // Pagination bar. For Marvel / DC / Classics the Year / Rating sort buttons sit in the same bar, between Previous and
-  // the page number, so there is one bar instead of two.
-  const renderFranchisePagination = (total: number) => {
-    const showSort = activeTopSection === 'marvel' || activeTopSection === 'dc' || activeTopSection === 'classics';
+  // Pagination bar for the franchise grids (Marvel, DC, Favourites, ...): the shared CatalogueBar. Only the bar above the
+  // grid carries the Year / Rating sort buttons.
+  const renderFranchisePagination = (total: number, placement: 'top' | 'bottom' = 'top') => {
+    const showSort = placement === 'top' && (activeTopSection === 'marvel' || activeTopSection === 'dc' || activeTopSection === 'classics');
     const pages = Math.max(1, Math.ceil(total / franchiseGridPageSize));
-    const paged = total > franchiseGridPageSize;
-    if (!paged && !showSort) return null;
-    const sortChips = showSort ? (
-      <div className="flex shrink-0 items-center gap-1" role="group" aria-label="Sort">
-        {(['year', 'rating'] as const).map(sortKey => {
-          const active = classicsSort.key === sortKey;
-          const arrow = active ? (classicsSort.direction === 'desc' ? ' ↓' : ' ↑') : ' ↓';
-          return <button key={sortKey} type="button" aria-pressed={active}
-            title={active ? 'Click to reverse the order' : 'Sort by ' + sortKey + ', ' + (sortKey === 'year' ? 'newest' : 'highest') + ' first'}
-            onClick={() => { setFranchiseGridPage(1); setClassicsSort(nextClassicsSort(classicsSort, sortKey)); }}
-            className={active ? 'rounded-lg bg-cyan-500 px-2 py-1.5 text-[11px] font-bold text-slate-950' : 'rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5 text-[11px] font-bold text-slate-400 hover:text-slate-200'}>{sortKey === 'year' ? 'Year' : 'Rating'}{arrow}</button>;
-        })}
-      </div>
-    ) : null;
     return (
-      <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-900 px-2.5 py-2">
-        {paged && <button type="button" disabled={franchiseGridPage <= 1} onClick={() => navigateFranchisePage(Math.max(1, franchiseGridPage - 1))} className="shrink-0 rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs font-semibold text-slate-200 disabled:opacity-40">← <span className="hidden sm:inline">Previous</span><span className="sm:hidden">Prev</span></button>}
-        {sortChips}
-        {paged && <span className="min-w-0 truncate text-xs text-slate-400"><span className="hidden sm:inline">Page </span>{franchiseGridPage}<span className="sm:hidden">/</span><span className="hidden sm:inline"> of </span>{pages}<span className="hidden sm:inline"> · {total} titles</span></span>}
-        {paged && <button type="button" disabled={franchiseGridPage >= Math.ceil(total / franchiseGridPageSize)} onClick={() => navigateFranchisePage(Math.min(Math.ceil(total / franchiseGridPageSize), franchiseGridPage + 1))} className="shrink-0 rounded-lg bg-cyan-500 px-2.5 py-1.5 text-xs font-bold text-slate-950 disabled:opacity-40">Next →</button>}
-      </div>
+      <CatalogueBar page={franchiseGridPage} totalPages={pages}
+        onPrev={() => navigateFranchisePage(Math.max(1, franchiseGridPage - 1))}
+        onNext={() => navigateFranchisePage(Math.min(Math.ceil(total / franchiseGridPageSize) || 1, franchiseGridPage + 1))}
+        sort={showSort ? {
+          options: (['year', 'rating'] as const).map(sortKey => ({
+            key: sortKey,
+            label: (sortKey === 'year' ? 'Year' : 'Rating') + (classicsSort.key === sortKey ? (classicsSort.direction === 'desc' ? ' ↓' : ' ↑') : ' ↓'),
+            active: classicsSort.key === sortKey,
+            title: classicsSort.key === sortKey ? 'Click to reverse the order' : 'Sort by ' + sortKey + ', ' + (sortKey === 'year' ? 'newest' : 'highest') + ' first',
+          })),
+          onPick: key => { setFranchiseGridPage(1); setClassicsSort(nextClassicsSort(classicsSort, key as 'year' | 'rating')); },
+        } : undefined} />
     );
   };
   const { regionalWebSeriesCatalogue, setRegionalWebSeriesCatalogue, regionalWebSeriesLoading, setRegionalWebSeriesLoading, regionalWebSeriesError, setRegionalWebSeriesError, showDcWebSeries, setShowDcWebSeries, dcWebSeriesCatalogue, setDcWebSeriesCatalogue, dcWebSeriesLoading, setDcWebSeriesLoading, dcWebSeriesError, setDcWebSeriesError, dcWebSeriesRequestGenerationRef, marvelWebSeriesCatalogue, setMarvelWebSeriesCatalogue, marvelWebSeriesLoading, setMarvelWebSeriesLoading, marvelWebSeriesError, setMarvelWebSeriesError } = useWebSeriesState();

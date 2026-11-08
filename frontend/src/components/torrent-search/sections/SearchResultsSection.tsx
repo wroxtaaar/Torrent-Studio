@@ -9,6 +9,7 @@ import { normalizeTorrentTitleForNexStream } from '../nexstream.ts';
 import { lowQualityPosterUrl, posterImageUrlForResult, posterKeyFor } from '../posterUrls.ts';
 import { extractedQuality } from '../helpers.ts';
 import { classicsComparator, ratingValue } from '../classicsSort.ts';
+import { CatalogueBar } from '../CatalogueBar.tsx';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 import { isAnimeCatalogue } from '../yenime.ts';
 import { tvCataloguePageFromSectionCache } from '../../../api/sectionCache.ts';
@@ -21,18 +22,6 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
   if (isRegionalTvView || isHighestRatedTvView) return null;
 
   const { activeTopSection, catalogueExpectedTitles, classicsContentTab, classicsSort, dcWebSeriesCatalogue, dcWebSeriesError, dcWebSeriesLoading, error, expandedSearchGroupKey, franchiseGridPage, franchiseGridPageSize, groupedResults, imdbRatingsByKey, isSearching, loadDcWebSeriesPage, marvelWebSeriesCatalogue, marvelWebSeriesError, marvelWebSeriesLoading, metadataPosterFailed, movieCatalogue, movieTorrentPreviewGroup, nexStreamLoading, nexStreamLoadingTitle, nexStreamResolvingId, nexStreamResults, onPlaySeedrFile, openYenimeRequest, pendingPosterAction, playCatalogueTvWithNexStream, playWithNexStream, playingTorrentKey, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, prepareMovieTorrent, prepareStateFor, preparedActionsFor, preparedForResult, preparingTorrentKey, regionalWebSeriesCatalogue, regionalWebSeriesError, regionalWebSeriesLoading, renderFranchisePagination, results, searchAvailabilityByGroup, searchMetadata, searchMetadataStatus, searchNexStreamTitles, searchPosterUrlsRef, selectedMovieTorrentQualityByGroup, selectedQualityByGroup, setExpandedSearchGroupKey, setMarvelWebSeriesCatalogue, setMarvelWebSeriesError, setMarvelWebSeriesLoading, setMetadataPosterFailed, setMovieTorrentPreviewCatalogueId, setMovieTorrentPreviewGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setPlayingTorrentKey, setRegionalWebSeriesCatalogue, setRegionalWebSeriesError, setRegionalWebSeriesLoading, setSelectedMovieTorrentQualityByGroup, setSelectedQualityByGroup, showDcWebSeries, showMarvelWebSeries, sortedResults, startPosterBackgroundWorkers, openFranchiseCard } = vm;
-  const renderDcWebSeriesPagination = () => {
-    if (!dcWebSeriesCatalogue || dcWebSeriesCatalogue.totalPages <= 1) return null;
-    const page = dcWebSeriesCatalogue.page;
-    const totalPages = dcWebSeriesCatalogue.totalPages;
-    return (
-      <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
-        <button type="button" disabled={dcWebSeriesLoading || page <= 1} onClick={() => void loadDcWebSeriesPage(page - 1)} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-200 disabled:opacity-40">← Previous</button>
-        <span className="text-xs text-slate-400">Page {page} of {totalPages} · {dcWebSeriesCatalogue.totalResults} titles</span>
-        <button type="button" disabled={dcWebSeriesLoading || page >= totalPages} onClick={() => void loadDcWebSeriesPage(page + 1)} className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 disabled:opacity-40">Next →</button>
-      </div>
-    );
-  };
   return (
     <>
       {(results.length > 0 || regionalWebSeriesLoading || Boolean(regionalWebSeriesError) || Boolean(regionalWebSeriesCatalogue) || showDcWebSeries || (activeTopSection === 'classics' && classicsContentTab !== null)) && (
@@ -58,7 +47,7 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
                       }} />
                     ))}
                   </div>
-                  {renderFranchisePagination(marvelWebSeriesCatalogue.results.length)}
+                  {renderFranchisePagination(marvelWebSeriesCatalogue.results.length, 'bottom')}
                 </>
               )}
             </section>
@@ -98,11 +87,8 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
                   }
                 };
                 return (
-                  <div className="flex items-center justify-between gap-3">
-                    <button type="button" disabled={regionalWebSeriesLoading || regionalWebSeriesCatalogue.page <= 1} onClick={() => void goToRegionalPage(regionalWebSeriesCatalogue.page - 1)} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-500 disabled:cursor-not-allowed disabled:opacity-40">← Previous</button>
-                    <span className="text-xs text-slate-500">Page {regionalWebSeriesCatalogue.page} of {regionalWebSeriesCatalogue.totalPages}</span>
-                    <button type="button" disabled={regionalWebSeriesLoading || regionalWebSeriesCatalogue.page >= regionalWebSeriesCatalogue.totalPages} onClick={() => void goToRegionalPage(regionalWebSeriesCatalogue.page + 1)} className="rounded-lg border border-cyan-500/50 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40">Next →</button>
-                  </div>
+                  <CatalogueBar page={regionalWebSeriesCatalogue.page} totalPages={regionalWebSeriesCatalogue.totalPages} busy={regionalWebSeriesLoading}
+                    onPrev={() => void goToRegionalPage(regionalWebSeriesCatalogue.page - 1)} onNext={() => void goToRegionalPage(regionalWebSeriesCatalogue.page + 1)} />
                 );
               })()}
             </div>
@@ -121,7 +107,7 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
                       <TvShowTile key={String(show.id)} show={show} imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]} onPlay={() => playCatalogueTvWithNexStream(show)} />
                     ))}
                   </div>
-                  {renderFranchisePagination(dcWebSeriesCatalogue.results.length)}
+                  {renderFranchisePagination(dcWebSeriesCatalogue.results.length, 'bottom')}
                 </>
               )}
             </div>
@@ -141,7 +127,7 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
                       <TvShowTile key={String(show.id)} show={show} imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]} onPlay={() => playCatalogueTvWithNexStream(show)} />
                     ))}
                   </div>
-                  {renderFranchisePagination(marvelWebSeriesCatalogue.results.length)}
+                  {renderFranchisePagination(marvelWebSeriesCatalogue.results.length, 'bottom')}
                   {marvelWebSeriesCatalogue.page < marvelWebSeriesCatalogue.totalPages && <button type="button" disabled={marvelWebSeriesLoading} onClick={async () => { setMarvelWebSeriesLoading(true); setMarvelWebSeriesError(''); try { const nextPage = await api.getTvCatalogue('marvel', marvelWebSeriesCatalogue.page + 1); setMarvelWebSeriesCatalogue(current => current ? { ...nextPage, page: nextPage.page, results: [...current.results, ...nextPage.results.filter(item => !current.results.some(existing => String(existing.id) === String(item.id)))].sort(compareReleaseDateDescending) } : nextPage); } catch (error: any) { setMarvelWebSeriesError(String(error?.message || 'Could not load more series.')); } finally { setMarvelWebSeriesLoading(false); } }} className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-500 disabled:opacity-50">Load more</button>}
                 </>
               )}
@@ -430,7 +416,7 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
               );
             })}
           </div>
-          {!isSearching && renderFranchisePagination(Math.max(groupedResults.length, catalogueExpectedTitles))}
+          {!isSearching && renderFranchisePagination(Math.max(groupedResults.length, catalogueExpectedTitles), 'bottom')}
           </>
           )}
         </div>

@@ -9,6 +9,7 @@ import { cataloguePosterOverride, cataloguePosterSource, imdbFallbackForCatalogu
 import { lowQualityPosterUrl, posterKeyFor } from '../posterUrls.ts';
 import { catalogueMovieIdentity, extractedQuality } from '../helpers.ts';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
+import { CatalogueBar, CATALOGUE_SORTS } from '../CatalogueBar.tsx';
 
 export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
   const { cataloguePosterUrlsRef, catalogueSort, closeMoviePrepareCard, imdbRatingsByKey, isSearching, movieCatalogue, movieCatalogueSearchText, movieTorrentPreviewCatalogueId, movieTorrentPreviewGroup, movieTorrentPreviewPosterUrl, movieTorrentSearchError, movieTorrentSearchLoading, movieTorrentSearchTitle, nexStreamResolvingId, openMovieCatalogue, setCatalogueSort, ottAvailabilityForMovie, ottPendingCount, pendingPosterAction, playWithNexStream, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, posterUrlFor, prepareBuildPendingRef, prepareClickIntentRef, prepareMovieTorrent, prepareStateFor, prepareTraceIdRef, preparedActionsFor, searchMovieTorrents, selectedMovieTorrentQualityByGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setSelectedMovieTorrentQualityByGroup, startPosterBackgroundWorkers, streamingOnly, visibleMovieCatalogueItems } = vm;
@@ -37,50 +38,10 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
 
 
 
-          {movieCatalogue && visibleMovieCatalogueItems.length > 0 && !isSearching && (
-            <div className="flex flex-wrap items-center gap-2 px-1" aria-label="Sort movies">
-              <span className="mr-1 text-xs text-slate-400">Sort by</span>
-              {([
-                ['popularity', 'Popularity'],
-                ['rating', 'Rating'],
-                ['year', 'Year'],
-              ] as const).map(([sort, label]) => (
-                <button
-                  key={sort}
-                  type="button"
-                  aria-pressed={catalogueSort === sort}
-                  onClick={() => setCatalogueSort(sort)}
-                  className={'rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ' + (
-                    catalogueSort === sort
-                      ? 'border-cyan-400 bg-cyan-500 text-slate-950'
-                      : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-cyan-500/60'
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
-            <button
-              type="button"
-              disabled={isSearching || movieCatalogue.page <= 1}
-              onClick={() => void openMovieCatalogue(movieCatalogue.catalogue, movieCatalogueSearchText, movieCatalogue.page - 1)}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-300 hover:border-cyan-500 disabled:opacity-40"
-            >
-              Previous
-            </button>
-            <span className="text-xs text-slate-500">Page {movieCatalogue.page} of {movieCatalogue.totalPages.toLocaleString()}</span>
-            <button
-              type="button"
-              disabled={isSearching || movieCatalogue.page >= movieCatalogue.totalPages}
-              onClick={() => void openMovieCatalogue(movieCatalogue.catalogue, movieCatalogueSearchText, movieCatalogue.page + 1)}
-              className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-40"
-            >
-              Next
-            </button>
-          </div>
+          <CatalogueBar page={movieCatalogue.page} totalPages={movieCatalogue.totalPages} busy={isSearching}
+            onPrev={() => void openMovieCatalogue(movieCatalogue.catalogue, movieCatalogueSearchText, movieCatalogue.page - 1)}
+            onNext={() => void openMovieCatalogue(movieCatalogue.catalogue, movieCatalogueSearchText, movieCatalogue.page + 1)}
+            sort={visibleMovieCatalogueItems.length > 0 && !isSearching ? { options: CATALOGUE_SORTS.map(option => ({ ...option, active: catalogueSort === option.key })), onPick: key => setCatalogueSort(key as typeof catalogueSort) } : undefined} />
 
           {movieTorrentSearchLoading && (
             <div className="flex items-center gap-3 rounded-xl border border-cyan-500/30 bg-slate-950 px-3 py-3 text-sm text-slate-200">
@@ -332,25 +293,9 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900 px-3 py-2">
-            <button
-              type="button"
-              disabled={isSearching || movieCatalogue.page <= 1}
-              onClick={() => void openMovieCatalogue(movieCatalogue.catalogue, movieCatalogueSearchText, movieCatalogue.page - 1)}
-              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-semibold text-slate-300 hover:border-cyan-500 disabled:opacity-40"
-            >
-              Previous
-            </button>
-            <span className="text-xs text-slate-500">Page {movieCatalogue.page} of {movieCatalogue.totalPages.toLocaleString()}</span>
-            <button
-              type="button"
-              disabled={isSearching || movieCatalogue.page >= movieCatalogue.totalPages}
-              onClick={() => void openMovieCatalogue(movieCatalogue.catalogue, movieCatalogueSearchText, movieCatalogue.page + 1)}
-              className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-40"
-            >
-              Next
-            </button>
-          </div>
+          <CatalogueBar page={movieCatalogue.page} totalPages={movieCatalogue.totalPages} busy={isSearching}
+            onPrev={() => void openMovieCatalogue(movieCatalogue.catalogue, movieCatalogueSearchText, movieCatalogue.page - 1)}
+            onNext={() => void openMovieCatalogue(movieCatalogue.catalogue, movieCatalogueSearchText, movieCatalogue.page + 1)} />
 
           <div className="flex flex-col items-start gap-2 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-3 sm:flex-row sm:items-center">
             <a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-2">
