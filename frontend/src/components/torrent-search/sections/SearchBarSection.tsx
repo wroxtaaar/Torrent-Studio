@@ -11,14 +11,7 @@ export function SearchBarSection({ vm }: { vm: PanelModel }) {
   return (
     <>
       <div className="p-2.5 sm:p-5 rounded-xl sm:rounded-2xl bg-slate-900 border border-slate-800">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
-            <Search className="w-5 h-5 text-cyan-400" />
-            Search Torrents
-          </h2>
-        </div>
-
-        <form data-torrent-search="true" onSubmit={runSearch} className="mt-2.5 sm:mt-4 flex flex-row gap-1.5 sm:gap-2">
+        <form data-torrent-search="true" onSubmit={runSearch} className="flex flex-row gap-1.5 sm:gap-2">
           <div ref={recentSearchRef} className="relative flex-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
