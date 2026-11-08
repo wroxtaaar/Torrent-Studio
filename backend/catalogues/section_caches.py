@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from catalogues import nuvio_streams, torrent_options
+from catalogues.section_curation import apply_curation
 from core.settings import MAX_SEARCH_RESULT_SIZE_BYTES, MIN_SEARCH_RESULT_SIZE_BYTES, NUVIO_API_URL, NUVIO_URL
 
 router = APIRouter()
@@ -33,7 +34,8 @@ async def api_get_section_cache(section: str) -> dict[str, Any]:
         or not isinstance(payload.get("subsections"), dict)
     ):
         raise HTTPException(status_code=500, detail="Section cache has an invalid document shape")
-    return payload
+    # The data bundle fetched at start overwrites these files, so hand edits live in section_curation.py.
+    return apply_curation(section, payload)
 
 
 @router.get("/api/sections/{section}/torrent-options")

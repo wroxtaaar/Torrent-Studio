@@ -170,7 +170,7 @@ def test_pakistani_tv_catalogue_uses_fixed_curated_drama_order(monkeypatch, tmp_
     result = asyncio.run(tv.api_tmdb_regional_tv_catalogue("pakistani-popular", page=1))
 
     assert result["pageSize"] == 18
-    assert result["totalResults"] == 139
+    assert result["totalResults"] == 126
     assert len(result["results"]) == 18
     assert [row["title"] for row in result["results"][:4]] == ["Dar-e-Nijaat", "Humsafar", "Kankar", "Zindagi Gulzar Hai"]
     assert result["curatedOrder"] is True

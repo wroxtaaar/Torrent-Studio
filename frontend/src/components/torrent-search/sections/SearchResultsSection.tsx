@@ -8,7 +8,8 @@ import { toCardProviders, uniqueOttProviders } from '../ottProviders.ts';
 import { normalizeTorrentTitleForNexStream } from '../nexstream.ts';
 import { lowQualityPosterUrl, posterImageUrlForResult, posterKeyFor } from '../posterUrls.ts';
 import { extractedQuality } from '../helpers.ts';
-import { classicsComparator, ratingValue } from '../classicsSort.ts';
+import { classicsComparator } from '../classicsSort.ts';
+import { tvSortRating } from '../TvShowCard.tsx';
 import { CatalogueBar } from '../CatalogueBar.tsx';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 import { isAnimeCatalogue } from '../yenime.ts';
@@ -40,7 +41,7 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
                 <>
                   {renderFranchisePagination(marvelWebSeriesCatalogue.results.length)}
                   <div className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
-                    {[...marvelWebSeriesCatalogue.results].sort(classicsComparator(classicsSort, show => releaseDateSortValue(show), show => ratingValue(imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]), show => String(show.title || ''))).slice((franchiseGridPage - 1) * franchiseGridPageSize, franchiseGridPage * franchiseGridPageSize).map(show => (
+                    {[...marvelWebSeriesCatalogue.results].sort(classicsComparator(classicsSort, show => releaseDateSortValue(show), show => tvSortRating(show, imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]), show => String(show.title || ''))).slice((franchiseGridPage - 1) * franchiseGridPageSize, franchiseGridPage * franchiseGridPageSize).map(show => (
                       <TvShowTile key={String(show.id)} show={show} imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]} onPlay={() => {
                         if (isAnimeCatalogue(marvelWebSeriesCatalogue.catalogue)) openYenimeRequest(show.title, show.year, show.malId, 1, show.id);
                         else playCatalogueTvWithNexStream(show);
@@ -101,7 +102,7 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
                   {renderFranchisePagination(dcWebSeriesCatalogue.results.length)}
                   <div className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
                     {[...dcWebSeriesCatalogue.results]
-                      .sort(classicsComparator(classicsSort, show => releaseDateSortValue(show), show => ratingValue(imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]), show => String(show.title || '')))
+                      .sort(classicsComparator(classicsSort, show => releaseDateSortValue(show), show => tvSortRating(show, imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]), show => String(show.title || '')))
                       .slice((franchiseGridPage - 1) * franchiseGridPageSize, franchiseGridPage * franchiseGridPageSize)
                       .map(show => (
                       <TvShowTile key={String(show.id)} show={show} imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]} onPlay={() => playCatalogueTvWithNexStream(show)} />
@@ -121,7 +122,7 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
                   <div className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:gap-4">
                     {[...marvelWebSeriesCatalogue.results]
                       .filter(show => activeTopSection !== 'marvel' || !['iron man and his awesome friends', 'moon girl and devil dinosaur', 'moon girl and the devil dinosaur', 'spidey and his amazing friends'].includes(show.title.trim().toLowerCase()))
-                      .sort(classicsComparator(classicsSort, show => releaseDateSortValue(show), show => ratingValue(imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]), show => String(show.title || '')))
+                      .sort(classicsComparator(classicsSort, show => releaseDateSortValue(show), show => tvSortRating(show, imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]), show => String(show.title || '')))
                       .slice((franchiseGridPage - 1) * franchiseGridPageSize, franchiseGridPage * franchiseGridPageSize)
                       .map(show => (
                       <TvShowTile key={String(show.id)} show={show} imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]} onPlay={() => playCatalogueTvWithNexStream(show)} />

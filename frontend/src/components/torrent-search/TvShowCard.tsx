@@ -12,6 +12,12 @@ type TvShowCardShow = Pick<TvCatalogueItem, 'id' | 'title' | 'year' | 'releaseDa
  * wrapper only maps a series to the card's props. Clicking the card runs `onOpen`.
  */
 /** Rating, year and providers shown on a series card; shared by the compact and the opened card. */
+/** The rating a series card shows, as a number for sorting (null when it has none), so sort order matches the cards. */
+export const tvSortRating = (show: TvShowCardShow, imdb?: MovieCardImdb): number | null => {
+  const value = Number(tvCardModel(show, imdb).rating?.imdbRating);
+  return Number.isFinite(value) && value > 0 ? value : null;
+};
+
 export function tvCardModel(show: TvShowCardShow, imdb?: MovieCardImdb) {
   const catalogueRating = Number(show.imdbRating) > 0 ? {
     imdbRating: Number(show.imdbRating),
