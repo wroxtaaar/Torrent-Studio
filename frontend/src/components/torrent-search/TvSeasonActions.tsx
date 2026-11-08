@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ChevronDown, Download, Play } from 'lucide-react';
 import type { TorrentSearchResult } from '../../api/types.ts';
 import { formatBytes } from '../../utils/formatters.ts';
@@ -47,7 +47,8 @@ export const TvSeasonActions: React.FC<{
   const chips = useMemo(() => groupBySeason(releases.filter(row => row.magnetUrl)), [releases]);
   const [seasonId, setSeasonId] = useState('');
   const [downloadOpen, setDownloadOpen] = useState(false);
-  const season = chips.find(chip => chip.id === seasonId) || chips[0];
+  // With several seasons nothing is chosen until the person taps a season bubble; a single season is chosen for them.
+  const season = chips.length === 1 ? chips[0] : chips.find(chip => chip.id === seasonId);
   const buckets = useMemo(() => groupByQuality(season?.rows || []).map(group => ({
     bucket: group.bucket,
     label: BUCKET_LABELS[group.bucket],
@@ -58,25 +59,9 @@ export const TvSeasonActions: React.FC<{
       onPick: () => onWebtorDownload(row),
     })),
   })), [season, onWebtorDownload]);
-  const activeChip = useRef<HTMLButtonElement | null>(null);
-  useEffect(() => { activeChip.current?.scrollIntoView?.({ block: 'nearest', inline: 'center' }); }, [season?.id]);
 
   return (
     <div className="space-y-2">
-      {chips.length > 1 && (
-        <div role="tablist" aria-label="Season" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
-          {chips.map(chip => {
-            const on = chip.id === season?.id;
-            return (
-              <button key={chip.id} ref={on ? activeChip : undefined} role="tab" aria-selected={on} type="button"
-                onClick={() => { setSeasonId(chip.id); setDownloadOpen(false); }}
-                className={'shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold transition ' + (on ? 'border-cyan-300 bg-cyan-500/25 text-white shadow-[0_0_12px_rgba(34,211,238,0.5)]' : 'border-slate-700 bg-slate-900/70 text-slate-300 hover:bg-slate-800')}>
-                {chip.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
       <div className="grid grid-cols-2 gap-1.5">
         <button type="button" onClick={onPlay} className={tileClass + ' ' + (onBrowse ? 'col-span-1' : 'col-span-2') + ' border border-violet-400/40 bg-violet-500/15 text-violet-200 hover:bg-violet-500/25'}>
           <Play className="h-3 w-3 shrink-0 fill-current" /><span>Play</span>
@@ -86,7 +71,7 @@ export const TvSeasonActions: React.FC<{
             <Play className="h-3 w-3 shrink-0 fill-current" /><span>Play HD</span>
           </button>
         )}
-        {buckets.length > 0 && (
+        {chips.length > 0 && (
           <button type="button" aria-expanded={downloadOpen} onClick={() => setDownloadOpen(open => !open)}
             className={tileClass + ' col-span-2 bg-cyan-500 text-slate-950 hover:bg-cyan-400'}>
             <Download className="h-3 w-3 shrink-0" /><span>Download</span>
@@ -94,8 +79,25 @@ export const TvSeasonActions: React.FC<{
           </button>
         )}
       </div>
-      {downloadOpen && buckets.length > 0 && (
-        <QualityPanel key={season?.id} buckets={buckets} ariaLabel="Download: choose a resolution, then a size" close={() => setDownloadOpen(false)} />
+      {downloadOpen && chips.length > 0 && (
+        <div className="space-y-2">
+          {chips.length > 1 && (
+            <div role="tablist" aria-label="Season" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
+              {chips.map(chip => {
+                const on = chip.id === season?.id;
+                return (
+                  <button key={chip.id} role="tab" aria-selected={on} type="button" onClick={() => setSeasonId(chip.id)}
+                    className={'shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold transition ' + (on ? 'border-cyan-300 bg-cyan-500/25 text-white shadow-[0_0_12px_rgba(34,211,238,0.5)]' : 'border-slate-700 bg-slate-900/70 text-slate-300 hover:bg-slate-800')}>
+                    {chip.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {season && buckets.length > 0 && (
+            <QualityPanel key={season.id} buckets={buckets} ariaLabel="Download: choose a resolution, then a size" close={() => setDownloadOpen(false)} />
+          )}
+        </div>
       )}
     </div>
   );
