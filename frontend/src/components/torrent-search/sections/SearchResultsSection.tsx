@@ -35,13 +35,6 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
     <>
       {(results.length > 0 || regionalWebSeriesLoading || Boolean(regionalWebSeriesError) || Boolean(regionalWebSeriesCatalogue) || showDcWebSeries || (activeTopSection === 'classics' && classicsContentTab !== null)) && (
         <div className="space-y-2">
-          <div className="px-1 text-[11px] text-slate-500">Use the subsection buttons above to switch catalogue views.</div>
-
-          <div className="flex items-center justify-between gap-2 px-1">
-            <div className="text-xs text-slate-400">
-              {groupedResults.length} titles · {sortedResults.length} torrent options
-            </div>
-          </div>
           {pendingPosterAction?.kind === 'search' && (
             <div className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-400">
               Loading the visible posters before opening this card…
