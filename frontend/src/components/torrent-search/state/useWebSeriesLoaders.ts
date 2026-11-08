@@ -146,8 +146,17 @@ export function useWebSeriesLoaders({
     setMarvelWebSeriesError('');
     const generation = ++searchGenerationRef.current;
     try {
-      const page = await loadTvCataloguePage(catalogueKey);
-      if (generation === searchGenerationRef.current) setMarvelWebSeriesCatalogue(page);
+      // Fetch every page up front (like Marvel and DC) so the page buttons slice the whole list and Next is enabled.
+      const firstPage = await loadTvCataloguePage(catalogueKey, 1);
+      const allResults = [...firstPage.results];
+      for (let page = 2; page <= Math.min(firstPage.totalPages, 500); page += 1) {
+        if (generation !== searchGenerationRef.current) return;
+        const nextPage = await loadTvCataloguePage(catalogueKey, page);
+        for (const show of nextPage.results) {
+          if (!allResults.some(existing => String(existing.id) === String(show.id))) allResults.push(show);
+        }
+      }
+      if (generation === searchGenerationRef.current) setMarvelWebSeriesCatalogue({ ...firstPage, page: firstPage.totalPages, results: allResults });
     } catch (error: any) {
       if (generation === searchGenerationRef.current) setMarvelWebSeriesError(String(error?.message || 'Could not load Classics catalogue.'));
     } finally {
