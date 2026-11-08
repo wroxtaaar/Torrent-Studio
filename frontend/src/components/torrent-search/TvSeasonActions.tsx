@@ -64,7 +64,7 @@ export const TvSeasonActions: React.FC<{
         {onBrowse && (
           <button type="button" onClick={onBrowse}
             className="inline-flex items-center justify-center gap-1 rounded-lg border border-cyan-300/60 bg-cyan-500/20 px-2 py-1.5 text-[11px] font-extrabold text-white shadow-[0_0_14px_rgba(34,211,238,0.45)] hover:bg-cyan-500/30">
-            <ListVideo className="h-3 w-3" />Episodes
+            <ListVideo className="h-3 w-3" />Seasons
           </button>
         )}
       </div>
