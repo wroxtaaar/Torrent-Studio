@@ -179,14 +179,6 @@ export function SearchBarSection({ vm }: { vm: PanelModel }) {
               <button type="button" onClick={() => { setFranchiseGridPage(1); setClassicsSort(DEFAULT_CLASSICS_SORT); setNexStreamError(''); setNexStreamSearchMode(null); void loadClassicsTvCatalogue('classics-anime', 'anime'); }} className={classicsContentTab === 'anime' ? 'rounded-lg px-3 py-2 text-xs font-bold bg-cyan-500 text-slate-950' : 'rounded-lg px-3 py-2 text-xs font-bold bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200'}>⛩️ Anime</button>
             </>}
           </div>
-          {(activeTopSection === 'marvel' || activeTopSection === 'dc' || activeTopSection === 'classics') && <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/70 px-2.5 py-2.5" aria-label="Sort">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sort by</span>
-            {(['year', 'rating'] as const).map(sortKey => {
-              const active = classicsSort.key === sortKey;
-              const arrow = active ? (classicsSort.direction === 'desc' ? ' ↓' : ' ↑') : ' ↓';
-              return <button key={sortKey} type="button" aria-pressed={active} title={active ? 'Click to reverse the order' : 'Sort by ' + sortKey + ', ' + (sortKey === 'year' ? 'newest' : 'highest') + ' first'} onClick={() => { setFranchiseGridPage(1); setClassicsSort(nextClassicsSort(classicsSort, sortKey)); }} className={active ? 'rounded-lg px-3 py-2 text-xs font-bold bg-cyan-500 text-slate-950' : 'rounded-lg px-3 py-2 text-xs font-bold bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200'}>{sortKey === 'year' ? 'Year' : 'Rating'}{arrow}</button>;
-            })}
-          </div>}
           {activeTopSection === 'marvel' && marvelContentTab === 'movies' && <div className="mt-2 flex flex-wrap gap-2 rounded-lg border border-slate-800 bg-slate-950/70 px-2.5 py-2.5" aria-label="Marvel movie filters">
             {([['all','All'],['mcu','MCU'],['sony','Spiderman'],['x-men','X-Men']] as [MarvelFilmFilter,string][]).map(([filter,label]) => <button key={filter} type="button" onClick={() => { setFranchiseGridPage(1); setMarvelFilmFilter(filter); }} className={marvelFilmFilter === filter ? 'rounded-lg px-3 py-2 text-xs font-bold bg-cyan-500 text-slate-950' : 'rounded-lg px-3 py-2 text-xs font-bold bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200'} aria-pressed={marvelFilmFilter === filter}>{label}</button>)}
           </div>}
