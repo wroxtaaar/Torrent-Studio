@@ -9,7 +9,7 @@ import { BUCKET_LABELS, formatLabelOf, type ResolutionBucket } from './actionOrd
 import { torrentQualityDetails, torrentResultKey } from './grouping.ts';
 import { episodesOf, webtorFilePath, type EpisodeEntry } from './seriesEpisodes.ts';
 import { groupByQuality, groupBySeason } from './TvSeasonActions.tsx';
-import { openWebtorDownload, openWebtorFileDownload, webtorTorrentPageUrl } from './webtor.ts';
+import { openWebtorDownload, webtorTorrentPageUrl } from './webtor.ts';
 
 type Files = { name: string; files: { index: number; name: string; size: number; path: string }[] };
 
@@ -158,8 +158,6 @@ export const SeriesPopup: React.FC<{
                       </div>
                       <button type="button" onClick={() => playEpisode(entry)} aria-label={'Play ' + entry.label} title="Play in Webtor"
                         className="rounded-full bg-cyan-500 p-2 text-slate-950 shadow shadow-cyan-500/30 hover:bg-cyan-400"><Play className="h-3.5 w-3.5 fill-current" /></button>
-                      <button type="button" onClick={() => openWebtorFileDownload(magnet, webtorFilePath(files?.name || '', entry.file, multiFile))} aria-label={'Download ' + entry.label} title="Download on Webtor"
-                        className="rounded-full bg-slate-800 p-2 text-slate-200 hover:bg-slate-700 hover:text-white"><Download className="h-3.5 w-3.5" /></button>
                     </li>
                   </React.Fragment>
                 ))}
