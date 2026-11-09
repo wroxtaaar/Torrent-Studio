@@ -3,8 +3,8 @@
 # Rebuilds them, publishes the cache bundle (Render is redeployed by refresh_and_publish.sh),
 # then restarts the VPS container so it loads the new bundle at start-up.
 #
-#   scripts/vps/auto_refresh.sh daily    # quick: catalogue pages only, no torrent searches
-#   scripts/vps/auto_refresh.sh weekly   # full: also searches torrents for new titles
+#   scripts/vps/auto_refresh.sh daily    # quick (scheduled Wednesdays): catalogue pages only, no torrent searches
+#   scripts/vps/auto_refresh.sh weekly   # full (scheduled Sundays): also searches torrents for new titles
 #   scripts/vps/auto_refresh.sh install  # add both jobs to this user's crontab (safe to repeat)
 #
 # Logs: ~/torrent-studio-refresh/logs/auto-refresh.log
@@ -21,7 +21,7 @@ case "$MODE" in
     crontab -l 2>/dev/null | grep -v 'auto_refresh.sh' > "$TMP" || true
     {
       echo "CRON_TZ=Asia/Kolkata"
-      echo "30 3 * * *  bash $SELF daily  >> $LOG_DIR/auto-refresh.log 2>&1   # auto_refresh.sh"
+      echo "30 3 * * 3  bash $SELF daily  >> $LOG_DIR/auto-refresh.log 2>&1   # auto_refresh.sh"
       echo "30 4 * * 0  bash $SELF weekly >> $LOG_DIR/auto-refresh.log 2>&1   # auto_refresh.sh"
     } >> "$TMP"
     crontab "$TMP"; rm -f "$TMP"
