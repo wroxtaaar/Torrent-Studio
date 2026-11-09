@@ -29,8 +29,15 @@ SUBS = ("hollywood", "bollywood")
 def search(query: str) -> list[dict]:
     url = f"{API}/api/search?q={urllib.parse.quote(query)}&limit=50"
     req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "HighestRatedTopScan/1.0"})
-    with urllib.request.urlopen(req, timeout=150) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=150) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            break
+        except Exception:
+            if attempt == 3:
+                raise
+            time.sleep(3 * (attempt + 1))
     return data if isinstance(data, list) else data.get("results", data.get("torrents", []))
 
 
