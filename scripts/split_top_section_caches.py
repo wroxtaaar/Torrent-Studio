@@ -20,6 +20,9 @@ from typing import Any
 HOME = Path(os.getenv("TS_HOME") or Path.home() / "torrent-studio-refresh")
 SEED = Path(os.getenv("REFRESH_SEED_DIR") or HOME / "seed").resolve()
 PAGE_SIZE = 18
+ROLLING_SECTIONS = {"hollywood", "bollywood"}
+ROLLING_SUBSECTIONS = {"popular", "trending", "latest", "tv-popular", "tv-trending", "tv-latest"}
+MAX_ROLLING = 3 * PAGE_SIZE  # 54: new titles on top, the oldest drop off the end
 # Stream-health fields from older builds; the app no longer reads them (directStreamBroken replaces them).
 LEGACY_STREAM_KEYS = {"nexStream", "nexStreamPlayable", "nexStreamVerified", "nexStreamCheckedAt", "directStreamAvailability"}
 TORRENT_KEYS = {
@@ -329,7 +332,12 @@ def main() -> int:
             # The old Marvel series subsection contains torrent release cards.
             # Rebuild it from clean catalogue sources instead of merging those rows.
             previous_rows = [] if section == "marvel" and sub == "series" else get_existing_rows(old_doc, sub)
-            rows = merge_rows(previous_rows, incoming[(section, sub)], metadata=True)
+            if section in ROLLING_SECTIONS and sub in ROLLING_SUBSECTIONS and incoming[(section, sub)]:
+                # Newest catalogue first, older rows only fill the gap, never more than MAX_ROLLING (3 pages).
+                # Rows already known keep their enriched fields (ratings, providers).
+                rows = merge_rows(incoming[(section, sub)], previous_rows, metadata=True)[:MAX_ROLLING]
+            else:
+                rows = merge_rows(previous_rows, incoming[(section, sub)], metadata=True)
             new_subs[sub] = {
                 "catalogueKey": sub,
                 "mediaType": media_type(section, sub),

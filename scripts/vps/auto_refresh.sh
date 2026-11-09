@@ -5,7 +5,7 @@
 #
 #   scripts/vps/auto_refresh.sh daily    # quick (scheduled Wednesdays): catalogue pages only, no torrent searches
 #   scripts/vps/auto_refresh.sh weekly   # full, scheduled Sundays 3:30 am IST: also searches torrents for new titles
-#   scripts/vps/auto_refresh.sh install  # add the weekly job to this user's crontab (safe to repeat)
+#   scripts/vps/auto_refresh.sh install  # remove old cron entries (Actions schedules it now)
 #
 # Logs: ~/torrent-studio-refresh/logs/auto-refresh.log
 set -euo pipefail
@@ -17,14 +17,9 @@ LOG_DIR="$HOME_DIR/logs"; mkdir -p "$LOG_DIR"
 
 case "$MODE" in
   install)
-    TMP="$(mktemp)"
-    crontab -l 2>/dev/null | grep -v 'auto_refresh.sh' > "$TMP" || true
-    {
-      echo "CRON_TZ=Asia/Kolkata"
-      echo "30 3 * * 0  bash $SELF weekly >> $LOG_DIR/auto-refresh.log 2>&1   # auto_refresh.sh"
-    } >> "$TMP"
-    crontab "$TMP"; rm -f "$TMP"
-    echo "Installed. Current crontab:"; crontab -l; exit 0 ;;
+    # The schedule now lives in .github/workflows/refresh-cache.yml; this only removes old cron entries.
+    TMP="$(mktemp)"; crontab -l 2>/dev/null | grep -v 'auto_refresh.sh' > "$TMP" || true
+    crontab "$TMP"; rm -f "$TMP"; echo "Old cron entries removed (GitHub Actions runs the weekly refresh)."; exit 0 ;;
   daily)  export REGIONAL_CACHE_TORRENT_SCAN=false ;;
   weekly) export REGIONAL_CACHE_TORRENT_SCAN=true ;;
   *) echo "Usage: $0 daily|weekly|install" >&2; exit 2 ;;

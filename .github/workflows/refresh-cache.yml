@@ -1,0 +1,60 @@
+name: Refresh catalogue cache
+
+# Runs the Hollywood/Bollywood catalogue refresh on the Oracle VPS (scripts/vps/auto_refresh.sh).
+# Starts: every Sunday, from the Actions tab (Run workflow), or when a push changes
+# scripts/vps/refresh-trigger.txt. Ordinary commits do NOT start it.
+on:
+  schedule:
+    - cron: "0 22 * * 6"   # Saturday 22:00 UTC = Sunday 03:30 IST
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["scripts/vps/refresh-trigger.txt"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: torrent-studio-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Start refresh on VPS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ secrets.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          set -eu
+          mkdir -p ~/.ssh; chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519; chmod 600 ~/.ssh/id_ed25519
+          port="${VPS_SSH_PORT:-22}"
+          if [ -n "${VPS_SSH_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "$port" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+      - name: Start the refresh (runs in the background on the VPS)
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+        run: |
+          set -eu
+          port="${VPS_SSH_PORT:-22}"
+          ssh -i ~/.ssh/id_ed25519 -p "$port" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          cd "$HOME/Torrent-Studio"
+          git fetch -q origin main && git pull -q --ff-only origin main
+          mkdir -p "$HOME/torrent-studio-refresh/logs"
+          nohup bash scripts/vps/auto_refresh.sh weekly \
+            >> "$HOME/torrent-studio-refresh/logs/auto-refresh.log" 2>&1 < /dev/null &
+          echo "Refresh started; log: ~/torrent-studio-refresh/logs/auto-refresh.log"
+          REMOTE
