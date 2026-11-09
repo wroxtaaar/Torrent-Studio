@@ -4,8 +4,8 @@
 # then restarts the VPS container so it loads the new bundle at start-up.
 #
 #   scripts/vps/auto_refresh.sh daily    # quick (scheduled Wednesdays): catalogue pages only, no torrent searches
-#   scripts/vps/auto_refresh.sh weekly   # full (scheduled Sundays): also searches torrents for new titles
-#   scripts/vps/auto_refresh.sh install  # add both jobs to this user's crontab (safe to repeat)
+#   scripts/vps/auto_refresh.sh weekly   # full, scheduled Sundays 3:30 am IST: also searches torrents for new titles
+#   scripts/vps/auto_refresh.sh install  # add the weekly job to this user's crontab (safe to repeat)
 #
 # Logs: ~/torrent-studio-refresh/logs/auto-refresh.log
 set -euo pipefail
@@ -21,8 +21,7 @@ case "$MODE" in
     crontab -l 2>/dev/null | grep -v 'auto_refresh.sh' > "$TMP" || true
     {
       echo "CRON_TZ=Asia/Kolkata"
-      echo "30 3 * * 3  bash $SELF daily  >> $LOG_DIR/auto-refresh.log 2>&1   # auto_refresh.sh"
-      echo "30 4 * * 0  bash $SELF weekly >> $LOG_DIR/auto-refresh.log 2>&1   # auto_refresh.sh"
+      echo "30 3 * * 0  bash $SELF weekly >> $LOG_DIR/auto-refresh.log 2>&1   # auto_refresh.sh"
     } >> "$TMP"
     crontab "$TMP"; rm -f "$TMP"
     echo "Installed. Current crontab:"; crontab -l; exit 0 ;;
