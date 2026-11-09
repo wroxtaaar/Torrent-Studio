@@ -34,7 +34,12 @@ exec 9>"${XDG_RUNTIME_DIR:-/tmp}/torrent-studio-auto-refresh.lock"
 flock -n 9 || { echo "$(date -Is) another refresh is running; skipping"; exit 0; }
 
 echo "$(date -Is) ===== $MODE refresh start"
-bash "$(dirname "$SELF")/refresh_and_publish.sh" hollywood-bollywood
+D="$(dirname "$SELF")"
+# 1) refresh the source catalogues (and publish once), 2) merge them into the section files the app
+# serves (hollywood.json / bollywood.json), 3) publish again so the new lists go live.
+bash "$D/refresh_and_publish.sh" hollywood-bollywood
+SKIP_NEW_SOURCES=1 HOME_API_BASE="${HOME_API_BASE:-http://127.0.0.1:3000}" bash "$D/build_section_caches.sh"
+bash "$D/refresh_and_publish.sh" publish-only
 echo "$(date -Is) published; restarting $CONTAINER"
 docker restart "$CONTAINER" >/dev/null
 echo "$(date -Is) ===== $MODE refresh done"
