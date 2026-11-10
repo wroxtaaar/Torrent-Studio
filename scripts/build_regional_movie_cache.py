@@ -507,6 +507,10 @@ def main():
     atomic_json(CACHE, cache)
     print(json.dumps({"event": "complete", "status": cache["status"], "failedCatalogues": failed_catalogues, "failedTvCatalogues": failed_tv_catalogues, "catalogues": {k: v.get("movieCount", 0) for k, v in cache["catalogues"].items()}, "movieCount": cache["movieCount"], "torrentMovieCount": cache["torrentMovieCount"], "file": str(CACHE)}), flush=True)
     if failed_catalogues or failed_tv_catalogues:
+        if os.getenv("REGIONAL_CACHE_ALLOW_PARTIAL", "").strip().lower() in ("1", "true", "yes", "on"):
+            # The failed catalogues keep their previous snapshot (see "catalogue_preserved"); the rest is good, so go on.
+            print(json.dumps({"event": "partial_ok", "failedCatalogues": failed_catalogues, "failedTvCatalogues": failed_tv_catalogues}), flush=True)
+            return
         sys.exit(1)
 
 
