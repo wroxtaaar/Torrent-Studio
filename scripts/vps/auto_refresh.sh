@@ -41,6 +41,9 @@ D="$(dirname "$SELF")"
 # serves (hollywood.json / bollywood.json), 3) publish again so the new lists go live.
 bash "$D/refresh_and_publish.sh" hollywood-bollywood
 SKIP_NEW_SOURCES=1 HOME_API_BASE="${HOME_API_BASE:-http://127.0.0.1:3000}" bash "$D/build_section_caches.sh"
+# Torrent options only for titles that have none yet (the app is still up on the old data; the scan only needs /api/search).
+export REFRESH_SEED_DIR="$HOME_DIR/seed"
+"$HOME_DIR/venv/bin/python" "$D/../scan_missing_torrents.py" --sections hollywood,bollywood,anime || echo "torrent scan failed; continuing"
 bash "$D/refresh_and_publish.sh" publish-only
 echo "$(date -Is) published; restarting $CONTAINER"
 docker restart "$CONTAINER" >/dev/null
