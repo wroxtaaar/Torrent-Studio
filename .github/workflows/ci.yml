@@ -124,8 +124,13 @@ jobs:
             exit 1
           fi
           cd "$APP_DIR"
-          git fetch origin main
-          git pull --ff-only origin main
+          # One fetch, then a fast-forward to exactly that commit. "git pull" fetches again and fails
+          # ("Cannot fast-forward to multiple branches") when another git command on the VPS runs at the same time.
+          for attempt in 1 2 3; do
+            git fetch origin main && git merge --ff-only FETCH_HEAD && break
+            echo "git update failed (attempt $attempt), retrying"; sleep 5
+            [ "$attempt" = 3 ] && exit 1
+          done
           docker compose up -d --build torrent-studio
           for attempt in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:${HOST_PORT:-3000}/api/health >/dev/null; then

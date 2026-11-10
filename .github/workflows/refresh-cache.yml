@@ -52,7 +52,7 @@ jobs:
             "$VPS_USER@$VPS_HOST" 'bash -se' <<'REMOTE'
           set -euo pipefail
           cd "$HOME/Torrent-Studio"
-          git fetch -q origin main && git pull -q --ff-only origin main
+          git fetch -q origin main && git merge -q --ff-only FETCH_HEAD
           mkdir -p "$HOME/torrent-studio-refresh/logs"
           nohup bash scripts/vps/auto_refresh.sh weekly \
             >> "$HOME/torrent-studio-refresh/logs/auto-refresh.log" 2>&1 < /dev/null &
