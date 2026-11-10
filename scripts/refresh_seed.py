@@ -142,7 +142,9 @@ def warm_regional_tv_catalogues(base, include_existing=False):
         ]
     failures = []
     for key in catalogues:
-        url = f"{base}/api/tv/catalogue/{key}?page=1"
+        # The endpoint serves a saved snapshot when one exists; the weekly run must rebuild it from TMDB.
+        rebuild = "&refresh=true" if os.getenv("REFRESH_SCOPE") == "weekly" else ""
+        url = f"{base}/api/tv/catalogue/{key}?page=1{rebuild}"
         try:
             with urllib.request.urlopen(url, timeout=180) as response:
                 payload = json.loads(response.read().decode("utf-8"))
