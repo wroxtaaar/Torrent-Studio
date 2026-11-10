@@ -100,7 +100,7 @@ async def _watchmode_get(path: str, *, params: dict[str, Any] | None = None,
     if CACHE_ONLY_MODE:
         log_cache_only_metadata_block("Watchmode", enabled=True)
         return None
-    if not WATCHMODE_API_KEYS:
+    if not WATCHMODE_API_KEYS or os.getenv("WATCHMODE_DISABLED", "").strip().lower() in {"1", "true", "yes"}:
         return None
     # Watchmode rate limits and monthly credits are plan/account governed. Once any
     # credential receives 429, pause all credentials in this process instead of
