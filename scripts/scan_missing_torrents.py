@@ -13,7 +13,7 @@ Environment: REFRESH_SEED_DIR (default backend/cache-seed), HOME_API_BASE (defau
 """
 from __future__ import annotations
 
-import argparse, importlib.util, json, os, sys, time, urllib.parse, urllib.request
+import argparse, importlib.util, json, os, re, sys, time, urllib.parse, urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -57,6 +57,22 @@ def to_release(row: dict) -> dict | None:
             "indexer": str(row.get("indexer") or row.get("source") or ""), "infoUrl": str(row.get("infoUrl") or row.get("sourceUrl") or "")}
 
 
+YEAR = re.compile(r"(?<!\d)((?:19|20)\d{2})(?!\d)")
+
+
+def year_ok(release_title: str, title: str, year: object) -> bool:
+    """A release naming a different year is a different film (remake, sequel). No year in the name = accept."""
+    if not year:
+        return True
+    own = set(YEAR.findall(str(title)))  # a year that is part of the film's own name (e.g. "2012") is not a release year
+    found = set(YEAR.findall(str(release_title))) - own
+    return not found or str(year) in found or any(abs(int(y) - int(year)) <= 1 for y in found)
+
+
+def pick(cands: list[dict], title: str, year: object, limits: dict) -> list[dict]:
+    return mig.select_releases([r for r in cands if year_ok(r["title"], title, year)], title, limits)
+
+
 def variants(title: str, year: object) -> list[str]:
     base = str(title).split(":")[0].split(" - ")[0].strip()
     out: list[str] = []
@@ -93,14 +109,40 @@ def titles_to_scan(section: str, pages: int) -> tuple[dict, Path, list[tuple[str
     return out, path, todo
 
 
+def recheck(section: str) -> int:
+    path = SEED / f"{section}-torrents.json"
+    if not path.exists():
+        return 0
+    data = json.loads(path.read_text(encoding="utf-8"))
+    dropped = 0
+    for key in list(data.get("titles", {})):
+        entry = data["titles"][key]
+        keep = [r for r in entry.get("releases", []) if year_ok(r.get("title", ""), entry.get("title", ""), entry.get("year"))]
+        dropped += len(entry.get("releases", [])) - len(keep)
+        if keep:
+            entry["releases"] = keep
+        else:
+            del data["titles"][key]
+    if dropped:
+        tmp = path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        os.replace(tmp, path)
+    return dropped
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--sections", default="hollywood,bollywood,anime")
     ap.add_argument("--pages", type=int, default=0, help="only the first N pages of each list (0 = all)")
+    ap.add_argument("--recheck", action="store_true",
+                    help="first drop saved releases whose name shows a different year, so those titles are searched again")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
     for section in [x.strip() for x in args.sections.split(",") if x.strip()]:
+        if args.recheck:
+            dropped = recheck(section)
+            print(f"[{section}] recheck removed {dropped} releases with a different year", flush=True)
         out, path, todo = titles_to_scan(section, args.pages)
         titles, limits = out["titles"], out["limits"]
         print(f"[{section}] {len(todo)} titles without torrents", flush=True)
@@ -116,10 +158,10 @@ def main() -> int:
                     continue
                 answered += 1
                 cands += [r for r in map(to_release, rows) if r]
-                if mig.select_releases(cands, title, limits):
+                if pick(cands, title, year, limits):
                     break
                 time.sleep(0.4)
-            chosen = mig.select_releases(cands, title, limits)
+            chosen = pick(cands, title, year, limits)
             print(f"  [{i}/{len(todo)}] {title} ({year}): {len(chosen)} releases" + ("" if answered else "  (all searches failed)"), flush=True)
             if chosen:
                 found += 1
