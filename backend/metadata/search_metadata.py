@@ -20,7 +20,7 @@ from catalogues.catalogues_extra import (
     _synopsis_cache_paths,
     _write_synopsis_cache,
 )
-from search.search_providers import _normalize_title, search_1337x
+from search.search_providers import _SIZE_WINDOW_DISABLED, _normalize_title, search_1337x
 from core.settings import (
     CACHE_ONLY_MODE,
     TMDB_API_KEYS,
@@ -1302,7 +1302,8 @@ async def api_search_metadata_batch(
 
 
 @router.get("/api/search")
-async def api_search(request: Request, q: str = Query(..., min_length=1), limit: int = Query(50, ge=1, le=50)):
+async def api_search(request: Request, q: str = Query(..., min_length=1), limit: int = Query(50, ge=1, le=50),
+                     any_size: bool = Query(False)):
     prepare_intent = request.headers.get("x-prepare-intent", "missing")
     prepare_trace = request.headers.get("x-prepare-trace", "missing")
     if prepare_intent != "missing" or prepare_trace != "missing":
@@ -1312,7 +1313,11 @@ async def api_search(request: Request, q: str = Query(..., min_length=1), limit:
         )
     # Live torrent-provider access is explicitly scoped to this user-triggered endpoint.
     token = _MANUAL_TORRENT_SEARCH.set(True)
+    # any_size=true: no movie size window (the cache scan wants every size; bigger releases go to Webtor).
+    size_token = _SIZE_WINDOW_DISABLED.set(True) if any_size else None
     try:
         return await search_1337x(q, limit)
     finally:
+        if size_token is not None:
+            _SIZE_WINDOW_DISABLED.reset(size_token)
         _MANUAL_TORRENT_SEARCH.reset(token)

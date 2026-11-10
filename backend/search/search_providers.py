@@ -1491,7 +1491,9 @@ def _media_provider_queries(value: str) -> list[str]:
 
 
 def _search_cache_key(query: str) -> str:
-    return re.sub(r"\s+", " ", query.strip()).lower()
+    key = re.sub(r"\s+", " ", query.strip()).lower()
+    # Results searched without the size window must never be served to (or taken from) the normal window.
+    return "any-size|" + key if _SIZE_WINDOW_DISABLED.get() else key
 
 
 def _trim_search_cache() -> None:

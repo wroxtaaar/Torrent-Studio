@@ -46,7 +46,7 @@ SUBS = ("hollywood", "bollywood")
 
 
 def search(query: str) -> list[dict]:
-    url = f"{API}/api/search?q={urllib.parse.quote(query)}&limit=50"
+    url = f"{API}/api/search?q={urllib.parse.quote(query)}&limit=50&any_size=true"
     req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "HighestRatedTopScan/1.0"})
     for attempt in range(4):
         try:
