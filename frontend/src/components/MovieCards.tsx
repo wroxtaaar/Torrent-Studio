@@ -2,6 +2,7 @@ import React from 'react';
 import { Check, Copy, Database, Download, Film, Loader2, Play, Users, X } from 'lucide-react';
 import type { ImdbRatingResult } from '../api/client.ts';
 import { MovieCatalogueCard } from './MovieCatalogueCard.tsx';
+import { reportFromCard } from './PlaybackReportPrompt.tsx';
 import { PosterEventHandler, normalizeLowQualityPosterUrl, requestHighQualityPoster, resizeKnownPosterHost } from './movie-cards/posterUpgrade.ts';
 
 // Kept here so existing imports of these helpers from MovieCards keep working.
@@ -96,6 +97,7 @@ export const MovieCompactCard: React.FC<MovieCompactCardProps> = ({
   const showTmdb = !preferImdb && !showImdb && tmdbRating != null && tmdbRating > 0;
   return (
     <MovieCatalogueCard
+      onLongPress={() => reportFromCard(title, year)}
       onClick={event => {
         const target = event.target;
         if (target instanceof Element && target.closest('a, button, input, select, textarea, [role="button"]')) return;

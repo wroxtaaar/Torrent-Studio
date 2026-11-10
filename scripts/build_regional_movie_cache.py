@@ -113,7 +113,7 @@ def read_json(path, default):
 
 
 def load_nexstream_failures():
-    """tmdb ids users reported as not playable (written by maintenance/pull_nexstream_reports.py)."""
+    """tmdb ids listed as not playable in nexstream_failures.json (optional file; nothing writes it automatically any more)."""
     try:
         data = json.loads((BASE / "nexstream_failures.json").read_text(encoding="utf-8"))
         return {int(k) for k in (data.get("movies") or {})}

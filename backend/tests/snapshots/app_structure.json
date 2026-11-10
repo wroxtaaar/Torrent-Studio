@@ -719,8 +719,8 @@
     [
      "POST"
     ],
-    "/api/nexstream/report",
-    "report_nexstream_failure"
+    "/api/playback/report",
+    "report_playback"
    ],
    [
     [
@@ -1491,8 +1491,8 @@
     [
      "POST"
     ],
-    "/api/nexstream/report",
-    "report_nexstream_failure"
+    "/api/playback/report",
+    "report_playback"
    ],
    [
     [

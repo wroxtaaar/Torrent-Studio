@@ -1,7 +1,6 @@
 import { createPortal } from 'react-dom';
 import React, { useEffect, useId, useState } from 'react';
 import { Download, ExternalLink, Loader2, X } from 'lucide-react';
-import { PlaybackReportPrompt } from './PlaybackReportPrompt.tsx';
 import { copyMagnetAndOpenWebtor, loadWebtorSdk, openWebtorDownload, webtorEmbedConfig } from './torrent-search/webtor.ts';
 
 /**
@@ -69,7 +68,6 @@ export const WebtorPlayerModal: React.FC<{ title: string; magnetUrl: string; lab
             <ExternalLink className="h-3 w-3" />Open on webtor.io
           </button>
           </div>
-          <PlaybackReportPrompt title={title} detail={label || path} player="webtor" failed={state === 'failed'} loading={state === 'loading'} />
           {hint && <p className="text-[11px] text-slate-400" role="status">{hint}</p>}
         </div>
       </div>

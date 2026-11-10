@@ -8,6 +8,7 @@ import type {
   TvCatalogueItem,
   TvCataloguePage,
 } from './types.ts';
+import { customPoster } from './customPosters.ts';
 
 export interface SectionCacheLocation {
   section: string;
@@ -89,7 +90,7 @@ function movieItem(row: SectionCacheRow): MovieCatalogueItem {
     year: numericYear(row.year),
     releaseDate: row.releaseDate || undefined,
     overview: row.overview || undefined,
-    posterUrl: row.posterUrl || undefined,
+    posterUrl: customPoster('movie', tmdbId) || row.posterUrl || undefined,
     backdropUrl: row.backdropUrl || undefined,
     rating: row.rating ?? undefined,
     genres: Array.isArray(row.genres)
@@ -121,7 +122,7 @@ function tvItem(row: SectionCacheRow): TvCatalogueItem {
     year: numericYear(row.year),
     releaseDate: row.releaseDate || undefined,
     overview: row.overview || undefined,
-    posterUrl: row.posterUrl || undefined,
+    posterUrl: customPoster('tv', tmdbId) || row.posterUrl || undefined,
     backdropUrl: row.backdropUrl || undefined,
     rating: row.rating ?? undefined,
     imdbRating: row.imdbRating,

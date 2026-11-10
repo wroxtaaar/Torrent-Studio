@@ -2,7 +2,6 @@ import { createPortal } from 'react-dom';
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Copy, ExternalLink, Loader2, X } from 'lucide-react';
 import type { NuvioStreamOption } from '../api/types.ts';
-import { PlaybackReportPrompt } from './PlaybackReportPrompt.tsx';
 import { copyTextNow } from './torrent-search/webtor.ts';
 import { audioFromFilename, browserAudioTracks, currentPlatform, hasHeavyAudio, mxPlayerLink, playsSilently, vlcLink, type BrowserAudioTrack } from './torrent-search/hdPlayer.ts';
 
@@ -98,7 +97,6 @@ export const HdPlayerModal: React.FC<{ title: string; option: NuvioStreamOption;
               {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}Copy link
             </button>
           </div>
-          <PlaybackReportPrompt title={title} detail={option.filename || option.label} player="hd" failed={state === 'failed'} loading={state === 'loading'} />
           {mx && heavyAudio && <p className="text-[10px] leading-snug text-amber-300/90">This file has Dolby Digital Plus / DTS audio. MX Player often plays it without sound; VLC plays it and lets you switch tracks.</p>}
           {platform === 'desktop' && <p className="text-[10px] text-slate-500">On a computer, paste the copied link in VLC: Media → Open Network Stream.</p>}
         </div>

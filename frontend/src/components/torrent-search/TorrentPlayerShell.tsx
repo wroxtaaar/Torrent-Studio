@@ -1,5 +1,6 @@
 import React from 'react';
 import { Loader2, Maximize2, X } from 'lucide-react';
+import { PlaybackReportPrompt } from '../PlaybackReportPrompt.tsx';
 
 export type TorrentPlayerShellProvider = {
   label: 'Yenime' | 'VidRift' | 'NexStream';
@@ -83,6 +84,7 @@ export function TorrentPlayerShell({ id, title, loading, loadingLabel, closeLabe
         <div className="relative min-h-0 w-full flex-1 overflow-hidden bg-black aspect-video max-sm:max-h-[calc(96vh-56px)]">
           {loading && <div role="status" className="absolute inset-0 z-[10] flex items-center justify-center bg-black/70 text-sm text-slate-200"><Loader2 className="mr-2 h-5 w-5 animate-spin" />{loadingLabel}</div>}
           {children}
+          <div className="absolute bottom-2 left-3 z-[11] rounded bg-black/60 px-2 py-1"><PlaybackReportPrompt title={title} player={id.replace('-player-container', '')} failed={false} loading={loading} /></div>
         </div>
       </div>
     </div>
