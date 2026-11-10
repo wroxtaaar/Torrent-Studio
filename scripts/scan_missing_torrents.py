@@ -23,6 +23,23 @@ mig = importlib.util.module_from_spec(spec)
 sys.modules["mig"] = mig
 spec.loader.exec_module(mig)
 
+_strict_match = mig.title_phrase_match
+
+
+def _loose_match(release_title: str, expected: list[str]) -> bool:
+    """Exact phrase, or for titles of 3+ words: at least 80% of the title's words present in the release name
+    (release names often add words, e.g. 'Movie 09', 'Part 1', '2160p', that TMDB titles don't have)."""
+    if _strict_match(release_title, expected):
+        return True
+    have = set(mig.normalize_title(release_title).split())
+    for needle in expected:
+        words = needle.split()
+        if len(words) >= 3 and sum(w in have for w in words) / len(words) >= 0.8:
+            return True
+    return False
+
+
+mig.title_phrase_match = _loose_match  # used by select_releases() inside the migration module
 API = os.getenv("HOME_API_BASE", "http://127.0.0.1:3000").rstrip("/")
 SEED = Path(os.getenv("REFRESH_SEED_DIR") or ROOT / "backend" / "cache-seed")
 SUBS = ("hollywood", "bollywood")
@@ -90,7 +107,11 @@ def resolve_hashes(cands: list[dict], title: str, year: object, limits: dict, bu
 
 
 def pick(cands: list[dict], title: str, year: object, limits: dict) -> list[dict]:
-    return mig.select_releases([r for r in cands if r["infoHash"] and year_ok(r["title"], title, year)], title, limits)
+    unique = {}
+    for r in cands:  # the same release shows up in several query variants
+        if r["infoHash"] and year_ok(r["title"], title, year):
+            unique.setdefault(r["infoHash"], r)
+    return mig.select_releases(list(unique.values()), title, limits)
 
 
 DANGEROUS_EXT = {".exe", ".scr", ".msi", ".bat", ".cmd", ".com", ".vbs", ".jar", ".apk", ".lnk", ".dll", ".dmg", ".pif"}
