@@ -218,24 +218,47 @@ def has_catalogue_metadata(row: dict[str, Any]) -> bool:
     }
     return bool(markers.intersection(source))
 
+def all_identities(row: dict[str, Any]) -> list[str]:
+    """Every id a card can be known by. The same title is one card even when one copy has been enriched with an
+    IMDb id and the other has only a TMDB id (identity() alone would then call them two different cards)."""
+    source = row.get("movie") if isinstance(row.get("movie"), dict) else row
+    keys = []
+    imdb = str(source.get("imdbId") or "").strip().lower()
+    if re.fullmatch(r"tt\d+", imdb):
+        keys.append("imdb:" + imdb)
+    tmdb = source.get("tmdbId") or source.get("id")
+    if tmdb not in (None, "") and str(tmdb).isdigit():
+        keys.append("tmdb:" + str(tmdb))
+    year = source.get("year") or str(source.get("releaseDate") or "")[:4]
+    clean = re.sub(r"[^a-z0-9]+", "", title(source).casefold())
+    if clean and year:
+        keys.append(f"title:{clean}:{year}")
+    return keys or ([identity(row)] if identity(row) else [])
+
+
 def merge_rows(existing: list[dict[str, Any]], incoming: list[dict[str, Any]], *, metadata: bool) -> list[dict[str, Any]]:
-    merged: dict[str, dict[str, Any]] = {}
+    merged: dict[str, dict[str, Any]] = {}   # canonical key -> card
+    alias: dict[str, str] = {}               # any id of a card -> its canonical key
     order: list[str] = []
     for row in existing + incoming:
-        key = identity(row)
-        if not key:
+        keys = all_identities(row)
+        if not keys:
             continue
         clean = metadata_row(row) if metadata else row
         if metadata and not has_catalogue_metadata(clean):
             continue
-        if key not in merged:
-            merged[key] = dict(clean)
-            order.append(key)
+        canonical = next((alias[k] for k in keys if k in alias), None)
+        if canonical is None:
+            canonical = keys[0]
+            merged[canonical] = dict(clean)
+            order.append(canonical)
         else:
-            current = merged[key]
+            current = merged[canonical]
             for field, value in clean.items():
                 if current.get(field) in (None, "", [], {}) and value not in (None, "", [], {}):
                     current[field] = value
+        for k in keys:
+            alias.setdefault(k, canonical)
     return [merged[k] for k in order]
 
 def subsection_doc(section: str, previous: Any) -> dict[str, Any]:
