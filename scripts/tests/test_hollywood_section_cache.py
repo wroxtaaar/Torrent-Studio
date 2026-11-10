@@ -23,7 +23,7 @@ TORRENT_SPEC.loader.exec_module(TORRENT_MODULE)
 
 class HollywoodCacheTests(unittest.TestCase):
     def test_highest_rated_is_not_a_hollywood_subsection(self):
-        self.assertEqual(set(MODULE.SUBSECTIONS), {"popular", "trending", "latest"})
+        self.assertEqual(set(MODULE.SUBSECTIONS), {"popular", "trending"})
         self.assertNotIn("highestRated", MODULE.SUBSECTIONS)
 
     def test_missing_mode_preserves_existing_values(self):
@@ -97,7 +97,7 @@ class HollywoodCacheTests(unittest.TestCase):
             }]}
 
         with patch.object(MODULE, "request_json", fake_request_json):
-            result = MODULE.enrich_imdb([movie], "latest")
+            result = MODULE.enrich_imdb([movie], "trending")
         self.assertEqual(result["idsResolved"], 1)
         self.assertEqual(result["ratingsFetched"], 1)
         self.assertEqual(movie["imdbId"], "tt1234567")
@@ -112,7 +112,7 @@ class HollywoodCacheTests(unittest.TestCase):
             "imdbRating": 6.9, "imdbRatingStatus": "found",
         }
         with patch.object(MODULE, "request_json", side_effect=RuntimeError("API unavailable")):
-            MODULE.enrich_imdb([movie], "latest")
+            MODULE.enrich_imdb([movie], "trending")
         self.assertEqual(movie["imdbId"], "tt1234567")
         self.assertEqual(movie["imdbRating"], 6.9)
         self.assertEqual(movie["imdbRatingStatus"], "found")
@@ -122,7 +122,7 @@ class HollywoodCacheTests(unittest.TestCase):
         with patch.object(MODULE, "request_json", lambda *args, **kwargs: {"results": [{
                 "query": "Chirp (2024)", "status": "unavailable",
             }]}):
-            MODULE.enrich_imdb([movie], "latest")
+            MODULE.enrich_imdb([movie], "trending")
         self.assertEqual(movie["imdbRating"], 6.9)
         self.assertEqual(movie["imdbRatingStatus"], "unavailable")
 
@@ -208,7 +208,7 @@ class HollywoodCacheTests(unittest.TestCase):
         }])[0])
         self.assertNotIn("/api/torrent", MODULE.catalogue_url("popular-hollywood", 1))
 
-    def test_main_writes_only_three_54_record_subsections_to_refresh_seed(self):
+    def test_main_writes_only_two_54_record_subsections_to_refresh_seed(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             seed = Path(temp_dir)
             (seed / "hollywood.json").unlink(missing_ok=True)
@@ -235,7 +235,7 @@ class HollywoodCacheTests(unittest.TestCase):
                 self.assertEqual(MODULE.main(), 0)
 
             document = json.loads((seed / "hollywood.json").read_text(encoding="utf-8"))
-        self.assertEqual(set(document["subsections"]), {"popular", "trending", "latest"})
+        self.assertEqual(set(document["subsections"]), {"popular", "trending"})
         for section in document["subsections"].values():
             self.assertEqual(len(section["results"]), 54)
             self.assertEqual(section["pageCount"], 3)
