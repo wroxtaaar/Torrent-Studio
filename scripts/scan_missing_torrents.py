@@ -167,6 +167,11 @@ def main() -> int:
                 found += 1
                 titles[key] = {"title": title, "year": int(year) if year else None,
                                "releases": [{k: v for k, v in r.items() if v not in ("", None)} for r in chosen]}
+            if not args.dry_run and found and i % 10 == 0:  # save as we go, so an interrupted run loses almost nothing
+                out["titles"] = dict(sorted(titles.items()))
+                tmp = path.with_suffix(".json.tmp")
+                tmp.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+                os.replace(tmp, path)
         if args.dry_run or not todo:
             print(f"[{section}] {'dry run: would add' if args.dry_run else 'added'} {found} titles", flush=True)
             continue
