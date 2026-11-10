@@ -2232,4 +2232,6 @@ async def _start_regional_movie_catalogue_scheduler() -> None:
     # Do not start scheduled provider refreshes when missing-metadata backfill is disabled.
     if not BACKFILL_MISSING_METADATA:
         return
+    if os.getenv("DISABLE_REGIONAL_MOVIE_SCHEDULER", "").strip().lower() in ("1", "true", "yes", "on"):
+        return  # a refresh run builds exactly the catalogues it needs; the app must not warm all of them too
     asyncio.create_task(_regional_movie_catalogue_weekly_scheduler())

@@ -241,6 +241,7 @@ def main():
             "CACHE_ONLY_MODE": "false",
             "CACHE_FIRST": "false",  # stale entries must really be refreshed here
             "BACKFILL_MISSING_METADATA": "true",
+            "DISABLE_REGIONAL_MOVIE_SCHEDULER": "true",  # the builders below fetch the catalogues they need
             "PYTHONPATH": str(BACKEND),
         }
         if group == "imdb-dataset":
