@@ -36,7 +36,6 @@ MAX_RECORDS = PAGE_SIZE * MAX_PAGES
 SUBSECTIONS = {
     "popular": "popular-hollywood",
     "trending": "trending-hollywood",
-    "latest": "latest-hollywood",
 }
 TORRENT_FIELDS = {"torrentDetails", "torrentMatch", "torrentMatches", "cachedTorrentDetails"}
 VALID_IMDB_ID = re.compile(r"^tt\d+$")

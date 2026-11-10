@@ -35,7 +35,7 @@ export REFRESH_SCOPE=weekly
 export REGIONAL_CACHE_ALLOW_PARTIAL=true   # one failed page must not stop the whole refresh from publishing
 export WATCHMODE_DISABLED=true            # the weekly run skips Watchmode (rate limits made it crawl); cards keep their existing streaming info
 export TS_FORCE_TORRENT_SCAN="$REGIONAL_CACHE_TORRENT_SCAN"
-export REGIONAL_CACHE_CATALOGUES="popular-hollywood,trending-hollywood,latest-hollywood,popular-bollywood,trending-bollywood,latest-bollywood,popular-anime"
+export REGIONAL_CACHE_CATALOGUES="popular-hollywood,trending-hollywood,popular-bollywood,trending-bollywood,latest-bollywood,popular-anime"
 export TS_FORCE_CATALOGUES="$REGIONAL_CACHE_CATALOGUES"
 echo "$(date -Is) ===== $MODE refresh start"
 D="$(dirname "$SELF")"

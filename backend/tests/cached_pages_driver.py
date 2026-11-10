@@ -18,7 +18,7 @@ for i in range(100):
 # A finished list written by the cache builder: served exactly as stored, in order.
 final = [{"id": 7000 + i, "tmdbId": 7000 + i, "title": f"Final {i}", "year": 2025, "releaseDate": "2025-01-01"} for i in range(54)]
 (seed / "runtime" / "regional_movie_prebuilt_cache.json").write_text(json.dumps({
-    "movies": movies, "catalogues": {"latest-hollywood": {"final": final}}}))
+    "movies": movies, "catalogues": {"latest-bollywood": {"final": final}}}))
 
 from fastapi.testclient import TestClient  # noqa: E402
 import main  # noqa: E402
@@ -58,8 +58,8 @@ with TestClient(main.app, raise_server_exceptions=False) as client:
                  "ids": [x["id"] for x in body.get("results", [])]}
     out["final"] = []
     for page in (1, 2, 3):
-        body = client.get(f"/api/movies/catalogue/latest-hollywood?page={page}").json()
+        body = client.get(f"/api/movies/catalogue/latest-bollywood?page={page}").json()
         out["final"].append({"ids": [x["id"] for x in body.get("results", [])], "totalPages": body.get("totalPages")})
-    body = client.get("/api/movies/catalogue/latest-hollywood?page=2&basic=true").json()
+    body = client.get("/api/movies/catalogue/latest-bollywood?page=2&basic=true").json()
     out["fast"] = {"ids": [x["id"] for x in body.get("results", [])], "basic": body.get("basic"), "totalPages": body.get("totalPages")}
 print("RESULT " + json.dumps(out))

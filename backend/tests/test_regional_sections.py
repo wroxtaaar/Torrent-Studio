@@ -426,11 +426,11 @@ def test_live_catalogue_refresh_can_skip_application_cache_writes(monkeypatch):
     monkeypatch.setattr(movies, "_fetch_paginated_regional_movie_catalogue", fetch)
     monkeypatch.setattr(movies, "_enrich_regional_movie_catalogue_metadata", enrich)
     result = asyncio.run(movies._live_regional_candidates(
-        "latest-hollywood", 1, cache_write=False,
+        "latest-bollywood", 1, cache_write=False,
     ))
 
-    assert observed == {"catalogue_key": "latest-hollywood", "page": 1, "cache_write": False}
-    assert result["catalogue"] == "latest-hollywood"
+    assert observed == {"catalogue_key": "latest-bollywood", "page": 1, "cache_write": False}
+    assert result["catalogue"] == "latest-bollywood"
 
 
 def test_no_cache_live_fetch_leaves_memory_and_disk_catalogue_caches_untouched(monkeypatch):

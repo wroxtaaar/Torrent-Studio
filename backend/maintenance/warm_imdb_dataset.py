@@ -37,7 +37,7 @@ TV_FILES = ("regional_tv_prebuilt_cache.json", "marvel_tv_catalogue_cache.json",
             "marvel_web_series_catalogue.json", "classics_anime_tv_catalogue.json", "classics_web_series_tv_catalogue.json")
 MOVIE_FILES = ("marvel_catalogue.json", "marvel_hindi_catalogue.json", "dc_live_action_catalogue.json",
                "dc_live_action_hindi_catalogue.json", "dc_animated_catalogue.json", "classics_catalogue.json",
-               "bollywood_torrent_matched_catalogue.json", "latest_bollywood_catalogue.json", "latest_hollywood_catalogue.json")
+               "bollywood_torrent_matched_catalogue.json", "latest_bollywood_catalogue.json")
 
 
 def ensure_dataset() -> None:

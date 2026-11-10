@@ -156,9 +156,9 @@ test('Hollywood and Bollywood TV catalogue mappings retain all three subsections
   const expected = {
     'hollywood-popular': ['hollywood', 'tv-popular'],
     'hollywood-trending': ['hollywood', 'tv-trending'],
-    'hollywood-latest': ['hollywood', 'tv-latest'],
     'indian-popular': ['bollywood', 'tv-popular'],
     'indian-trending': ['bollywood', 'tv-trending'],
+    'hollywood-latest': ['hollywood', 'tv-latest'],
     'indian-latest': ['bollywood', 'tv-latest'],
   };
 

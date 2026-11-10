@@ -2,8 +2,7 @@
 """Migrate existing Hollywood torrent records into a dedicated cache file.
 
 This is a migration/preservation task only: it never searches torrent providers.
-Run after build_hollywood_section_cache.py; it reads the legacy latest cache and
-any torrent fields still embedded in an older hollywood.json.
+Run after build_hollywood_section_cache.py; it reads any torrent fields still embedded in an older hollywood.json.
 """
 from __future__ import annotations
 
@@ -18,7 +17,6 @@ from typing import Any
 REFRESH_HOME = Path(os.getenv("TS_HOME") or Path.home() / "torrent-studio-refresh")
 SEED = Path(os.getenv("REFRESH_SEED_DIR") or REFRESH_HOME / "seed").resolve()
 METADATA_PATH = SEED / "hollywood.json"
-LEGACY_PATH = SEED / "latest_hollywood_catalogue.json"
 OUTPUT = SEED / "hollywood-torrents.json"
 
 
@@ -114,26 +112,6 @@ def main() -> int:
             movies[str(ident)]["matches"] = list(old.get("matches") or [])
 
     collect_embedded(read_json(METADATA_PATH), movies)
-    legacy = read_json(LEGACY_PATH)
-    legacy_count = 0
-    for row in legacy.get("results") or []:
-        if not isinstance(row, dict):
-            continue
-        ident = movie_id(row)
-        if not ident:
-            continue
-        release = torrent_release(row)
-        if not release:
-            continue
-        record = movies.setdefault(ident, {"tmdbId": ident, "title": row.get("catalogueTitle") or row.get("mediaTitle") or row.get("title") or "", "subsections": []})
-        if "latest" not in record.setdefault("subsections", []):
-            record["subsections"].append("latest")
-        add_release(record, release)
-        checked = row.get("torrentCheckedAt") or row.get("torrentCheckedAtEpoch") or legacy.get("builtAt")
-        if checked:
-            record.setdefault("checkedAt", checked)
-        legacy_count += 1
-
     # Do not publish an empty migration over a previously useful torrent cache.
     if not movies and not old_movies:
         raise RuntimeError("No existing Hollywood torrent data found; refusing to write an empty cache")
@@ -149,7 +127,7 @@ def main() -> int:
     })
     atomic_write(OUTPUT, document)
     print(json.dumps({"event": "hollywood_torrent_cache_written", "path": str(OUTPUT),
-                      "movies": len(movies), "legacyReleasesSeen": legacy_count,
+                      "movies": len(movies),
                       "torrent_searches": 0}, ensure_ascii=False))
     return 0
 

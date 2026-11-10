@@ -38,7 +38,6 @@ TORRENT_KEYS = {
 REGIONAL_MOVIE = {
     "popular-hollywood": ("hollywood", "popular"),
     "trending-hollywood": ("hollywood", "trending"),
-    "latest-hollywood": ("hollywood", "latest"),
     "popular-bollywood": ("bollywood", "popular"),
     "trending-bollywood": ("bollywood", "trending"),
     "latest-bollywood": ("bollywood", "latest"),
@@ -60,7 +59,6 @@ REGIONAL_TV = {
     "anime-popular": ("anime", "series"),
 }
 LEGACY_FILES = {
-    "latest_hollywood_catalogue.json": ("hollywood", "latest"),
     "latest_bollywood_catalogue.json": ("bollywood", "latest"),
     "marvel_catalogue.json": ("marvel", "movies"),
     "marvel_web_series_catalogue.json": ("marvel", "series"),
@@ -353,6 +351,7 @@ def main() -> int:
         obsolete = {
             "marvel": ("hindi-movies",),
             "dc": ("hindi-live-action",),
+            "hollywood": ("latest",),   # Hollywood Latest movies was removed (titles too new for any provider)
         }.get(section, ())
         for subsection in obsolete:
             if subsection in new_subs:

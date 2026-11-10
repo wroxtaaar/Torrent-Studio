@@ -1039,7 +1039,6 @@ _CACHE_SEED_FILES = (
     "classics_catalogue.json",
     "regional_tv_prebuilt_cache.json",
     "latest_bollywood_catalogue.json",
-    "latest_hollywood_catalogue.json",
     "marvel_catalogue.json",
     "marvel_web_series_catalogue.json",
     "marvel_hindi_catalogue.json",

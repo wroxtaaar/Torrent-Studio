@@ -138,7 +138,6 @@ REGIONAL_MOVIE_CATALOGUE_KEYS = (
     "highest-rated-bollywood",
     "popular-hollywood",
     "trending-hollywood",
-    "latest-hollywood",
     "popular-bollywood",
     "trending-bollywood",
     "latest-bollywood",

@@ -322,7 +322,6 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
         "latest-bollywood": ("hi", "latest"),
         "popular-hollywood": ("en", "popular"),
         "trending-hollywood": ("en", "trending"),
-        "latest-hollywood": ("en", "latest"),
         "popular-korean": ("ko", "popular"),
         "popular-anime": ("ja", "popular"),
     }
@@ -942,36 +941,6 @@ def _cache_only_regional_movie_catalogue(catalogue_key: str, page: int) -> dict[
             if key.strip("|"):
                 rows_by_identity.setdefault(key, row)
 
-    if not rows_by_identity and catalogue_key == "latest-hollywood":
-        seed_path = _CACHE_SEED_DIR / "latest_hollywood_catalogue.json"
-        try:
-            payload = json.loads(seed_path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            payload = {}
-        except (OSError, ValueError, TypeError) as exc:
-            logger.warning("Could not read Hollywood latest snapshot %s: %s", seed_path, exc)
-            payload = {}
-        for source_row in payload.get("results", []) if isinstance(payload, dict) else []:
-            if not isinstance(source_row, dict):
-                continue
-            row = dict(source_row)
-            row["title"] = str(
-                row.get("catalogueTitle") or row.get("mediaTitle") or row.get("title") or ""
-            ).strip()
-            if not row["title"]:
-                continue
-            release_date = str(row.get("releaseDate") or row.get("release_date") or "").strip()
-            if release_date and not _tmdb_release_date_is_released(release_date[:10], today):
-                continue
-            key = str(row.get("tmdbId") or "").strip() or (
-                re.sub(r"[^a-z0-9]+", "", row["title"].casefold())
-                + "|" + str(row.get("year") or "")
-            )
-            if not row.get("id"):
-                row["id"] = row.get("tmdbId") or key
-            row.setdefault("source", "Bundled Hollywood latest cache")
-            rows_by_identity.setdefault(key, row)
-
     if not rows_by_identity:
         return None
 
@@ -1434,7 +1403,7 @@ async def _api_tmdb_movie_catalogue(
     allowed = {
         "marvel", "dc-live-action", "dc-animated",
         "popular-bollywood", "trending-bollywood", "latest-bollywood",
-        "popular-hollywood", "trending-hollywood", "latest-hollywood",
+        "popular-hollywood", "trending-hollywood",
         "popular-korean",
             "popular-anime",
         "highest-rated-hollywood", "highest-rated-bollywood",

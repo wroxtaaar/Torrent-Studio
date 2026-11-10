@@ -16,7 +16,6 @@ CATALOGUES = (
     "dc_live_action_catalogue.json",
     "dc_live_action_hindi_catalogue.json",
     "dc_animated_catalogue.json",
-    "latest_hollywood_catalogue.json",
     "latest_bollywood_catalogue.json",
 )
 FRANCHISE_CATALOGUES = set(CATALOGUES[:5])

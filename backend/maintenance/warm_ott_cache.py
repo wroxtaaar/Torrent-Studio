@@ -35,7 +35,6 @@ CATALOGUES = (
     "trending-hollywood",
     "popular-bollywood",
     "trending-bollywood",
-    "latest-hollywood",
     "latest-bollywood",
 )
 

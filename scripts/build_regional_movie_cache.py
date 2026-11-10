@@ -19,7 +19,7 @@ _ALL_CATALOGUES = (
     # from the standard regional popularity/trending/latest feeds.
     "highest-rated-hollywood", "highest-rated-bollywood",
     "popular-bollywood", "trending-bollywood", "latest-bollywood",
-    "popular-hollywood", "trending-hollywood", "latest-hollywood",
+    "popular-hollywood", "trending-hollywood",
     "popular-korean",
     "popular-anime",
 )
@@ -67,7 +67,7 @@ FINAL_PER_CATALOGUE = int(os.getenv("REGIONAL_CACHE_FINAL_PER_CATALOGUE", "54"))
 MAX_CANDIDATES = int(os.getenv("REGIONAL_CACHE_MAX_CANDIDATES", "450"))
 ARCHIVE = BASE / "regional_movie_trending_archive.json"
 ORDER = ("highest-rated-hollywood", "highest-rated-bollywood",
-          "popular-bollywood", "popular-hollywood", "latest-bollywood", "latest-hollywood",
+          "popular-bollywood", "popular-hollywood", "latest-bollywood",
           "trending-bollywood", "trending-hollywood", "popular-korean", "popular-anime")
 ORDER = tuple(c for c in ORDER if c in CATALOGUES)  # honours REGIONAL_CACHE_CATALOGUES
 

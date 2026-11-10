@@ -24,7 +24,6 @@ const MOVIE_CATALOGUE_SECTIONS: Partial<Record<MovieCatalogueKey, SectionCacheLo
   classics: { section: 'favourites', subsection: 'movies' },
   'highest-rated-hollywood': { section: 'highest-rated', subsection: 'hollywood' },
   'highest-rated-bollywood': { section: 'highest-rated', subsection: 'bollywood' },
-  'latest-hollywood': { section: 'hollywood', subsection: 'latest' },
   'latest-bollywood': { section: 'bollywood', subsection: 'latest' },
   'popular-hollywood': { section: 'hollywood', subsection: 'popular' },
   'popular-bollywood': { section: 'bollywood', subsection: 'popular' },

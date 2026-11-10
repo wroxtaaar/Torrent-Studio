@@ -116,7 +116,6 @@ export type MovieCatalogueKey =
   | 'dc-animated'
   | 'classics'
   | 'highest-rated-hollywood' | 'highest-rated-bollywood'
-  | 'latest-hollywood'
   | 'latest-bollywood'
   | 'popular-hollywood'
   | 'popular-bollywood'
