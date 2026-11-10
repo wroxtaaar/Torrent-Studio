@@ -205,7 +205,7 @@ def image_url(value: Any, size: str) -> str:
 
 
 def media_type(section: str, subsection: str, node: dict[str, Any]) -> str:
-    if node.get("mediaType") in {"tv", "series"} or (section, subsection) in TV_SUBSECTIONS:
+    if node.get("mediaType") in {"tv", "series"} or (section, subsection) in TV_SUBSECTIONS or subsection.startswith("tv-"):
         return "tv"
     return "movie"
 
