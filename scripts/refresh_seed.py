@@ -129,7 +129,13 @@ def warm_regional_tv_catalogues(base, include_existing=False):
         "pakistani-popular", "pakistani-trending", "pakistani-latest",
         "anime-popular", "anime-trending", "anime-latest",
     ]
-    if include_existing:
+    if os.getenv("REFRESH_SCOPE") == "weekly":
+        # Only the TMDB-driven Hollywood and Bollywood series lists change; Korean, Pakistani and anime series are fixed.
+        catalogues = [
+            "indian-popular", "indian-trending", "indian-latest",
+            "hollywood-popular", "hollywood-trending", "hollywood-latest",
+        ]
+    elif include_existing:
         catalogues = [
             "indian-popular", "indian-trending", "indian-latest",
             "hollywood-popular", "hollywood-trending", "hollywood-latest",

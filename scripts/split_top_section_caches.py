@@ -339,7 +339,7 @@ def main() -> int:
                 fill = [{k: v for k, v in r.items() if k not in ("trendingWeek", "trendingRank")}
                         for r in incoming.get((section, "tv-popular"), [])]
                 rows = merge_rows(incoming[(section, sub)] + earlier, fill, metadata=True)[:MAX_ROLLING]
-            elif section in ROLLING_SECTIONS and sub in ROLLING_SUBSECTIONS and incoming[(section, sub)]:
+            elif ((section in ROLLING_SECTIONS and sub in ROLLING_SUBSECTIONS) or (section, sub) == ("anime", "movies")) and incoming[(section, sub)]:
                 # Newest catalogue first, older rows only fill the gap, never more than MAX_ROLLING (3 pages).
                 # Rows already known keep their enriched fields (ratings, providers).
                 rows = merge_rows(incoming[(section, sub)], previous_rows, metadata=True)[:MAX_ROLLING]

@@ -14,7 +14,7 @@ API = os.getenv("HOME_API_BASE", "http://127.0.0.1:10000").rstrip("/")
 CACHE = BASE / "regional_movie_prebuilt_cache.json"
 TV_CACHE = BASE / "regional_tv_prebuilt_cache.json"
 STATE = BASE / "regional_movie_prebuilt_state.json"
-CATALOGUES = (
+_ALL_CATALOGUES = (
     # Highest Rated is a dedicated, curated movie catalogue and is cached separately
     # from the standard regional popularity/trending/latest feeds.
     "highest-rated-hollywood", "highest-rated-bollywood",
@@ -23,6 +23,9 @@ CATALOGUES = (
     "popular-korean",
     "popular-anime",
 )
+# REGIONAL_CACHE_CATALOGUES="popular-hollywood,trending-bollywood" limits a run to those catalogues.
+_ONLY = [c.strip() for c in os.getenv("REGIONAL_CACHE_CATALOGUES", "").split(",") if c.strip()]
+CATALOGUES = tuple(c for c in _ALL_CATALOGUES if c in _ONLY) if _ONLY else _ALL_CATALOGUES
 # Target for the TV catalogues. Movie catalogues use FINAL_PER_CATALOGUE below.
 TARGET_PER_CATALOGUE = int(os.getenv("REGIONAL_CACHE_MOVIES_PER_CATALOGUE", "50"))
 PAGE_LIMIT = int(os.getenv("REGIONAL_CACHE_PAGES", "30"))
@@ -389,6 +392,11 @@ def main():
              "targetPerCatalogue": FINAL_PER_CATALOGUE, "catalogues": {}, "movies": {}}
     movies, cache["catalogues"], failed_catalogues = build_movies(old)
     cache["movies"] = movies
+    if _ONLY:  # a limited run must not drop the catalogues (and their titles) it did not rebuild
+        for key, value in (old.get("catalogues") or {}).items():
+            cache["catalogues"].setdefault(key, value)
+        for key, value in (old.get("movies") or {}).items():
+            cache["movies"].setdefault(key, value)
     atomic_json(CACHE, cache)
 
     # Prebuild six Indian/Hollywood TV-series catalogues separately from movies.

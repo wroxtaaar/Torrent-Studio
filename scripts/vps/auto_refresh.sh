@@ -30,6 +30,9 @@ esac
 exec 9>"${XDG_RUNTIME_DIR:-/tmp}/torrent-studio-auto-refresh.lock"
 flock -n 9 || { echo "$(date -Is) another refresh is running; skipping"; exit 0; }
 
+# Only Hollywood, Bollywood and Anime movies change weekly (TMDB). Everything else is fixed and not touched.
+export REFRESH_SCOPE=weekly
+export REGIONAL_CACHE_CATALOGUES="popular-hollywood,trending-hollywood,latest-hollywood,popular-bollywood,trending-bollywood,latest-bollywood,popular-anime"
 echo "$(date -Is) ===== $MODE refresh start"
 D="$(dirname "$SELF")"
 # 1) refresh the source catalogues (and publish once), 2) merge them into the section files the app
