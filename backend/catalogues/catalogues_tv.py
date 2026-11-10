@@ -5,7 +5,7 @@ import json
 import os
 import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -1644,9 +1644,14 @@ async def api_tmdb_regional_tv_catalogue(
     except HTTPException:
         raise
 
+    eligible_rows = _dedupe_regional_tv_rows(eligible_rows)
+    if catalogue_key.endswith("-trending"):
+        # Stamp the week so the card can say "Week of ..." and older weeks stay identifiable once newer ones arrive.
+        _today = datetime.now(timezone.utc).date()
+        _week = (_today - timedelta(days=_today.weekday())).isoformat()
+        eligible_rows = [{**row, "trendingWeek": _week, "trendingRank": rank} for rank, row in enumerate(eligible_rows, 1)]
     _save_regional_tv_prebuilt_pages(catalogue_key, eligible_rows)
     start_index = (page - 1) * 18
-    eligible_rows = _dedupe_regional_tv_rows(eligible_rows)
     results = eligible_rows[start_index:start_index + 18]
     # UI pages are 18 filtered titles each. Estimate the number of pages from
     # TMDB's candidate count; the last page may be shorter after verification.

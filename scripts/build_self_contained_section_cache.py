@@ -46,7 +46,7 @@ REGIONAL_TV_FIELDS = (
     "posterUrl", "backdropUrl", "rating", "genres", "tmdbUrl", "imdbId",
     "imdbRating", "imdbVotes", "imdbUrl", "imdbCheckedAt", "imdbRatingStatus",
     "ottAvailability", "streamingProviders", "providerLink", "originCountry",
-    "originalLanguage", "source", "seriesType", "networks",
+    "originalLanguage", "source", "seriesType", "networks", "trendingWeek", "trendingRank",
 )
 REGIONAL_TV_METADATA_FIELDS = tuple(
     field for field in REGIONAL_TV_FIELDS if field not in {"id", "title", "name"}

@@ -18,7 +18,7 @@ import type { TorrentSearchResult } from '../../api/types.ts';
 const tvTorrents = createTvTorrentStore(show =>
   api.getTorrentOptions({ tmdbId: show.id, title: show.title, year: show.year }, undefined, 'all', 'tv'));
 
-type TileShow = Pick<TvCatalogueItem, 'id' | 'title' | 'year' | 'releaseDate' | 'posterUrl' | 'overview' | 'rating' | 'streamingProviders' | 'imdbRating' | 'imdbVotes' | 'imdbId' | 'imdbUrl'>;
+type TileShow = Pick<TvCatalogueItem, 'id' | 'title' | 'year' | 'releaseDate' | 'posterUrl' | 'overview' | 'rating' | 'streamingProviders' | 'imdbRating' | 'imdbVotes' | 'imdbId' | 'imdbUrl' | 'trendingWeek' | 'trendingRank'>;
 
 /**
  * Series card for every TV / web-series grid. Tapping it looks up the cached season packs:

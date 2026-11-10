@@ -332,7 +332,14 @@ def main() -> int:
             # The old Marvel series subsection contains torrent release cards.
             # Rebuild it from clean catalogue sources instead of merging those rows.
             previous_rows = [] if section == "marvel" and sub == "series" else get_existing_rows(old_doc, sub)
-            if section in ROLLING_SECTIONS and sub in ROLLING_SUBSECTIONS and incoming[(section, sub)]:
+            if section in ROLLING_SECTIONS and sub == "tv-trending" and incoming[(section, sub)]:
+                # Series trending: this week first, then only genuine earlier trending rows (they carry a
+                # trendingWeek; older cache copies of Popular do not), then Popular titles to fill the gap.
+                earlier = [r for r in previous_rows if r.get("trendingWeek")]
+                fill = [{k: v for k, v in r.items() if k not in ("trendingWeek", "trendingRank")}
+                        for r in incoming.get((section, "tv-popular"), [])]
+                rows = merge_rows(incoming[(section, sub)] + earlier, fill, metadata=True)[:MAX_ROLLING]
+            elif section in ROLLING_SECTIONS and sub in ROLLING_SUBSECTIONS and incoming[(section, sub)]:
                 # Newest catalogue first, older rows only fill the gap, never more than MAX_ROLLING (3 pages).
                 # Rows already known keep their enriched fields (ratings, providers).
                 rows = merge_rows(incoming[(section, sub)], previous_rows, metadata=True)[:MAX_ROLLING]

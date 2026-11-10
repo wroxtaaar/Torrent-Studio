@@ -128,6 +128,8 @@ function tvItem(row: SectionCacheRow): TvCatalogueItem {
     imdbVotes: row.imdbVotes,
     imdbId: row.imdbId,
     imdbListRank: row.imdbListRank,
+    trendingWeek: row.trendingWeek,
+    trendingRank: row.trendingRank,
     imdbUrl: row.imdbUrl || undefined,
     imdbRatingStatus: row.imdbRatingStatus || undefined,
     originCountry: row.originCountry,

@@ -4,7 +4,7 @@ import { MovieCompactCard, imdbTitleLink, type MovieCardImdb } from '../MovieCar
 import { toCardProviders, uniqueOttProviders } from './ottProviders.ts';
 import { lowQualityPosterUrl } from './posterUrls.ts';
 
-type TvShowCardShow = Pick<TvCatalogueItem, 'id' | 'title' | 'year' | 'releaseDate' | 'posterUrl' | 'overview' | 'rating' | 'streamingProviders' | 'imdbRating' | 'imdbVotes' | 'imdbId' | 'imdbUrl'>;
+type TvShowCardShow = Pick<TvCatalogueItem, 'id' | 'title' | 'year' | 'releaseDate' | 'posterUrl' | 'overview' | 'rating' | 'streamingProviders' | 'imdbRating' | 'imdbVotes' | 'imdbId' | 'imdbUrl' | 'trendingWeek' | 'trendingRank'>;
 
 /**
  * The initial card for every TV / web-series section. It is the same MovieCompactCard the
@@ -72,6 +72,9 @@ export const TvShowCard: React.FC<{
       year={displayYear}
       imdb={rating}
       tmdbRating={show.rating}
+      trendWeekLabel={show.trendingWeek
+        ? 'Week of ' + new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(show.trendingWeek + 'T00:00:00Z')) + (show.trendingRank ? ' · #' + show.trendingRank : '')
+        : undefined}
       preferImdb={preferImdb}
       overview={show.overview || ''}
       posterSrc={show.posterUrl ? lowQualityPosterUrl(show.posterUrl) : ''}

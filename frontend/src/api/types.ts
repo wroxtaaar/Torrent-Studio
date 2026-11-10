@@ -56,6 +56,8 @@ export interface MarvelCatalogueResponse {
 }
 
 export interface TvCatalogueItem {
+  trendingWeek?: string;
+  trendingRank?: number;
   id: number | string;
   tmdbId?: number | string;
   title: string;
