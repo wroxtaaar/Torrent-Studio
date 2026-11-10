@@ -25,6 +25,9 @@ git -C repo fetch -q --depth 1 origin main
 git -C repo reset -q --hard FETCH_HEAD
 # Load keys (repeated TMDB_READ_ACCESS_TOKEN lines are all kept, not just the last one).
 eval "$(python3 repo/scripts/vps/load_env.py "$HOME/.config/torrent-studio/env")"
+# Values the caller (auto_refresh.sh) insists on win over anything in the env file.
+[ -n "${TS_FORCE_TORRENT_SCAN:-}" ] && export REGIONAL_CACHE_TORRENT_SCAN="$TS_FORCE_TORRENT_SCAN"
+[ -n "${TS_FORCE_CATALOGUES:-}" ] && export REGIONAL_CACHE_CATALOGUES="$TS_FORCE_CATALOGUES"
 [ -d venv ] || python3 -m venv venv
 ./venv/bin/pip install -q -r repo/backend/requirements.txt
 

@@ -32,7 +32,9 @@ flock -n 9 || { echo "$(date -Is) another refresh is running; skipping"; exit 0;
 
 # Only Hollywood, Bollywood and Anime movies change weekly (TMDB). Everything else is fixed and not touched.
 export REFRESH_SCOPE=weekly
+export TS_FORCE_TORRENT_SCAN="$REGIONAL_CACHE_TORRENT_SCAN"
 export REGIONAL_CACHE_CATALOGUES="popular-hollywood,trending-hollywood,latest-hollywood,popular-bollywood,trending-bollywood,latest-bollywood,popular-anime"
+export TS_FORCE_CATALOGUES="$REGIONAL_CACHE_CATALOGUES"
 echo "$(date -Is) ===== $MODE refresh start"
 D="$(dirname "$SELF")"
 # 1) refresh the source catalogues (and publish once), 2) merge them into the section files the app
