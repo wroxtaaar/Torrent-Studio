@@ -419,13 +419,15 @@ def main():
         "anime-popular",
         "highest-rated-popular",
     )
+    if _ONLY:  # a limited (weekly) run rebuilds only the Hollywood/Bollywood series; fixed sections are left alone
+        tv_catalogues = tuple(c for c in tv_catalogues if c.startswith(("indian-", "hollywood-")))
     tv_cache = {
         "version": 3,
         "builtAt": tv_old.get("builtAt"),
         "catalogues": {
             key: value
             for key, value in tv_old.get("catalogues", {}).items()
-            if key in tv_catalogues
+            if key in tv_catalogues or _ONLY  # a limited run keeps the series catalogues it does not rebuild
         },
         "targetPerCatalogue": TARGET_PER_CATALOGUE,
         "status": "building",
