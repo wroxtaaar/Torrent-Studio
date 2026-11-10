@@ -46,7 +46,8 @@ def search(query: str) -> list[dict]:
 def to_release(row: dict) -> dict | None:
     magnet = row.get("magnetUrl") or ""
     h = mig.info_hash_of(row.get("infoHash") or row.get("hash"), magnet)
-    if not h:
+    detail = str(row.get("infoUrl") or row.get("sourceUrl") or "")
+    if not h and not detail.startswith("https://"):
         return None
     try:
         size = int(row.get("size") or 0)
@@ -54,7 +55,7 @@ def to_release(row: dict) -> dict | None:
         size = 0
     return {"infoHash": h, "title": str(row.get("title") or ""), "size": size,
             "seeders": int(row.get("seeders") or 0), "leechers": int(row.get("leechers") or 0),
-            "indexer": str(row.get("indexer") or row.get("source") or ""), "infoUrl": str(row.get("infoUrl") or row.get("sourceUrl") or "")}
+            "indexer": str(row.get("indexer") or row.get("source") or ""), "infoUrl": detail}
 
 
 YEAR = re.compile(r"(?<!\d)((?:19|20)\d{2})(?!\d)")
@@ -69,8 +70,27 @@ def year_ok(release_title: str, title: str, year: object) -> bool:
     return not found or str(year) in found or any(abs(int(y) - int(year)) <= 1 for y in found)
 
 
+def resolve_hashes(cands: list[dict], title: str, year: object, limits: dict, budget: int = 6) -> None:
+    """1337x lists a title without its hash (the magnet sits on the detail page). Resolve the best few that
+    look right (name, year, size) so they can be cached, the way the app does when a card is prepared."""
+    need = [r for r in cands if not r["infoHash"] and r.get("infoUrl") and year_ok(r["title"], title, year)
+            and r["size"] >= limits["minSizeBytes"] and (limits["maxSizeBytes"] is None or r["size"] <= limits["maxSizeBytes"])
+            and mig.title_phrase_match(r["title"], mig.expected_titles(title)) and not DANGEROUS_TITLE.search(r["title"])]
+    need.sort(key=lambda r: -r["seeders"])
+    for r in need[:budget]:
+        try:
+            body = json.dumps({"infoUrl": r["infoUrl"]}).encode()
+            req = urllib.request.Request(f"{API}/api/search/resolve-magnet", data=body,
+                                         headers={"Content-Type": "application/json", "Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=40) as resp:
+                r["infoHash"] = mig.info_hash_of(json.loads(resp.read().decode("utf-8")).get("infoHash"), "") or ""
+        except Exception:
+            pass
+        time.sleep(0.5)
+
+
 def pick(cands: list[dict], title: str, year: object, limits: dict) -> list[dict]:
-    return mig.select_releases([r for r in cands if year_ok(r["title"], title, year)], title, limits)
+    return mig.select_releases([r for r in cands if r["infoHash"] and year_ok(r["title"], title, year)], title, limits)
 
 
 DANGEROUS_EXT = {".exe", ".scr", ".msi", ".bat", ".cmd", ".com", ".vbs", ".jar", ".apk", ".lnk", ".dll", ".dmg", ".pif"}
@@ -231,6 +251,8 @@ def main() -> int:
                 if pick(cands, title, year, limits):
                     break
                 time.sleep(0.4)
+            if not pick(cands, title, year, limits):
+                resolve_hashes(cands, title, year, limits)
             chosen = vet(pick(cands, title, year, limits), title, year, not args.no_verify_files)
             print(f"  [{i}/{len(todo)}] {title} ({year}): {len(chosen)} releases" + ("" if answered else "  (all searches failed)"), flush=True)
             if chosen:
