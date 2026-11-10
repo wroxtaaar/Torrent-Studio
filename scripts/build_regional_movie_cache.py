@@ -69,6 +69,7 @@ ARCHIVE = BASE / "regional_movie_trending_archive.json"
 ORDER = ("highest-rated-hollywood", "highest-rated-bollywood",
           "popular-bollywood", "popular-hollywood", "latest-bollywood", "latest-hollywood",
           "trending-bollywood", "trending-hollywood", "popular-korean", "popular-anime")
+ORDER = tuple(c for c in ORDER if c in CATALOGUES)  # honours REGIONAL_CACHE_CATALOGUES
 
 # Ordered IMDb source lists are kept in the same manifest consumed by the API.
 MANIFEST_PATH = Path(__file__).resolve().parents[1] / "backend" / "cache-seed" / "highest_rated_catalogues.json"
