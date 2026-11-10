@@ -4,7 +4,8 @@
 # then restarts the VPS container so it loads the new bundle at start-up.
 #
 #   scripts/vps/auto_refresh.sh daily    # quick (scheduled Wednesdays): catalogue pages only, no torrent searches
-#   scripts/vps/auto_refresh.sh weekly   # full, scheduled Sundays 3:30 am IST: also searches torrents for new titles
+#   scripts/vps/auto_refresh.sh weekly   # scheduled Sundays: catalogue lists only, no torrent searches (fast)
+#   scripts/vps/auto_refresh.sh full     # same plus a torrent search for every title (slow, manual)
 #   scripts/vps/auto_refresh.sh install  # remove old cron entries (Actions schedules it now)
 #
 # Logs: ~/torrent-studio-refresh/logs/auto-refresh.log
@@ -21,8 +22,9 @@ case "$MODE" in
     TMP="$(mktemp)"; crontab -l 2>/dev/null | grep -v 'auto_refresh.sh' > "$TMP" || true
     crontab "$TMP"; rm -f "$TMP"; echo "Old cron entries removed (GitHub Actions runs the weekly refresh)."; exit 0 ;;
   daily)  export REGIONAL_CACHE_TORRENT_SCAN=false ;;
-  weekly) export REGIONAL_CACHE_TORRENT_SCAN=true ;;
-  *) echo "Usage: $0 daily|weekly|install" >&2; exit 2 ;;
+  weekly) export REGIONAL_CACHE_TORRENT_SCAN=false ;;   # catalogue lists only: minutes, not hours
+  full)   export REGIONAL_CACHE_TORRENT_SCAN=true ;;    # also searches torrents for every title (slow)
+  *) echo "Usage: $0 daily|weekly|full|install" >&2; exit 2 ;;
 esac
 
 exec 9>"${XDG_RUNTIME_DIR:-/tmp}/torrent-studio-auto-refresh.lock"
