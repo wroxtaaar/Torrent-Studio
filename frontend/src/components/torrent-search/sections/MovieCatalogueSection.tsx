@@ -44,7 +44,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
             sort={visibleMovieCatalogueItems.length > 0 && !isSearching ? { options: CATALOGUE_SORTS.map(option => ({ ...option, active: catalogueSort === option.key })), onPick: key => setCatalogueSort(key as typeof catalogueSort) } : undefined} />
 
           {movieTorrentSearchLoading && (
-            <div className="flex items-center gap-3 rounded-xl border border-cyan-500/30 bg-slate-950 px-3 py-3 text-sm text-slate-200">
+            <div role="status" className="pointer-events-none fixed inset-x-3 bottom-4 z-50 mx-auto flex max-w-md items-center gap-3 rounded-xl border border-cyan-500/30 bg-slate-950/95 px-3 py-3 text-sm text-slate-200 shadow-xl">
               <Loader2 className="h-5 w-5 shrink-0 animate-spin text-cyan-400" />
               <div>
                 <div className="font-semibold">Finding torrent releases for {movieTorrentSearchTitle}…</div>
@@ -53,7 +53,7 @@ export function MovieCatalogueSection({ vm }: { vm: PanelModel }) {
             </div>
           )}
           {pendingPosterAction && (
-            <div className="rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-400">
+            <div role="status" className="pointer-events-none fixed inset-x-3 bottom-4 z-50 mx-auto max-w-md rounded-xl border border-slate-800 bg-slate-950/95 px-3 py-2 text-xs text-slate-400 shadow-xl">
               Loading the visible posters before opening this card…
             </div>
           )}

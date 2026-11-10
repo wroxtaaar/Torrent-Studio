@@ -49,6 +49,12 @@ REGIONAL_MOVIE = {
 }
 REGIONAL_TV = {
     "highest-rated-popular": ("highest-rated", "tv"),
+    "hollywood-popular": ("hollywood", "tv-popular"),
+    "hollywood-trending": ("hollywood", "tv-trending"),
+    "hollywood-latest": ("hollywood", "tv-latest"),
+    "indian-popular": ("bollywood", "tv-popular"),
+    "indian-trending": ("bollywood", "tv-trending"),
+    "indian-latest": ("bollywood", "tv-latest"),
     "korean-popular": ("korean", "series"),
     "pakistani-popular": ("pakistani", "series"),
     "anime-popular": ("anime", "series"),
