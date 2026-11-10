@@ -338,6 +338,9 @@ def main() -> int:
     })
     totals: dict[str, Any] = {}
     now = datetime.now(timezone.utc).isoformat()
+    only = os.getenv("TS_ONLY_SECTIONS", "").split()
+    if only:
+        section_names = [x for x in section_names if x in only]   # weekly run: leave every fixed section file untouched
     for section in section_names:
         out_path = SEED / f"{section}.json"
         old_doc = subsection_doc(section, read_json(out_path))

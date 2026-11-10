@@ -16,6 +16,9 @@ REPO_DIR="$HOME_DIR/repo"
 SEED_DIR="${REFRESH_SEED_DIR:-$HOME_DIR/seed}"
 PY="$HOME_DIR/venv/bin/python"
 SECTIONS="marvel dc hollywood bollywood korean pakistani anime favourites highest-rated"
+# TS_ONLY_SECTIONS (space separated) limits split, enrich, validate and backup to those sections; the rest stay untouched.
+ONLY="${TS_ONLY_SECTIONS:-}"; export TS_ONLY_SECTIONS="$ONLY"
+[ -n "$ONLY" ] && SECTIONS="$ONLY"
 
 [ -d "$REPO_DIR/.git" ] || { echo "Repository checkout not found: $REPO_DIR" >&2; exit 2; }
 [ -x "$PY" ] || { echo "Python environment not found: $PY" >&2; exit 2; }
@@ -54,8 +57,9 @@ step "2/4 Splitting the sources into one metadata file per top section (offline)
 
 if [ "${SKIP_ENRICH:-0}" != "1" ]; then
   step "3/4 Filling missing IDs, ratings and streaming info (TMDB / IMDb metadata only)"
+  ENRICH_ARGS=(); for s in $ONLY; do ENRICH_ARGS+=(--section "$s"); done
   "$PY" "$REPO_DIR/scripts/enrich_top_section_metadata.py" \
-    --mode "${SECTION_METADATA_MODE:-missing}"
+    --mode "${SECTION_METADATA_MODE:-missing}" ${ENRICH_ARGS[@]+"${ENRICH_ARGS[@]}"}
 fi
 
 step "4/4 Validating the section files"

@@ -98,7 +98,10 @@ def main() -> int:
         return 0
 
     failed = False
+    only = os.getenv("TS_ONLY_SECTIONS", "").split()
     for section in SECTIONS:
+        if only and section not in only:
+            continue
         path = seed / f"{section}.json"
         if not path.exists():
             print(f"{section}: MISSING ({path.name})")

@@ -168,6 +168,7 @@ from metadata.imdb import _get_imdb_rating_record, router as imdb_router
 from routes.feedback import router as feedback_router
 from integrations.nexstream import router as nexstream_router
 from integrations.nexstream_reports import router as nexstream_reports_router
+from integrations.playback_reports import router as playback_reports_router
 from integrations.vidrift import router as vidrift_router
 from integrations.yenime import router as yenime_router
 
@@ -288,7 +289,7 @@ async def attach_seedr_session(request: Request, call_next):
         # /api/v2/torrents/* also act on the connected Seedr account.
         # NexStream failure reports act on no account (they only add a rate-limited comment to a GitHub issue),
         # and the browser may report before a Seedr session exists, so they skip the CSRF check.
-        csrf_exempt = path == "/api/nexstream/report"
+        csrf_exempt = path in {"/api/nexstream/report", "/api/playback/report"}
         if path.startswith("/api/") and method not in {"GET", "HEAD", "OPTIONS"} and not csrf_exempt:
             if not _seedr_session_csrf_ok(request):
                 response = JSONResponse(
@@ -452,5 +453,6 @@ app.include_router(compat_routes_router)
 app.include_router(feedback_router)
 app.include_router(nexstream_router)
 app.include_router(nexstream_reports_router)
+app.include_router(playback_reports_router)
 app.include_router(vidrift_router)
 app.include_router(yenime_router)
