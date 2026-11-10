@@ -73,6 +73,74 @@ def pick(cands: list[dict], title: str, year: object, limits: dict) -> list[dict
     return mig.select_releases([r for r in cands if year_ok(r["title"], title, year)], title, limits)
 
 
+DANGEROUS_EXT = {".exe", ".scr", ".msi", ".bat", ".cmd", ".com", ".vbs", ".jar", ".apk", ".lnk", ".dll", ".dmg", ".pif"}
+VIDEO_EXT = {".mkv", ".mp4", ".avi", ".mov", ".m4v", ".ts", ".m2ts", ".wmv", ".webm", ".flv", ".mpg", ".mpeg", ".vob", ".iso"}
+DANGEROUS_TITLE = re.compile(r"\.(?:exe|scr|msi|bat|cmd|vbs|jar|apk|lnk)(?:$|[\s\]\)])", re.I)
+MIN_REAL_VIDEO = 300 * 1024 ** 2
+REVIEW_FILE = SEED.parent / "logs" / "torrent-review.jsonl"
+
+
+def inspect_files(info_hash: str, info_url: str = "") -> list[dict] | None:
+    """File list of a torrent from its metadata (no payload download), or None when it can't be resolved in time."""
+    body = json.dumps({"magnet": f"magnet:?xt=urn:btih:{info_hash}", "sourceUrl": info_url}).encode()
+    try:
+        req = urllib.request.Request(f"{API}/api/v2/torrents/inspect-magnet", data=body,
+                                     headers={"Content-Type": "application/json", "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        for _ in range(8):
+            if isinstance(data.get("files"), list):
+                return data["files"]
+            if data.get("status") != "resolving":
+                return None
+            time.sleep(2)
+            with urllib.request.urlopen(f"{API}/api/v2/torrents/inspect-magnet/status?jobId={info_hash}", timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+    return None
+
+
+def verdict(files: list[dict]) -> tuple[str, str]:
+    """('ok'|'reject'|'review', reason) from file names and sizes only."""
+    def ext(f): return os.path.splitext(str(f.get("path") or f.get("name") or ""))[1].lower()
+    def size(f):
+        try: return int(f.get("size") or f.get("length") or 0)
+        except (TypeError, ValueError): return 0
+    bad = [f for f in files if ext(f) in DANGEROUS_EXT]
+    if bad:
+        return "reject", "contains " + str(bad[0].get("name") or bad[0].get("path"))
+    if any(ext(f) in VIDEO_EXT for f in files):
+        return "ok", ""
+    biggest = max(files, key=size, default=None)
+    if biggest and size(biggest) >= MIN_REAL_VIDEO:
+        return "review", f"largest file '{biggest.get('name') or biggest.get('path')}' is {size(biggest) // 1024 ** 2} MB but has no video extension"
+    return "reject", "no video file"
+
+
+def vet(releases: list[dict], title: str, year: object, verify: bool) -> list[dict]:
+    """Drop executables and fake releases. Releases that might be fine under a wrong extension go to a review list."""
+    kept = []
+    for r in releases:
+        if DANGEROUS_TITLE.search(r["title"]):
+            print(f"      x {r['title'][:70]}: executable in the name", flush=True)
+            continue
+        if verify:
+            files = inspect_files(r["infoHash"], r.get("infoUrl", ""))
+            if files:
+                state, why = verdict(files)
+                if state != "ok":
+                    print(f"      x {r['title'][:60]}: {why}" + ("  [REVIEW]" if state == "review" else ""), flush=True)
+                    if state == "review":
+                        REVIEW_FILE.parent.mkdir(parents=True, exist_ok=True)
+                        with REVIEW_FILE.open("a", encoding="utf-8") as fh:
+                            fh.write(json.dumps({"title": title, "year": year, "release": r["title"], "infoHash": r["infoHash"],
+                                                 "size": r["size"], "reason": why}, ensure_ascii=False) + "\n")
+                    continue
+        kept.append(r)
+    return kept
+
+
 def variants(title: str, year: object) -> list[str]:
     base = str(title).split(":")[0].split(" - ")[0].strip()
     out: list[str] = []
@@ -117,7 +185,7 @@ def recheck(section: str, write: bool = True) -> int:
     dropped = 0
     for key in list(data.get("titles", {})):
         entry = data["titles"][key]
-        keep = [r for r in entry.get("releases", []) if year_ok(r.get("title", ""), entry.get("title", ""), entry.get("year"))]
+        keep = [r for r in entry.get("releases", []) if year_ok(r.get("title", ""), entry.get("title", ""), entry.get("year")) and not DANGEROUS_TITLE.search(r.get("title", ""))]
         dropped += len(entry.get("releases", [])) - len(keep)
         if keep:
             entry["releases"] = keep
@@ -136,13 +204,15 @@ def main() -> int:
     ap.add_argument("--pages", type=int, default=0, help="only the first N pages of each list (0 = all)")
     ap.add_argument("--recheck", action="store_true",
                     help="first drop saved releases whose name shows a different year, so those titles are searched again")
+    ap.add_argument("--no-verify-files", action="store_true",
+                    help="skip reading each torrent's file list (faster, but fake .exe releases are only caught by name)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
     for section in [x.strip() for x in args.sections.split(",") if x.strip()]:
         if args.recheck:
             dropped = recheck(section, write=not args.dry_run)
-            print(f"[{section}] recheck removed {dropped} releases with a different year", flush=True)
+            print(f"[{section}] recheck removed {dropped} releases (different year or executable in the name)", flush=True)
         out, path, todo = titles_to_scan(section, args.pages)
         titles, limits = out["titles"], out["limits"]
         print(f"[{section}] {len(todo)} titles without torrents", flush=True)
@@ -161,7 +231,7 @@ def main() -> int:
                 if pick(cands, title, year, limits):
                     break
                 time.sleep(0.4)
-            chosen = pick(cands, title, year, limits)
+            chosen = vet(pick(cands, title, year, limits), title, year, not args.no_verify_files)
             print(f"  [{i}/{len(todo)}] {title} ({year}): {len(chosen)} releases" + ("" if answered else "  (all searches failed)"), flush=True)
             if chosen:
                 found += 1
