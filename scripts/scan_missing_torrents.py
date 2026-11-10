@@ -109,7 +109,7 @@ def titles_to_scan(section: str, pages: int) -> tuple[dict, Path, list[tuple[str
     return out, path, todo
 
 
-def recheck(section: str) -> int:
+def recheck(section: str, write: bool = True) -> int:
     path = SEED / f"{section}-torrents.json"
     if not path.exists():
         return 0
@@ -123,7 +123,7 @@ def recheck(section: str) -> int:
             entry["releases"] = keep
         else:
             del data["titles"][key]
-    if dropped:
+    if dropped and write:
         tmp = path.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         os.replace(tmp, path)
@@ -141,7 +141,7 @@ def main() -> int:
 
     for section in [x.strip() for x in args.sections.split(",") if x.strip()]:
         if args.recheck:
-            dropped = recheck(section)
+            dropped = recheck(section, write=not args.dry_run)
             print(f"[{section}] recheck removed {dropped} releases with a different year", flush=True)
         out, path, todo = titles_to_scan(section, args.pages)
         titles, limits = out["titles"], out["limits"]
