@@ -19,6 +19,9 @@ SECTIONS="marvel dc hollywood bollywood korean pakistani anime favourites highes
 
 [ -d "$REPO_DIR/.git" ] || { echo "Repository checkout not found: $REPO_DIR" >&2; exit 2; }
 [ -x "$PY" ] || { echo "Python environment not found: $PY" >&2; exit 2; }
+# This script runs the code in $REPO_DIR (the refresh checkout), not in ~/Torrent-Studio: bring it up to date first.
+git -C "$REPO_DIR" fetch -q --depth 1 origin main && git -C "$REPO_DIR" reset -q --hard FETCH_HEAD \
+  && echo "Refresh checkout updated to $(git -C "$REPO_DIR" rev-parse --short HEAD)" || echo "WARNING: could not update $REPO_DIR; using what is there" >&2
 [ -d "$SEED_DIR" ] || { echo "Seed directory not found: $SEED_DIR" >&2; exit 2; }
 
 step() { printf '\n[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
