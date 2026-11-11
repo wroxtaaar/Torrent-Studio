@@ -11,6 +11,9 @@ services:
     environment:
       PORT: "3000"
       X1337_PROXY: "${X1337_PROXY:-}"
+      # Prowlarr (+ FlareSolverr) as an extra search source for 1337x; empty = off
+      PROWLARR_URL: "${PROWLARR_URL:-}"
+      PROWLARR_API_KEY: "${PROWLARR_API_KEY:-}"
       CACHE_ONLY_MODE: "false"
       BACKFILL_MISSING_METADATA: "true"
       TMDB_READ_ACCESS_TOKENS: "${TMDB_READ_ACCESS_TOKENS:-}"

@@ -1127,6 +1127,133 @@ async def search_knaben(
     return results[:limit]
 
 
+# --- Prowlarr (optional) -----------------------------------------------------------------------------------------
+# 1337x refuses many datacenter addresses (HTTP 403). A Prowlarr + FlareSolverr pair on the same machine can still read it.
+# Set PROWLARR_URL (e.g. http://host.docker.internal:9696) and PROWLARR_API_KEY to add it as one more search source.
+PROWLARR_URL = os.getenv("PROWLARR_URL", "").strip().rstrip("/")
+PROWLARR_API_KEY = os.getenv("PROWLARR_API_KEY", "").strip()
+_PROWLARR_HASHES: dict[str, str] = {}          # download link -> info hash ("" = could not be resolved)
+_PROWLARR_RESOLVE_SEMAPHORE = asyncio.Semaphore(3)
+_PROWLARR_BACKGROUND: set[asyncio.Task] = set()
+
+
+async def _prowlarr_resolve_hash(download_url: str) -> str:
+    """Follow Prowlarr's download link once: for a magnet release it answers with a redirect to the magnet."""
+    if download_url in _PROWLARR_HASHES:
+        return _PROWLARR_HASHES[download_url]
+    digest = ""
+    try:
+        async with _PROWLARR_RESOLVE_SEMAPHORE:
+            async with _InstrumentedAsyncClient(timeout=45, follow_redirects=False) as client:
+                response = await client.get(download_url, headers={"X-Api-Key": PROWLARR_API_KEY})
+        location = response.headers.get("location") or ""
+        if location.startswith("magnet:"):
+            digest = info_hash(location)
+        if not re.fullmatch(r"[0-9a-f]{40}", digest or "", re.I):
+            digest = ""
+    except httpx.HTTPError as exc:
+        logger.info("Prowlarr link could not be resolved: %s", type(exc).__name__)
+    if digest:
+        _PROWLARR_HASHES[download_url] = digest.lower()
+    return digest.lower()
+
+
+async def search_prowlarr(query: str, limit: int = 50, provider_query: str | None = None, wait: bool = False) -> list[dict[str, Any]]:
+    """Search through Prowlarr. A release is listed only once its magnet is known: with ``wait`` (the cache scan) the
+    hashes are resolved before answering; otherwise they are resolved in the background and appear on the next search."""
+    if not (PROWLARR_URL and PROWLARR_API_KEY):
+        return []
+    if not _MANUAL_TORRENT_SEARCH.get():
+        _record_cache_event("torrent_search", "blocked_prefilled_live_lookup")
+        return []
+    _, season, episode = _media_search_parts(query)
+    title_query = re.sub(r"\s+", " ", provider_query or _media_provider_query(query)).strip()
+    if not title_query:
+        return []
+    target_tokens = _search_tokens(title_query)
+    try:
+        async with _InstrumentedAsyncClient(timeout=httpx.Timeout(60.0, connect=6.0)) as client:
+            response = await client.get(
+                f"{PROWLARR_URL}/api/v1/search",
+                params={"query": title_query, "type": "search", "limit": 100},
+                headers={"X-Api-Key": PROWLARR_API_KEY, "Accept": "application/json"},
+            )
+        response.raise_for_status()
+        hits = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("Prowlarr search failed for '%s': %s: %r", query, type(exc).__name__, str(exc))
+        return []
+    if not isinstance(hits, list):
+        return []
+
+    candidates: list[dict[str, Any]] = []
+    for hit in hits:
+        if not isinstance(hit, dict):
+            continue
+        title = str(hit.get("title") or "").strip()
+        if not title:
+            continue
+        if target_tokens and not all(token in _normalize_title(title) for token in target_tokens):
+            continue
+        if season is not None and not _season_episode_match(title, season, episode):
+            continue
+        candidates.append(hit)
+    candidates.sort(key=lambda hit: int(hit.get("seeders") or 0), reverse=True)
+
+    def digest_of(hit: dict[str, Any]) -> str:
+        magnet = str(hit.get("magnetUrl") or "").strip()
+        value = str(hit.get("infoHash") or "").strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{40}", value):
+            value = info_hash(magnet) if magnet else ""
+        if not re.fullmatch(r"[0-9a-f]{40}", value or ""):
+            value = _PROWLARR_HASHES.get(str(hit.get("downloadUrl") or ""), "")
+        return value or ""
+
+    pending = [hit for hit in candidates[:12] if not digest_of(hit) and hit.get("downloadUrl")]
+    if pending:
+        tasks = [asyncio.ensure_future(_prowlarr_resolve_hash(str(hit["downloadUrl"]))) for hit in pending]
+        if wait:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        else:
+            for task in tasks:               # keep going after this request ends; the next search finds the hashes
+                _PROWLARR_BACKGROUND.add(task)
+                task.add_done_callback(_PROWLARR_BACKGROUND.discard)
+
+    results: list[dict[str, Any]] = []
+    for hit in candidates:
+        digest = digest_of(hit)
+        if not digest:
+            continue
+        title = str(hit.get("title") or "").strip()
+        try:
+            size = int(hit.get("size") or 0)
+        except (TypeError, ValueError):
+            size = 0
+        if not _in_size_window(size, query):
+            continue
+        magnet = f"magnet:?xt=urn:btih:{digest}&dn={quote(title, safe='')}"
+        detail = str(hit.get("infoUrl") or "").strip()
+        results.append({
+            "guid": f"prowlarr-{digest}",
+            "title": title,
+            "size": size,
+            "seeders": int(hit.get("seeders") or 0),
+            "leechers": int(hit.get("leechers") or 0),
+            "indexer": str(hit.get("indexer") or "Prowlarr"),
+            "protocol": "torrent",
+            "publishDate": str(hit.get("publishDate") or ""),
+            "magnetUrl": magnet,
+            "infoHash": digest,
+            "downloadUrl": magnet,
+            "infoUrl": detail,
+            "sourceUrl": detail,
+            "category": "",
+        })
+    logger.info("Prowlarr search '%s': %d usable results (%d still resolving)", query, len(results), len(pending) if not wait else 0)
+    return results[:limit]
+
+
+
 async def search_torrents_csv(query: str, limit: int) -> dict[str, Any]:
     if not _MANUAL_TORRENT_SEARCH.get():
         _record_cache_event("torrent_search", "blocked_prefilled_live_lookup")
@@ -1593,12 +1720,25 @@ async def _search_1337x_uncached(
         else None
     )
 
-    primary_1337x, primary_lime, primary_knaben = await asyncio.gather(
+    async def run_prowlarr(provider_query: str):
+        try:
+            # The cache scan (size window off) waits for the magnets; a live search lists what is already known.
+            return await asyncio.wait_for(
+                search_prowlarr(query, 50, provider_query=provider_query, wait=_SIZE_WINDOW_DISABLED.get()),
+                timeout=90.0 if _SIZE_WINDOW_DISABLED.get() else 15.0,
+            )
+        except Exception as exc:
+            logger.info("Prowlarr search failed for '%s': %s", query, exc)
+            return []
+
+    primary_1337x, primary_lime, primary_knaben, primary_prowlarr = await asyncio.gather(
         run_1337x(primary_provider_query),
         run_lime(primary_provider_query),
         run_knaben(primary_provider_query),
+        run_prowlarr(primary_provider_query),
         return_exceptions=False,
     )
+    primary_1337x = list(primary_1337x or []) + list(primary_prowlarr or [])   # Prowlarr reads 1337x when it refuses us
 
     yts_primary: list[dict[str, Any]] = []
     if yts_task is not None:
