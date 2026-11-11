@@ -278,7 +278,7 @@ async def discover(title: str, searcher, max_seasons: int = MAX_SEASONS, log=Non
     async def ask(query: str, wanted) -> int:
         rows = await searcher(query)
         hits = [r for r in rows if classify(r.get("title"), title, year, require_year) == wanted]
-        log(query, len(rows), len(hits), [r.get("title") for r in rows if r not in hits][:3])
+        log(query, len(rows), len(hits), [r.get("title") for r in rows if r not in hits][:8])
         # Keep only what this query was asking for. A "<title> complete" search also returns single
         # seasons of unrelated shows and stray seasons ("S07"), which must not become entries.
         scopes = [(r, classify(r.get("title"), title, year, require_year)) for r in rows]
@@ -407,6 +407,9 @@ async def run(args: argparse.Namespace) -> int:
         older = older_namesakes(all_tv_rows(args.seed_dir))
         rows = [r for r in rows if f"tv:{str(r.get('tmdbId') or r.get('id'))}" not in excluded]
         todo = [r for r in rows if args.refresh or f"tv:{str(r.get('tmdbId') or r.get('id'))}" not in existing.get("titles", {})]
+        if args.title:   # try one series (or a few): matched by part of the name, searched even if it already has an entry
+            wanted = args.title.casefold()
+            todo = [r for r in rows if wanted in str(r.get("title") or "").casefold()]
         if args.limit:
             todo = todo[: args.limit]
         found: dict[str, dict] = {}
@@ -448,6 +451,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--seed-dir", type=Path, default=SEED_DIR)
     parser.add_argument("--section", action="append", choices=SECTIONS, help="repeatable; default all nine")
+    parser.add_argument("--title", default="", help="only series whose title contains this text (searched again even if cached)")
     parser.add_argument("--limit", type=int, default=0, help="only the first N series per section (for a trial run)")
     parser.add_argument("--refresh", action="store_true", help="re-search series that already have an entry")
     parser.add_argument("--delay", type=float, default=0.5, help="seconds after every provider call")
