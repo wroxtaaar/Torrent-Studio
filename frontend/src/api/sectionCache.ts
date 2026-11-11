@@ -186,7 +186,8 @@ export function tvCataloguePageFromSection(
   page: number,
 ): TvCataloguePage | null {
   const subsection = document.subsections[subsectionName];
-  if (!subsection || subsection.mediaType !== 'tv') return null;
+  // The tv-* lists (Hollywood / Bollywood series) were written with mediaType "movie" by mistake; the name is reliable.
+  if (!subsection || (subsection.mediaType !== 'tv' && !subsectionName.startsWith('tv-'))) return null;
   const results = Array.isArray(subsection.results) ? subsection.results : [];
   const totalResults = results.length;
   const totalPages = Math.max(1, Math.ceil(totalResults / SECTION_PAGE_SIZE));
