@@ -195,7 +195,7 @@ def entry_for(show: dict, releases: list[dict]) -> dict:
 def tv_rows(section_document: dict, skip_anime: bool = False) -> list[dict]:
     rows: dict[str, dict] = {}
     for key, subsection in (section_document.get("subsections") or {}).items():
-        if not isinstance(subsection, dict) or subsection.get("mediaType") != "tv":
+        if not isinstance(subsection, dict) or not (subsection.get("mediaType") == "tv" or str(key).startswith("tv-")):
             continue
         if skip_anime and key == "anime":
             continue

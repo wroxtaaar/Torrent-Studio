@@ -211,7 +211,7 @@ def collect_rows(value: Any) -> list[dict[str, Any]]:
 def media_type(section: str, subsection: str) -> str:
     if section == "highest-rated" and subsection == "tv":
         return "tv"
-    if subsection in {"series", "anime", "tv", "web-series", "webseries", "television"}:
+    if subsection.startswith("tv-") or subsection in {"series", "anime", "tv", "web-series", "webseries", "television"}:
         return "tv"
     return "movie"
 
