@@ -22,8 +22,6 @@ SEED = Path(os.getenv("REFRESH_SEED_DIR") or HOME / "seed").resolve()
 PAGE_SIZE = 18
 ROLLING_SECTIONS = {"hollywood", "bollywood"}
 ROLLING_SUBSECTIONS = {"popular", "trending", "latest", "tv-popular", "tv-trending", "tv-latest"}
-# Bollywood Latest only shows titles that are old enough to have a source: movies a month, series three weeks.
-MIN_AGE_DAYS = {("bollywood", "latest"): 30, ("bollywood", "tv-latest"): 21}
 MAX_ROLLING = 3 * PAGE_SIZE  # 54: new titles on top, the oldest drop off the end
 # Stream-health fields from older builds; the app no longer reads them (directStreamBroken replaces them).
 LEGACY_STREAM_KEYS = {"nexStream", "nexStreamPlayable", "nexStreamVerified", "nexStreamCheckedAt", "directStreamAvailability"}
@@ -365,14 +363,6 @@ def main() -> int:
             # The old Marvel series subsection contains torrent release cards.
             # Rebuild it from clean catalogue sources instead of merging those rows.
             previous_rows = [] if section == "marvel" and sub == "series" else get_existing_rows(old_doc, sub)
-            min_age = MIN_AGE_DAYS.get((section, sub))
-            if min_age:
-                limit = (datetime.now(timezone.utc).date() - timedelta(days=min_age)).isoformat()
-                def old_enough(row, limit=limit):
-                    date = str(row.get("releaseDate") or row.get("firstAirDate") or "")[:10]
-                    return not date or date <= limit
-                previous_rows = [r for r in previous_rows if old_enough(r)]
-                incoming[(section, sub)] = [r for r in incoming[(section, sub)] if old_enough(r)]
             if section in ROLLING_SECTIONS and sub == "tv-trending" and incoming[(section, sub)]:
                 # Series trending: this week first, then only genuine earlier trending rows (they carry a
                 # trendingWeek; older cache copies of Popular do not), then Popular titles to fill the gap.

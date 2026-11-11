@@ -44,6 +44,9 @@ _search_inflight: dict[str, asyncio.Task[list[dict[str, Any]]]] = {}
 
 # Set by offline scans that want releases of any size (TV season packs for Webtor are 10-60 GB).
 _SIZE_WINDOW_DISABLED: contextvars.ContextVar[bool] = contextvars.ContextVar("size_window_disabled", default=False)
+# "all" (live search: the fast sources, then Prowlarr only when they found nothing), "fast" (never Prowlarr) or
+# "prowlarr" (only Prowlarr). The cache scans run the fast pass first and a Prowlarr pass for what is left.
+_SEARCH_SOURCE: contextvars.ContextVar[str] = contextvars.ContextVar("search_source", default="all")
 
 
 def _in_size_window(size: Any, query: str | None = None) -> bool:
@@ -1626,6 +1629,8 @@ def _media_provider_queries(value: str) -> list[str]:
 def _search_cache_key(query: str) -> str:
     key = re.sub(r"\s+", " ", query.strip()).lower()
     # Results searched without the size window must never be served to (or taken from) the normal window.
+    if _SEARCH_SOURCE.get() != "all":
+        key = _SEARCH_SOURCE.get() + "|" + key
     return "any-size|" + key if _SIZE_WINDOW_DISABLED.get() else key
 
 
@@ -1656,6 +1661,15 @@ async def _search_1337x_uncached(
     kind = _search_media_kind(query)
     variants = _media_provider_queries(query)
     primary_provider_query = variants[0] if variants else _media_provider_query(query)
+
+    if _SEARCH_SOURCE.get() == "prowlarr":
+        try:
+            found = await asyncio.wait_for(
+                search_prowlarr(query, 50, provider_query=primary_provider_query, wait=True), timeout=150.0)
+        except Exception as exc:
+            logger.info("Prowlarr-only search failed for '%s': %s", query, exc)
+            found = []
+        return [item for item in found if _search_quality_filter(item, query)]
 
     async def run_1337x(provider_query: str):
         try:
@@ -1722,23 +1736,19 @@ async def _search_1337x_uncached(
 
     async def run_prowlarr(provider_query: str):
         try:
-            # The cache scan (size window off) waits for the magnets; a live search lists what is already known.
+            # A live search lists the magnets Prowlarr already resolved and keeps resolving the rest in the background.
             return await asyncio.wait_for(
-                search_prowlarr(query, 50, provider_query=provider_query, wait=_SIZE_WINDOW_DISABLED.get()),
-                timeout=90.0 if _SIZE_WINDOW_DISABLED.get() else 15.0,
-            )
+                search_prowlarr(query, 50, provider_query=provider_query, wait=False), timeout=15.0)
         except Exception as exc:
             logger.info("Prowlarr search failed for '%s': %s", query, exc)
             return []
 
-    primary_1337x, primary_lime, primary_knaben, primary_prowlarr = await asyncio.gather(
+    primary_1337x, primary_lime, primary_knaben = await asyncio.gather(
         run_1337x(primary_provider_query),
         run_lime(primary_provider_query),
         run_knaben(primary_provider_query),
-        run_prowlarr(primary_provider_query),
         return_exceptions=False,
     )
-    primary_1337x = list(primary_1337x or []) + list(primary_prowlarr or [])   # Prowlarr reads 1337x when it refuses us
 
     yts_primary: list[dict[str, Any]] = []
     if yts_task is not None:
@@ -1769,6 +1779,9 @@ async def _search_1337x_uncached(
     add_filtered(primary_lime)
     add_filtered(primary_knaben)
     add_filtered(yts_primary)
+    if not results and _SEARCH_SOURCE.get() == "all":
+        # Nothing usable from the fast sources: ask Prowlarr (it reads 1337x when the site refuses this server).
+        add_filtered(await run_prowlarr(primary_provider_query))
 
     yts_metadata: dict[str, dict[str, Any]] = {}
     for item in yts_primary:

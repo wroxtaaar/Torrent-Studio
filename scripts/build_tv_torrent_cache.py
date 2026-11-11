@@ -36,6 +36,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+import torrent_misses  # noqa: E402
 SEED_DIR = ROOT / "backend" / "cache-seed"
 EXCLUDE_FILE = ROOT / "scripts" / "tv_torrent_exclude.json"
 SECTIONS = ("hollywood", "bollywood", "marvel", "dc", "highest-rated", "korean", "pakistani", "anime", "favourites")
@@ -303,7 +305,7 @@ async def discover(title: str, searcher, max_seasons: int = MAX_SEASONS, log=Non
 
 
 # --------------------------------------------------------------------------- live search (VPS only)
-def make_searcher(delay: float):
+def make_searcher(delay: float, source: str = "all"):
     """A searcher backed by the app's own providers (needs the backend's dependencies and network)."""
     sys.path.insert(0, str(ROOT / "backend"))
     from core.shared import _MANUAL_TORRENT_SEARCH            # noqa: PLC0415 (backend only)
@@ -318,7 +320,7 @@ def make_searcher(delay: float):
 
     def app_search(query: str) -> list[dict]:
         """The app's own search (1337x and the other providers), no size window. Empty when the app is not running."""
-        url = f"{api}/api/search?q={urllib.parse.quote(query)}&limit=50&any_size=true"
+        url = f"{api}/api/search?q={urllib.parse.quote(query)}&limit=50&any_size=true&source={source}"
         try:
             req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "TvPackScan/1.0"})
             with urllib.request.urlopen(req, timeout=120) as resp:
@@ -367,6 +369,12 @@ def make_searcher(delay: float):
 
     async def searcher(query: str) -> list[dict]:
         rows: list[dict] = []
+        if source == "prowlarr":   # second pass: only the plain title, once per show, through Prowlarr
+            base = re.sub(r"\s+(?:complete|s\d{1,2}|season\s+\d+)$", "", query, flags=re.IGNORECASE).strip()
+            if base not in plain_cache:
+                plain_cache[base] = await from_app(base)
+                await asyncio.sleep(max(delay, 2.0))
+            return list(plain_cache[base])
         try:
             # provider_query = the exact text sent to Knaben, so "Reacher S02" is a token match for season packs
             rows.extend(await providers.search_knaben(query, 150, provider_query=query))
@@ -393,7 +401,9 @@ def make_searcher(delay: float):
 async def run(args: argparse.Namespace) -> int:
     built_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     totals: Counter = Counter()
-    searcher = make_searcher(args.delay)
+    searcher = make_searcher(args.delay, args.source)
+    misses = torrent_misses.load()
+    record_misses = args.source in ("prowlarr", "all") and not args.dry_run
     gate = asyncio.Semaphore(max(1, args.workers))
     for section in args.section or SECTIONS:
         metadata_path = args.seed_dir / f"{section}.json"
@@ -410,6 +420,11 @@ async def run(args: argparse.Namespace) -> int:
         if args.title:   # try one series (or a few): matched by part of the name, searched even if it already has an entry
             wanted = args.title.casefold()
             todo = [r for r in rows if wanted in str(r.get("title") or "").casefold()]
+        if not args.ignore_rest and not args.title:
+            rest = [r for r in todo if torrent_misses.resting(misses, f"tv:{str(r.get('tmdbId') or r.get('id'))}")]
+            todo = [r for r in todo if r not in rest]
+            if rest:
+                print(f"  {section}: {len(rest)} series resting (nobody had them in the last {torrent_misses.DAYS} days)")
         if args.limit:
             todo = todo[: args.limit]
         found: dict[str, dict] = {}
@@ -433,6 +448,11 @@ async def run(args: argparse.Namespace) -> int:
                     found[f"tv:{show.get('tmdbId') or show.get('id')}"] = entry_for(show, chosen)
 
         await asyncio.gather(*(one(i, show) for i, show in enumerate(todo, 1)))
+        if record_misses:
+            for show in todo:
+                key = f"tv:{show.get('tmdbId') or show.get('id')}"
+                torrent_misses.record(key, key in found, misses)
+            torrent_misses.save(misses)
         totals.update(shows=len(rows), searched=len(todo), withPacks=len(found))
         stale_excluded = excluded & set(existing.get("titles", {}))
         if stale_excluded:
@@ -457,6 +477,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--delay", type=float, default=0.5, help="seconds after every provider call")
     parser.add_argument("--workers", type=int, default=3, help="series searched at the same time")
     parser.add_argument("--debug", action="store_true", help="print every query with its result and pack counts")
+    parser.add_argument("--source", choices=("fast", "prowlarr", "all"), default="all",
+                        help="fast = Knaben + normal providers; prowlarr = Prowlarr only (second pass)")
+    parser.add_argument("--ignore-rest", action="store_true", help="also search series tried within the rest period")
     parser.add_argument("--dry-run", action="store_true")
     return asyncio.run(run(parser.parse_args(argv)))
 

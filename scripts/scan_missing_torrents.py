@@ -39,14 +39,20 @@ def _loose_match(release_title: str, expected: list[str]) -> bool:
     return False
 
 
+sys.path.insert(0, str(ROOT / "scripts"))
+import torrent_misses  # noqa: E402
+
 mig.title_phrase_match = _loose_match  # used by select_releases() inside the migration module
 API = os.getenv("HOME_API_BASE", "http://127.0.0.1:3000").rstrip("/")
 SEED = Path(os.getenv("REFRESH_SEED_DIR") or ROOT / "backend" / "cache-seed")
 SUBS = ("hollywood", "bollywood")
 
 
+SOURCE = "all"  # set from --source: fast | prowlarr | all
+
+
 def search(query: str) -> list[dict]:
-    url = f"{API}/api/search?q={urllib.parse.quote(query)}&limit=50&any_size=true"
+    url = f"{API}/api/search?q={urllib.parse.quote(query)}&limit=50&any_size=true&source={SOURCE}"
     req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "HighestRatedTopScan/1.0"})
     for attempt in range(4):
         try:
@@ -248,7 +254,14 @@ def main() -> int:
     ap.add_argument("--no-verify-files", action="store_true",
                     help="skip reading each torrent's file list (faster, but fake .exe releases are only caught by name)")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--source", choices=("fast", "prowlarr", "all"), default="all",
+                    help="fast = normal providers only; prowlarr = Prowlarr only (second pass); all = fast, then Prowlarr if empty")
+    ap.add_argument("--ignore-rest", action="store_true", help="also search titles that were tried within the rest period")
     args = ap.parse_args()
+    global SOURCE
+    SOURCE = args.source
+    misses = torrent_misses.load()
+    record_misses = args.source in ("prowlarr", "all") and not args.dry_run
 
     for section in [x.strip() for x in args.sections.split(",") if x.strip()]:
         if args.recheck:
@@ -256,7 +269,12 @@ def main() -> int:
             print(f"[{section}] recheck removed {dropped} releases (different year or executable in the name)", flush=True)
         out, path, todo = titles_to_scan(section, args.pages)
         titles, limits = out["titles"], out["limits"]
-        print(f"[{section}] {len(todo)} titles without torrents", flush=True)
+        if not args.ignore_rest:
+            resting = [t for t in todo if torrent_misses.resting(misses, t[0])]
+            todo = [t for t in todo if t not in resting]
+            if resting:
+                print(f"[{section}] {len(resting)} titles resting (nobody had them in the last {torrent_misses.DAYS} days)", flush=True)
+        print(f"[{section}] {len(todo)} titles without torrents ({args.source})", flush=True)
         found = 0
         for i, (key, row) in enumerate(todo, 1):
             title, year = str(row.get("title") or ""), row.get("year")
@@ -276,15 +294,23 @@ def main() -> int:
                 resolve_hashes(cands, title, year, limits)
             chosen = vet(pick(cands, title, year, limits), title, year, not args.no_verify_files)
             print(f"  [{i}/{len(todo)}] {title} ({year}): {len(chosen)} releases" + ("" if answered else "  (all searches failed)"), flush=True)
+            if record_misses:
+                torrent_misses.record(key, bool(chosen), misses)
+            if args.source == "prowlarr":
+                time.sleep(2)
             if chosen:
                 found += 1
                 titles[key] = {"title": title, "year": int(year) if year else None,
                                "releases": [{k: v for k, v in r.items() if v not in ("", None)} for r in chosen]}
+            if record_misses and i % 10 == 0:
+                torrent_misses.save(misses)
             if not args.dry_run and found and i % 10 == 0:  # save as we go, so an interrupted run loses almost nothing
                 out["titles"] = dict(sorted(titles.items()))
                 tmp = path.with_suffix(".json.tmp")
                 tmp.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
                 os.replace(tmp, path)
+        if record_misses:
+            torrent_misses.save(misses)
         if args.dry_run or not todo:
             print(f"[{section}] {'dry run: would add' if args.dry_run else 'added'} {found} titles", flush=True)
             continue
