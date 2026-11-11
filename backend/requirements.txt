@@ -1,6 +1,7 @@
 fastapi>=0.115,<1
 uvicorn[standard]>=0.34,<1
 httpx>=0.28,<1
+socksio>=1.0,<2   # lets X1337_PROXY be a socks5:// address
 beautifulsoup4>=4.13,<5
 libtorrent==2.0.15
 cryptography>=44,<47

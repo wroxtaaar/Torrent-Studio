@@ -131,6 +131,11 @@ def _normalize_title(value: str) -> str:
     return " ".join(_search_tokens(value))
 
 
+# Optional proxy used ONLY for 1337x requests (e.g. "socks5://127.0.0.1:40000" for Cloudflare WARP, or an http proxy).
+# Datacenter addresses are often refused by 1337x (HTTP 403); a proxy gives it another address. Empty = direct.
+X1337_PROXY = os.getenv("X1337_PROXY", "").strip() or None
+X1337_CLIENT_OPTIONS: dict[str, Any] = {"proxy": X1337_PROXY} if X1337_PROXY else {}
+
 X1337_HOSTS = [
     "1337x.to",
     "1337x.st",
@@ -250,6 +255,7 @@ async def search_1337x_direct(
         timeout=SEARCH_SOURCE_TIMEOUT_SECONDS,
         follow_redirects=True,
         headers=headers,
+        **X1337_CLIENT_OPTIONS,
     ) as client:
 
         async def find_category_page(category_name: str) -> tuple[str, str]:

@@ -27,7 +27,7 @@ from catalogues.catalogues_extra import (
     _RUNTIME_CACHE_SEED_FILES,
     _TMDB_CATALOGUE_SYNOPSIS_ENRICHMENT_STATE,
 )
-from search.search_providers import LIMETORRENTS_HOSTS, X1337_HOSTS
+from search.search_providers import LIMETORRENTS_HOSTS, X1337_CLIENT_OPTIONS, X1337_HOSTS
 from seedr.seedr_client import info_hash
 from seedr.seedr_session import current_seedr_token
 from core.settings import (
@@ -77,7 +77,9 @@ async def resolve_search_magnet(body: dict[str, Any]):
         # Follow redirects manually so every hop is checked against the
         # allowlist BEFORE it is requested (httpx would otherwise fetch an
         # unapproved redirect target and we would only notice afterwards).
-        async with _InstrumentedAsyncClient(timeout=8.0, follow_redirects=False, headers=headers) as client:
+        # Only 1337x pages go through the optional X1337_PROXY.
+        proxy_options = X1337_CLIENT_OPTIONS if hostname in {str(h).lower().removeprefix("www.") for h in X1337_HOSTS} else {}
+        async with _InstrumentedAsyncClient(timeout=8.0 if not proxy_options else 20.0, follow_redirects=False, headers=headers, **proxy_options) as client:
             current_url = info_url
             response = None
             for _ in range(6):

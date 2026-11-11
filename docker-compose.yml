@@ -10,6 +10,7 @@ services:
       - "${HOST_PORT:-3000}:3000"
     environment:
       PORT: "3000"
+      X1337_PROXY: "${X1337_PROXY:-}"
       CACHE_ONLY_MODE: "false"
       BACKFILL_MISSING_METADATA: "true"
       TMDB_READ_ACCESS_TOKENS: "${TMDB_READ_ACCESS_TOKENS:-}"
