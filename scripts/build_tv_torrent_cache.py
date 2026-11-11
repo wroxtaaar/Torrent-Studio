@@ -339,6 +339,8 @@ def make_searcher(delay: float):
         except Exception:
             return ""
 
+    plain_cache: dict[str, list[dict]] = {}
+
     async def from_app(query: str) -> list[dict]:
         out: list[dict] = []
         resolved = 0
@@ -371,6 +373,12 @@ def make_searcher(delay: float):
         except Exception as exc:                               # a provider hiccup must not stop the run
             print(f"    knaben failed for {query!r}: {exc}", file=sys.stderr)
         rows.extend(await from_app(query))                      # 1337x etc. through the running app
+        # The app treats "<title> S01" as an episode search, which hides season packs. The plain title lists them all
+        # (that is what 1337x itself shows), so search it once per show and let the pack classifier sort them.
+        base = re.sub(r"\s+(?:complete|s\d{1,2}|season\s+\d+)$", "", query, flags=re.IGNORECASE).strip()
+        if base not in plain_cache:
+            plain_cache[base] = await from_app(base)
+        rows.extend(plain_cache[base])
         if query.endswith(" complete"):
             try:
                 rows.extend((await providers.search_apibay(query, 100)).get("results", []))
