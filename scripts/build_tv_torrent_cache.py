@@ -278,7 +278,7 @@ async def discover(title: str, searcher, max_seasons: int = MAX_SEASONS, log=Non
     async def ask(query: str, wanted) -> int:
         rows = await searcher(query)
         hits = [r for r in rows if classify(r.get("title"), title, year, require_year) == wanted]
-        log(query, len(rows), len(hits), [r.get("title") for r in rows if r not in hits][:8])
+        log(query, len(rows), len(hits), [f"[{r.get('indexer') or '?'}] {r.get('title')}" for r in rows if r not in hits and not EPISODE.search(str(r.get("title") or ""))][:8])
         # Keep only what this query was asking for. A "<title> complete" search also returns single
         # seasons of unrelated shows and stray seasons ("S07"), which must not become entries.
         scopes = [(r, classify(r.get("title"), title, year, require_year)) for r in rows]
