@@ -312,6 +312,57 @@ def make_searcher(delay: float):
     _MANUAL_TORRENT_SEARCH.set(True)
     providers._SIZE_WINDOW_DISABLED.set(True)                  # season packs are far above the movie size window
 
+    import os, urllib.parse, urllib.request                     # noqa: PLC0415,E401
+    api = os.getenv("HOME_API_BASE", "http://127.0.0.1:3000").rstrip("/")
+    btih = re.compile(r"btih:([0-9a-fA-F]{40})")
+
+    def app_search(query: str) -> list[dict]:
+        """The app's own search (1337x and the other providers), no size window. Empty when the app is not running."""
+        url = f"{api}/api/search?q={urllib.parse.quote(query)}&limit=50&any_size=true"
+        try:
+            req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "TvPackScan/1.0"})
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:
+            print(f"    app search failed for {query!r}: {exc}", file=sys.stderr)
+            return []
+        return data if isinstance(data, list) else data.get("results", data.get("torrents", []))
+
+    def app_resolve(info_url: str) -> str:
+        """1337x lists a release without its hash; the app reads it from the detail page."""
+        try:
+            req = urllib.request.Request(f"{api}/api/search/resolve-magnet", data=json.dumps({"infoUrl": info_url}).encode(),
+                                         headers={"Content-Type": "application/json", "Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=40) as resp:
+                value = str(json.loads(resp.read().decode("utf-8")).get("infoHash") or "").strip().lower()
+            return value if HEX40.match(value) else ""
+        except Exception:
+            return ""
+
+    async def from_app(query: str) -> list[dict]:
+        out: list[dict] = []
+        resolved = 0
+        for row in await asyncio.to_thread(app_search, query):
+            title = str(row.get("title") or "")
+            found = btih.search(str(row.get("magnetUrl") or ""))
+            digest = str(row.get("infoHash") or row.get("hash") or "").strip().lower() or (found.group(1).lower() if found else "")
+            detail = str(row.get("infoUrl") or row.get("sourceUrl") or "")
+            packish = (SEASON.search(title) or COMPLETE.search(title)) and not EPISODE.search(title)
+            if not HEX40.match(digest) and detail.startswith("https://") and packish and resolved < 5:
+                resolved += 1
+                digest = await asyncio.to_thread(app_resolve, detail)
+                await asyncio.sleep(0.4)
+            if not HEX40.match(digest):
+                continue
+            try:
+                size = int(row.get("size") or 0)
+            except (TypeError, ValueError):
+                size = 0
+            out.append({"title": title, "infoHash": digest, "size": size, "seeders": int(row.get("seeders") or 0),
+                        "leechers": int(row.get("leechers") or 0), "indexer": str(row.get("indexer") or row.get("source") or ""),
+                        "infoUrl": detail})
+        return out
+
     async def searcher(query: str) -> list[dict]:
         rows: list[dict] = []
         try:
@@ -319,6 +370,7 @@ def make_searcher(delay: float):
             rows.extend(await providers.search_knaben(query, 150, provider_query=query))
         except Exception as exc:                               # a provider hiccup must not stop the run
             print(f"    knaben failed for {query!r}: {exc}", file=sys.stderr)
+        rows.extend(await from_app(query))                      # 1337x etc. through the running app
         if query.endswith(" complete"):
             try:
                 rows.extend((await providers.search_apibay(query, 100)).get("results", []))
