@@ -30,13 +30,15 @@ export const TvShowTile: React.FC<{
   imdb?: MovieCardImdb;
   /** The existing playback action for this series (NexStream / VidRift, or Yenime for anime). */
   onPlay: () => void;
-}> = ({ show, imdb, onPlay }) => {
+  /** false: no torrent lookup, the card just plays (Hollywood web series have no torrent options). */
+  torrents?: boolean;
+}> = ({ show, imdb, onPlay, torrents = true }) => {
   const openKey = useSyncExternalStore(tvTorrents.subscribe, tvTorrents.getOpenKey, tvTorrents.getOpenKey);
   const [webtorRow, setWebtorRow] = useState<TorrentSearchResult | null>(null);
   const [webtorPath, setWebtorPath] = useState('');
   const [webtorLabel, setWebtorLabel] = useState('');
   const [browseOpen, setBrowseOpen] = useState(false);
-  const open = () => tvTorrents.open(show, onPlay);
+  const open = () => (torrents ? tvTorrents.open(show, onPlay) : onPlay());
   if (openKey !== tvShowKey(show)) return <TvShowCard show={show} imdb={imdb} onOpen={open} />;
 
   const releases = tvTorrents.releasesFor(show);

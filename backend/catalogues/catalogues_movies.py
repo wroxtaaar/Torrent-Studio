@@ -392,6 +392,10 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
                 # then rejects, leaving the entire Latest Hollywood page empty.
                 recent_cutoff = datetime.fromtimestamp(time.time() - 5 * 365 * 86400, timezone.utc).date()
                 params["release_date.gte"] = recent_cutoff.isoformat()
+                if catalogue_key == "latest-bollywood":
+                    # Bollywood Latest only lists films that have been out at least a month (newer ones have no
+                    # source yet).
+                    params["release_date.lte"] = (datetime.now(timezone.utc).date() - timedelta(days=30)).isoformat()
             payload = await _tmdb_get_json("discover/movie", params)
             if mode == "latest" and not (payload.get("results") or []):
                 # TMDB's primary_release_date filter can return an empty page

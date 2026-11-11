@@ -1564,6 +1564,8 @@ async def api_tmdb_regional_tv_catalogue(
                     parsed_air_date = datetime.strptime(air_date[:10], "%Y-%m-%d").date()
                     if parsed_air_date < datetime(2015, 1, 1).date() or parsed_air_date > datetime.now(timezone.utc).date():
                         return None
+                    if catalogue_key == "indian-latest" and parsed_air_date > datetime.now(timezone.utc).date() - timedelta(days=21):
+                        return None   # Indian Latest only lists series that started at least three weeks ago
                 except ValueError:
                     return None
 

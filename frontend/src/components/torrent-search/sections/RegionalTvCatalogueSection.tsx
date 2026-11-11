@@ -110,6 +110,7 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
                 key={String(show.id)}
                 show={show}
                 imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]}
+                torrents={isHighestRatedTv || activeRegionalSection !== 'hollywood'}
                 onPlay={() => {
                   if (activeRegionalSection === 'anime') openYenimeRequest(show.title, show.year, show.malId, 1, show.id);
                   else playCatalogueTvWithNexStream(show);

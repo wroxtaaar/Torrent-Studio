@@ -46,6 +46,8 @@ TS_ONLY_SECTIONS="hollywood bollywood anime" SKIP_NEW_SOURCES=1 HOME_API_BASE="$
 # Torrent options only for titles that have none yet (the app is still up on the old data; the scan only needs /api/search).
 export REFRESH_SEED_DIR="$HOME_DIR/seed"
 "$HOME_DIR/venv/bin/python" "$D/../scan_missing_torrents.py" --sections hollywood,bollywood,anime || echo "torrent scan failed; continuing"
+# Indian web series get season-pack torrents (Hollywood series deliberately get none); only series without an entry are searched.
+"$HOME_DIR/venv/bin/python" "$D/../build_tv_torrent_cache.py" --seed-dir "$HOME_DIR/seed" --section bollywood || echo "series torrent scan failed; continuing"
 bash "$D/refresh_and_publish.sh" publish-only
 echo "$(date -Is) published; restarting $CONTAINER"
 docker restart "$CONTAINER" >/dev/null
