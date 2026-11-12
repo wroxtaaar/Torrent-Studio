@@ -198,6 +198,25 @@ def variants(title: str, year: object) -> list[str]:
     return out[:4]
 
 
+def is_series_row(sub: str, node: dict, row: dict) -> bool:
+    """A series must never be searched as a movie: its list, its own mediaType or its TMDB link says it is one."""
+    return (str(sub).startswith("tv") or node.get("mediaType") in ("tv", "series") or row.get("mediaType") in ("tv", "series")
+            or "/tv/" in str(row.get("tmdbUrl") or "") or bool(row.get("firstAirDate")))
+
+
+def series_only_ids(doc: dict) -> set[str]:
+    """TMDB ids that appear only as series in this section (TMDB reuses numbers between movies and series)."""
+    tv, movie = set(), set()
+    for sub, node in doc["subsections"].items():
+        if not isinstance(node, dict):
+            continue
+        for row in node.get("results") or []:
+            tid = str(row.get("tmdbId") or row.get("id") or "")
+            if tid:
+                (tv if is_series_row(sub, node, row) else movie).add(tid)
+    return tv - movie
+
+
 def titles_to_scan(section: str, pages: int) -> tuple[dict, Path, list[tuple[str, dict]]]:
     doc = json.loads((SEED / f"{section}.json").read_text(encoding="utf-8"))
     path = SEED / f"{section}-torrents.json"
@@ -218,7 +237,7 @@ def titles_to_scan(section: str, pages: int) -> tuple[dict, Path, list[tuple[str
         for row in rows:
             tid = row.get("tmdbId") or row.get("id")
             key = f"movie:{tid}"
-            if not tid or key in seen:
+            if not tid or key in seen or is_series_row(sub, node, row):
                 continue
             seen.add(key)
             if native:
@@ -242,7 +261,7 @@ def hindi_todo(section: str, pages: int) -> tuple[dict, Path, list[tuple[str, di
         for row in node.get("results") or []:
             tid = row.get("tmdbId") or row.get("id")
             key = f"movie:{tid}"
-            if not tid or key in seen:
+            if not tid or key in seen or is_series_row("", node, row):
                 continue
             seen.add(key)
             if key in NATIVE:
@@ -297,6 +316,19 @@ def main() -> int:
         if args.recheck:
             dropped = recheck(section, write=not args.dry_run)
             print(f"[{section}] recheck removed {dropped} releases (different year or executable in the name)", flush=True)
+        doc = json.loads((SEED / f"{section}.json").read_text(encoding="utf-8"))
+        saved_path = SEED / f"{section}-torrents.json"
+        if saved_path.exists():
+            data = json.loads(saved_path.read_text(encoding="utf-8"))
+            only_tv = series_only_ids(doc)
+            stray = [k for k in (data.get("titles") or {}) if k.startswith("movie:") and k.split(":", 1)[1] in only_tv]
+            if stray and not args.dry_run:   # series that an earlier run searched as movies
+                for k in stray:
+                    del data["titles"][k]
+                tmp = saved_path.with_suffix(".json.tmp")
+                tmp.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+                os.replace(tmp, saved_path)
+                print(f"[{section}] removed {len(stray)} series that had been searched as movies", flush=True)
         out, path, todo = hindi_todo(section, args.pages) if args.add_hindi else titles_to_scan(section, args.pages)
         titles, limits = out["titles"], out["limits"]
         miss_prefix = "hindi:" if args.add_hindi else ""
