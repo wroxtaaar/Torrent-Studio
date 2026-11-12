@@ -77,6 +77,20 @@ export const searchApi = {
     return Array.isArray(rows) ? (rows as TorrentSearchResult[]) : [];
   },
 
+  // Saved releases (all section caches) of movies whose name matches the words typed; shown while the live search runs.
+  async searchCachedTorrents(query: string, signal?: AbortSignal): Promise<TorrentSearchResult[]> {
+    const params = new URLSearchParams({ q: query.slice(0, 120) });
+    try {
+      const res = await apiFetch('/api/sections/all/torrent-options?' + params.toString(), { signal });
+      if (!res.ok) return [];
+      const data = await res.json().catch(() => null);
+      const rows = data?.status === 'ready' ? data?.torrentDetails?.results : null;
+      return Array.isArray(rows) ? (rows as TorrentSearchResult[]) : [];
+    } catch {
+      return [];
+    }
+  },
+
   // HD download links for ONE movie from the self-hosted Nuvio Streams add-on. Called when a movie card opens;
   // `[]` when the server has no add-on configured or nothing was found (the card then shows no HD button).
   async getNuvioStreams(tmdbId: number | string, signal?: AbortSignal): Promise<NuvioStreamOption[]> {

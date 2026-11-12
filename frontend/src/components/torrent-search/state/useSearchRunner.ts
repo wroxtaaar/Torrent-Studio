@@ -302,6 +302,19 @@ export function useSearchRunner({ setFranchiseGridPage, setActiveFranchiseSearch
           );
         }
       } else {
+        // Saved releases first: whatever the section caches already hold for this name shows at once.
+        void api.searchCachedTorrents(trimmed, controller.signal).then(cachedRows => {
+          if (generation !== searchGenerationRef.current || controller.signal.aborted || !cachedRows.length) return;
+          setResults(previous => {
+            const byKey = new Map<string, TorrentSearchResult>();
+            [...cachedRows, ...previous].forEach(row => {
+              const key = torrentResultKey(row);
+              if (!byKey.has(key)) byKey.set(key, row);
+            });
+            return Array.from(byKey.values());
+          });
+          setSearched(true);
+        });
         // The normal search shows its results first; the Hindi search runs alongside and its results are added when they arrive.
         const livePromise = api.searchTorrents(trimmed, 50, controller.signal, undefined, false);
         if (!/(?:^|[^a-z0-9])(?:hindi|hin)(?:$|[^a-z0-9])/i.test(trimmed)) {

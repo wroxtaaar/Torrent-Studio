@@ -191,9 +191,52 @@ def lookup(
     return rows[:(MAX_LARGE_RESULTS if only_large else MAX_RESULTS)]
 
 
+MAX_SEARCH_TITLES = 8
+_YEAR_TOKEN = re.compile(r"^(?:19|20)\d{2}$")
+
+
+def search_cached(query: str, *, seed_dir: Path | None = None, min_size: int | None = None, max_size: int | None = None) -> list[dict[str, Any]]:
+    """Saved movie releases for titles whose name contains every word of ``query`` (a year word must match the year).
+
+    Lets a search show what the cache already has at once, while the live providers are still working.
+    """
+    directory = seed_dir or SEED_DIR
+    tokens = [t for t in normalize_title(query).split() if t not in ("hindi", "hin")]
+    if not tokens or sum(len(t) for t in tokens) < 2:
+        return []
+    years = {t for t in tokens if _YEAR_TOKEN.match(t)}
+    words = [t for t in tokens if t not in years]
+    if not words:
+        return []
+    wanted = " ".join(words)
+    found: dict[str, tuple[int, str, str]] = {}   # tmdb id -> (rank, title, year)
+    for section in SECTIONS:
+        index = _index_for(section, directory)
+        if index is None:
+            continue
+        for key, entry in index.by_key.items():
+            if not key.startswith("movie:"):
+                continue
+            title = normalize_title(entry.get("title"))
+            have = set(title.split())
+            if not title or not all(w in have for w in words):
+                continue
+            if years and _year(entry.get("year")) not in years:
+                continue
+            tmdb = key.split(":", 1)[1]
+            rank = 0 if title == wanted else 1
+            if tmdb not in found or rank < found[tmdb][0]:
+                found[tmdb] = (rank, str(entry.get("title") or ""), str(entry.get("year") or ""))
+    rows: dict[str, dict[str, Any]] = {}
+    for tmdb, (_, title, year) in sorted(found.items(), key=lambda item: (item[1][0], item[1][1]))[:MAX_SEARCH_TITLES]:
+        for row in lookup(None, tmdb_id=tmdb, title=title, year=year, seed_dir=directory, min_size=min_size, max_size=max_size):
+            rows.setdefault(row["infoHash"], row)
+    return list(rows.values())
+
+
 def clear_memory_cache() -> None:
     """Drop parsed files (tests, or after replacing seed files in place)."""
     _INDEXES.clear()
 
 
-__all__ = ["MAX_LARGE_RESULTS", "MAX_TV_RESULTS", "SECTIONS", "SEED_DIR", "build_magnet", "clear_memory_cache", "lookup", "normalize_title"]
+__all__ = ["MAX_LARGE_RESULTS", "MAX_TV_RESULTS", "SECTIONS", "SEED_DIR", "build_magnet", "clear_memory_cache", "lookup", "normalize_title", "search_cached"]

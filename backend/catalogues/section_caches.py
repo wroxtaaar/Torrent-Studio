@@ -46,6 +46,7 @@ async def api_get_torrent_options(
     year: str = Query("", max_length=4),
     media: str = Query("movie", pattern=r"^(movie|tv)$"),
     large: bool = Query(False, description="Movies only: the releases ABOVE the size limit (for Webtor)"),
+    q: str | None = Query(None, min_length=2, max_length=120, description="section=all, movies: every saved release of titles matching these words"),
 ) -> dict[str, Any]:
     """Releases for ONE movie (or, with ``media=tv``, one series' season packs) from the ``<section>-torrents.json`` files (Prepare click only).
 
@@ -55,6 +56,11 @@ async def api_get_torrent_options(
     """
     if section != "all" and section not in SECTION_CACHE_NAMES:
         raise HTTPException(status_code=404, detail="Section cache not found")
+    if q and section == "all" and media == "movie" and not tmdb_id:
+        found = torrent_options.search_cached(q, min_size=MIN_SEARCH_RESULT_SIZE_BYTES, max_size=MAX_SEARCH_RESULT_SIZE_BYTES)
+        if not found:
+            return {"status": "not_cached", "section": section, "torrentDetails": None}
+        return {"status": "ready", "section": section, "torrentDetails": {"results": found}}
     if not tmdb_id and not (title and year):
         raise HTTPException(status_code=422, detail="Provide tmdb_id, or both title and year")
     rows = torrent_options.lookup(
