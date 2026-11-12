@@ -30,13 +30,14 @@ export type ResolutionBucket = '720p' | '1080p' | '4k' | 'other';
 export const BUCKET_LABELS: Record<ResolutionBucket, string> = { '720p': '720p', '1080p': '1080p', '4k': '4K', other: 'Other' };
 export const BUCKET_ORDER: ResolutionBucket[] = ['720p', '1080p', '4k', 'other'];
 
-/** Which resolution button a torrent belongs to: up to 720p, 1080p / 1440p, 2160p and above, or unknown. */
+/** Which resolution button a torrent belongs to: up to 720p, 1080p / 1440p, 2160p and above; an unknown resolution goes by size (under 1 GB: 720p, else 1080p). */
 export function resolutionBucket(row: TorrentSearchResult): ResolutionBucket {
   const resolution = resolutionOf(row);
   if (resolution >= 2160) return '4k';
   if (resolution >= 1080) return '1080p';
   if (resolution > 0) return '720p';
-  return 'other';
+  // No resolution in the name: under 1 GB it is listed with 720p, 1 GB and over with 1080p, so nothing lands in "Other".
+  return (Number(row.size) || 0) >= 1024 ** 3 ? '1080p' : '720p';
 }
 
 /** The source tag without the resolution, e.g. "2160P BluRay" gives "BluRay" (or "Release" when unknown). */
