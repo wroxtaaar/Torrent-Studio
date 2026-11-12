@@ -8,7 +8,7 @@ import { torrentQualityDetails, torrentResultKey } from './torrent-search/groupi
 import { WebtorPlayerModal } from './WebtorPlayerModal.tsx';
 import { openWebtorDownload } from './torrent-search/webtor.ts';
 import { HdPlayerModal } from './HdPlayerModal.tsx';
-import { BUCKET_LABELS, BUCKET_ORDER, formatLabelOf, mergeByOrder, nuvioBucket, nuvioOrderValue, orderHdOptions, orderTorrents, resolutionBucket, torrentOrderValue, visibleBuckets, type ResolutionBucket } from './torrent-search/actionOrdering.ts';
+import { BUCKET_LABELS, BUCKET_ORDER, formatLabelOf, mergeByOrder, nuvioBucket, nuvioOrderValue, orderHdOptions, orderTorrents, releaseLanguage, resolutionBucket, torrentOrderValue, visibleBuckets, type ResolutionBucket } from './torrent-search/actionOrdering.ts';
 
 export { orderTorrents };
 
@@ -22,6 +22,9 @@ export interface MovieActionChip {
   bucket?: ResolutionBucket;
   format?: string;
   size?: number;
+  /** Audio language(s) read from the release name ("Hindi", "Hindi + English") and the release name itself. */
+  lang?: string;
+  name?: string;
 }
 
 export interface MovieActionButtonsProps {
@@ -38,7 +41,20 @@ export interface MovieActionButtonsProps {
   prepared?: null | { isPlaying: boolean; isCopied: boolean; onPlay: () => void; onDownload: () => void; onCopy: () => void };
 }
 
-export interface MenuItem { key: string; label: string; title?: string; href?: string; download?: string; onPick?: () => void; disabled?: boolean; order?: number; bucket?: ResolutionBucket }
+export interface MenuItem { key: string; label: string; title?: string; href?: string; download?: string; onPick?: () => void; disabled?: boolean; order?: number; bucket?: ResolutionBucket; lang?: string; name?: string }
+
+/** A row's text: the quality and size, then the audio language and the release name underneath. */
+const rowText = (item: MenuItem): React.ReactNode => (
+  <span className="flex min-w-0 flex-col">
+    <span>{item.label}</span>
+    {(item.lang || item.name) && (
+      <span className="flex min-w-0 items-center gap-1 text-[10px] font-normal text-slate-400">
+        {item.lang && <span className="shrink-0 rounded bg-emerald-500/20 px-1 font-bold text-emerald-300">{item.lang}</span>}
+        {item.name && <span className="truncate">{item.name}</span>}
+      </span>
+    )}
+  </span>
+);
 interface Group {
   id: string;
   icon?: React.ReactNode;
@@ -91,10 +107,10 @@ export function QualityPanel({ buckets, ariaLabel, close }: { buckets: Array<{ b
           className="absolute inset-x-0 top-full z-50 mt-1 max-h-48 space-y-0.5 overflow-y-auto overscroll-contain rounded-xl border border-slate-700 bg-slate-950 p-1 shadow-2xl">
           {shown.items.map(item => item.href ? (
             <a key={item.key} role="menuitem" href={item.href} target="_blank" rel="noreferrer noopener" download={item.download} title={item.title}
-              onClick={close} className={rowClass}>{item.label}</a>
+              onClick={close} className={rowClass}>{rowText(item)}</a>
           ) : (
             <button key={item.key} type="button" role="menuitem" title={item.title} disabled={item.disabled}
-              onClick={() => { close(); item.onPick?.(); }} className={rowClass + ' disabled:cursor-not-allowed disabled:opacity-50'}>{item.label}</button>
+              onClick={() => { close(); item.onPick?.(); }} className={rowClass + ' disabled:cursor-not-allowed disabled:opacity-50'}>{rowText(item)}</button>
           ))}
         </div>
       ) : null}
@@ -122,9 +138,9 @@ function menuView(group: Group, rect: DOMRect, close: () => void): React.ReactEl
       className="z-[100] max-h-56 w-max min-w-[9rem] overflow-y-auto overscroll-contain rounded-lg border border-slate-700 bg-slate-950 p-1 shadow-2xl">
       {group.items.map(item => item.href ? (
         <a key={item.key} role="menuitem" href={item.href} target="_blank" rel="noreferrer noopener" download={item.download} title={item.title}
-          onClick={close} className={rowClass}>{item.label}</a>
+          onClick={close} className={rowClass}>{rowText(item)}</a>
       ) : (
-        <button key={item.key} type="button" role="menuitem" title={item.title} disabled={item.disabled} onClick={() => { close(); item.onPick?.(); }} className={rowClass}>{item.label}</button>
+        <button key={item.key} type="button" role="menuitem" title={item.title} disabled={item.disabled} onClick={() => { close(); item.onPick?.(); }} className={rowClass}>{rowText(item)}</button>
       ))}
     </div>
   );
@@ -139,6 +155,8 @@ export const torrentChip = (row: TorrentSearchResult): MovieActionChip => ({
   bucket: resolutionBucket(row),
   format: formatLabelOf(torrentQualityDetails(row).label),
   size: Number(row.size) || 0,
+  lang: releaseLanguage(row.title),
+  name: String(row.title || ''),
 });
 
 /**
@@ -232,7 +250,7 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
   }));
   const seedrItems: MenuItem[] = prepare
     ? prepare.chips.map(chip => ({
-        key: chip.key, label: rowLabel(chip.format || '', chip.size || 0), title: chip.title, order: chip.order, bucket: chip.bucket,
+        key: chip.key, label: rowLabel(chip.format || '', chip.size || 0), title: chip.title, order: chip.order, bucket: chip.bucket, lang: chip.lang, name: chip.name,
         disabled: prepare.disabled, onPick: () => prepare.onPrepare(chip.key),
       }))
     : [];
@@ -240,15 +258,15 @@ export const MovieActionButtons: React.FC<MovieActionButtonsProps> = ({ title, y
   const webtorLabel = (chip: MovieActionChip) => rowLabel(chip.format || '', chip.size || 0);
 
   const playItems = mergeByOrder<MenuItem>(
-    nuvioRows.map(entry => ({ key: 'hd:' + entry.option.key, label: entry.label, title: entry.option.filename, order: entry.order, bucket: entry.bucket, onPick: () => setHdPlayKey(entry.option.key) })),
+    nuvioRows.map(entry => ({ key: 'hd:' + entry.option.key, label: entry.label, title: entry.option.filename, order: entry.order, bucket: entry.bucket, lang: releaseLanguage(entry.option.filename), name: entry.option.filename, onPick: () => setHdPlayKey(entry.option.key) })),
     seedrItems,
-    webtorRows.map(({ row, chip }) => ({ key: chip.key, label: webtorLabel(chip), title: chip.title, order: chip.order, bucket: chip.bucket,
+    webtorRows.map(({ row, chip }) => ({ key: chip.key, label: webtorLabel(chip), title: chip.title, order: chip.order, bucket: chip.bucket, lang: chip.lang, name: chip.name,
       onPick: () => setWebtorKey(String(row.magnetUrl || '') ? torrentResultKey(row) : '') })),
   );
   const downloadItems = mergeByOrder<MenuItem>(
-    nuvioRows.map(entry => ({ key: 'hd:' + entry.option.key, label: entry.label, title: entry.option.filename, order: entry.order, bucket: entry.bucket, href: entry.option.url, download: entry.option.filename || undefined })),
+    nuvioRows.map(entry => ({ key: 'hd:' + entry.option.key, label: entry.label, title: entry.option.filename, order: entry.order, bucket: entry.bucket, lang: releaseLanguage(entry.option.filename), name: entry.option.filename, href: entry.option.url, download: entry.option.filename || undefined })),
     seedrItems,
-    webtorRows.map(({ row, chip }) => ({ key: chip.key, label: webtorLabel(chip), title: chip.title, order: chip.order, bucket: chip.bucket,
+    webtorRows.map(({ row, chip }) => ({ key: chip.key, label: webtorLabel(chip), title: chip.title, order: chip.order, bucket: chip.bucket, lang: chip.lang, name: chip.name,
       onPick: () => {
         const result = openWebtorDownload(String(row.magnetUrl || ''));
         setHint(result.opened

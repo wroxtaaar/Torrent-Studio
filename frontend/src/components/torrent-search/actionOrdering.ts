@@ -65,3 +65,20 @@ export function visibleBuckets<T extends { bucket: ResolutionBucket; items?: unk
   const other = filled.filter(group => group.bucket === 'other');
   return main.length >= 3 ? main : [...main, ...other];
 }
+
+const LANG_TAGS: Array<[RegExp, string]> = [
+  [/(?:^|[^a-z0-9])(?:hindi|hin)(?:$|[^a-z0-9])/i, 'Hindi'],
+  [/(?:^|[^a-z0-9])tamil(?:$|[^a-z0-9])/i, 'Tamil'],
+  [/(?:^|[^a-z0-9])telugu(?:$|[^a-z0-9])/i, 'Telugu'],
+  [/(?:^|[^a-z0-9])malayalam(?:$|[^a-z0-9])/i, 'Malayalam'],
+  [/(?:^|[^a-z0-9])kannada(?:$|[^a-z0-9])/i, 'Kannada'],
+  [/(?:^|[^a-z0-9])(?:english|eng)(?:$|[^a-z0-9])/i, 'English'],
+];
+
+/** The audio languages a release name advertises, e.g. "300 2006 1080p BluRay Hindi DDP5.1 + English" gives "Hindi + English"; "" when it names none. */
+export function releaseLanguage(name: string): string {
+  const text = String(name || '');
+  const found = LANG_TAGS.filter(([pattern]) => pattern.test(text)).map(([, label]) => label);
+  if (found.length === 0) return /dual[ ._-]?audio/i.test(text) ? 'Dual audio' : /(?:^|[^a-z0-9])multi(?:$|[^a-z0-9])/i.test(text) ? 'Multi audio' : '';
+  return found.join(' + ');
+}
