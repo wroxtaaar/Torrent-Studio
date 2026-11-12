@@ -251,21 +251,25 @@ HINDI = re.compile(r"(?:^|[^a-z0-9])(?:hindi|hin)(?:$|[^a-z0-9])", re.IGNORECASE
 
 
 def hindi_todo(section: str, pages: int) -> tuple[dict, Path, list[tuple[str, dict]]]:
-    """Every listed movie whose saved releases include no Hindi one (or that has no entry at all)."""
+    """Listed movies (first ``pages`` pages of each list when set) whose saved releases include no Hindi one.
+    Bollywood lists, and the Bollywood list inside Highest rated, are already Hindi and are skipped."""
     out, path, _ = titles_to_scan(section, pages)
     doc = json.loads((SEED / f"{section}.json").read_text(encoding="utf-8"))
     todo, seen = [], set()
-    for node in doc["subsections"].values():
+    for sub, node in doc["subsections"].items():
         if not isinstance(node, dict) or node.get("mediaType") not in ("movie", "movies"):
             continue
-        for row in node.get("results") or []:
+        if section == "bollywood" or sub == "bollywood":
+            continue
+        rows = node.get("results") or []
+        if pages:
+            rows = rows[: pages * int(node.get("pageSize") or 18)]
+        for row in rows:
             tid = row.get("tmdbId") or row.get("id")
             key = f"movie:{tid}"
-            if not tid or key in seen or is_series_row("", node, row):
+            if not tid or key in seen or key in NATIVE or is_series_row(sub, node, row):
                 continue
             seen.add(key)
-            if key in NATIVE:
-                continue
             if not any(HINDI.search(r.get("title", "")) for r in (out["titles"].get(key) or {}).get("releases", [])):
                 todo.append((key, row))
     return out, path, todo
