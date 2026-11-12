@@ -48,11 +48,12 @@ SEED = Path(os.getenv("REFRESH_SEED_DIR") or ROOT / "backend" / "cache-seed")
 SUBS = ("hollywood", "bollywood")
 
 
+NATIVE: set[str] = set()  # movies from Bollywood lists: already Hindi, so no Hindi search
 SOURCE = "all"  # set from --source: fast | prowlarr | all
 
 
-def search(query: str) -> list[dict]:
-    url = f"{API}/api/search?q={urllib.parse.quote(query)}&limit=50&any_size=true&source={SOURCE}"
+def search(query: str, also_hindi: bool = True) -> list[dict]:
+    url = f"{API}/api/search?q={urllib.parse.quote(query)}&limit=50&any_size=true&source={SOURCE}" + ("" if also_hindi else "&also_hindi=false")
     req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "HighestRatedTopScan/1.0"})
     for attempt in range(4):
         try:
@@ -210,6 +211,7 @@ def titles_to_scan(section: str, pages: int) -> tuple[dict, Path, list[tuple[str
     for sub, node in doc["subsections"].items():
         if not isinstance(node, dict) or node.get("mediaType") not in ("movie", "movies"):
             continue
+        native = section == "bollywood" or sub == "bollywood"   # already Hindi: no extra Hindi search
         rows = node.get("results") or []
         if pages:
             rows = rows[: pages * int(node.get("pageSize") or 18)]
@@ -219,6 +221,8 @@ def titles_to_scan(section: str, pages: int) -> tuple[dict, Path, list[tuple[str
             if not tid or key in seen:
                 continue
             seen.add(key)
+            if native:
+                NATIVE.add(key)
             if not (titles.get(key) or {}).get("releases"):
                 todo.append((key, row))
     return out, path, todo
@@ -241,6 +245,8 @@ def hindi_todo(section: str, pages: int) -> tuple[dict, Path, list[tuple[str, di
             if not tid or key in seen:
                 continue
             seen.add(key)
+            if key in NATIVE:
+                continue
             if not any(HINDI.search(r.get("title", "")) for r in (out["titles"].get(key) or {}).get("releases", [])):
                 todo.append((key, row))
     return out, path, todo
@@ -306,7 +312,7 @@ def main() -> int:
             cands, answered = [], 0
             for q in variants(title, year):
                 try:
-                    rows = search(q)
+                    rows = search(q, also_hindi=key not in NATIVE)
                 except Exception as exc:
                     print(f"  ! {title}: {q}: {exc}", flush=True)
                     continue

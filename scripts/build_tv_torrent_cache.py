@@ -323,7 +323,7 @@ def make_searcher(delay: float, source: str = "all"):
 
     def app_search(query: str) -> list[dict]:
         """The app's own search (1337x and the other providers), no size window. Empty when the app is not running."""
-        url = f"{api}/api/search?q={urllib.parse.quote(query)}&limit=50&any_size=true&source={source}"
+        url = f"{api}/api/search?q={urllib.parse.quote(query)}&limit=50&any_size=true&source={source}&also_hindi=false"  # these series are already Hindi
         try:
             req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "TvPackScan/1.0"})
             with urllib.request.urlopen(req, timeout=120) as resp:
@@ -420,6 +420,9 @@ async def run(args: argparse.Namespace) -> int:
         older = older_namesakes(all_tv_rows(args.seed_dir))
         rows = [r for r in rows if f"tv:{str(r.get('tmdbId') or r.get('id'))}" not in excluded]
         todo = [r for r in rows if args.refresh or f"tv:{str(r.get('tmdbId') or r.get('id'))}" not in existing.get("titles", {})]
+        if args.add_hindi:   # every scanned series is Indian and already Hindi, so there is nothing to add
+            print(f"  {section}: --add-hindi does not apply (these series are already Hindi)")
+            continue
         if args.add_hindi:   # series that have packs (or none) but no Hindi pack yet; their saved packs are kept
             todo = [r for r in rows if not any(HINDI.search(str(x.get("title") or "")) for x in
                     (existing.get("titles", {}).get(f"tv:{str(r.get('tmdbId') or r.get('id'))}") or {}).get("releases", []))]
