@@ -20,6 +20,7 @@ from catalogues.catalogues_extra import (
     _synopsis_cache_paths,
     _write_synopsis_cache,
 )
+from search.hindi import hindi_first, is_hindi
 from search.search_providers import _SEARCH_SOURCE, _SIZE_WINDOW_DISABLED, _normalize_title, search_1337x
 from core.settings import (
     CACHE_ONLY_MODE,
@@ -1318,7 +1319,20 @@ async def api_search(request: Request, q: str = Query(..., min_length=1), limit:
     size_token = _SIZE_WINDOW_DISABLED.set(True) if any_size else None
     source_token = _SEARCH_SOURCE.set(source)
     try:
-        return await search_1337x(q, limit)
+        if is_hindi(q):
+            return hindi_first(await search_1337x(q, limit))
+        # Our users watch in Hindi: always look for the Hindi releases too, and list them first.
+        plain, hindi = await asyncio.gather(
+            search_1337x(q, limit), search_1337x(f"{q} hindi", limit), return_exceptions=True)
+        if isinstance(plain, Exception):
+            if isinstance(hindi, Exception):
+                raise plain
+            plain = []
+        merged: dict[str, dict] = {}
+        for row in (hindi if not isinstance(hindi, Exception) else []) + plain:
+            key = str(row.get("infoHash") or row.get("magnetUrl") or row.get("infoUrl") or row.get("guid") or row.get("title"))
+            merged.setdefault(key, row)
+        return hindi_first(list(merged.values()))[: limit + 30]
     finally:
         _SEARCH_SOURCE.reset(source_token)
         if size_token is not None:

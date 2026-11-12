@@ -261,6 +261,9 @@ def load_regional_prebuilt(pool: Pool, seed_dir: Path) -> int:
 
 
 # --------------------------------------------------------------------------- selection
+HINDI = re.compile(r"(?:^|[^a-z0-9])(?:hindi|hin)(?:$|[^a-z0-9])", re.IGNORECASE)
+
+
 def select_releases(candidates: list[dict], title: str, limits: dict) -> list[dict]:
     """Apply the Prepare card's own filters, then keep a few per resolution."""
     needles = expected_titles(title)
@@ -276,7 +279,8 @@ def select_releases(candidates: list[dict], title: str, limits: dict) -> list[di
         usable.append(release)
     seeded = [r for r in usable if r["seeders"] > 0]
     usable = seeded or usable  # prefer active swarms, but do not hide every release
-    usable.sort(key=lambda r: (-r["seeders"], -r["leechers"], r["size"], r["infoHash"]))
+    # Hindi releases first (the app's users watch in Hindi), then the best-seeded.
+    usable.sort(key=lambda r: (not HINDI.search(r["title"]), -r["seeders"], -r["leechers"], r["size"], r["infoHash"]))
     per_resolution: Counter = Counter()
     per_band: Counter = Counter()
     chosen = []

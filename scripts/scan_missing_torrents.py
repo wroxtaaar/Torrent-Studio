@@ -224,6 +224,28 @@ def titles_to_scan(section: str, pages: int) -> tuple[dict, Path, list[tuple[str
     return out, path, todo
 
 
+HINDI = re.compile(r"(?:^|[^a-z0-9])(?:hindi|hin)(?:$|[^a-z0-9])", re.IGNORECASE)
+
+
+def hindi_todo(section: str, pages: int) -> tuple[dict, Path, list[tuple[str, dict]]]:
+    """Every listed movie whose saved releases include no Hindi one (or that has no entry at all)."""
+    out, path, _ = titles_to_scan(section, pages)
+    doc = json.loads((SEED / f"{section}.json").read_text(encoding="utf-8"))
+    todo, seen = [], set()
+    for node in doc["subsections"].values():
+        if not isinstance(node, dict) or node.get("mediaType") not in ("movie", "movies"):
+            continue
+        for row in node.get("results") or []:
+            tid = row.get("tmdbId") or row.get("id")
+            key = f"movie:{tid}"
+            if not tid or key in seen:
+                continue
+            seen.add(key)
+            if not any(HINDI.search(r.get("title", "")) for r in (out["titles"].get(key) or {}).get("releases", [])):
+                todo.append((key, row))
+    return out, path, todo
+
+
 def recheck(section: str, write: bool = True) -> int:
     path = SEED / f"{section}-torrents.json"
     if not path.exists():
@@ -256,6 +278,8 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--source", choices=("fast", "prowlarr", "all"), default="all",
                     help="fast = normal providers only; prowlarr = Prowlarr only (second pass); all = fast, then Prowlarr if empty")
+    ap.add_argument("--add-hindi", action="store_true",
+                    help="only look for Hindi releases of listed movies that have none saved; keeps saved releases")
     ap.add_argument("--ignore-rest", action="store_true", help="also search titles that were tried within the rest period")
     args = ap.parse_args()
     global SOURCE
@@ -267,10 +291,11 @@ def main() -> int:
         if args.recheck:
             dropped = recheck(section, write=not args.dry_run)
             print(f"[{section}] recheck removed {dropped} releases (different year or executable in the name)", flush=True)
-        out, path, todo = titles_to_scan(section, args.pages)
+        out, path, todo = hindi_todo(section, args.pages) if args.add_hindi else titles_to_scan(section, args.pages)
         titles, limits = out["titles"], out["limits"]
+        miss_prefix = "hindi:" if args.add_hindi else ""
         if not args.ignore_rest:
-            resting = [t for t in todo if torrent_misses.resting(misses, t[0])]
+            resting = [t for t in todo if torrent_misses.resting(misses, miss_prefix + t[0])]
             todo = [t for t in todo if t not in resting]
             if resting:
                 print(f"[{section}] {len(resting)} titles resting (nobody had them in the last {torrent_misses.DAYS} days)", flush=True)
@@ -286,22 +311,27 @@ def main() -> int:
                     print(f"  ! {title}: {q}: {exc}", flush=True)
                     continue
                 answered += 1
-                cands += [r for r in map(to_release, rows) if r]
+                cands += [r for r in map(to_release, rows) if r and (not args.add_hindi or HINDI.search(r["title"]))]
                 if pick(cands, title, year, limits):
                     break
                 time.sleep(0.4)
+            if args.add_hindi:
+                cands = [c for c in cands if HINDI.search(c["title"])]
             if not pick(cands, title, year, limits):
                 resolve_hashes(cands, title, year, limits)
             chosen = vet(pick(cands, title, year, limits), title, year, not args.no_verify_files)
             print(f"  [{i}/{len(todo)}] {title} ({year}): {len(chosen)} releases" + ("" if answered else "  (all searches failed)"), flush=True)
             if record_misses:
-                torrent_misses.record(key, bool(chosen), misses)
+                torrent_misses.record(miss_prefix + key, bool(chosen), misses)
             if args.source == "prowlarr":
                 time.sleep(2)
             if chosen:
                 found += 1
-                titles[key] = {"title": title, "year": int(year) if year else None,
-                               "releases": [{k: v for k, v in r.items() if v not in ("", None)} for r in chosen]}
+                new = [{k: v for k, v in r.items() if v not in ("", None)} for r in chosen]
+                if args.add_hindi:  # keep the saved releases, Hindi ones first
+                    have = {r["infoHash"] for r in new}
+                    new += [r for r in (titles.get(key) or {}).get("releases", []) if r.get("infoHash") not in have]
+                titles[key] = {"title": title, "year": int(year) if year else None, "releases": new}
             if record_misses and i % 10 == 0:
                 torrent_misses.save(misses)
             if not args.dry_run and found and i % 10 == 0:  # save as we go, so an interrupted run loses almost nothing

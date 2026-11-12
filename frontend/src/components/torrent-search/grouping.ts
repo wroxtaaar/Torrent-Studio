@@ -48,6 +48,9 @@ export function compareReleaseDateDescending(
   return String(a.title || '').localeCompare(String(b.title || ''), undefined, { numeric: true });
 }
 
+/** True when the release name advertises Hindi audio ("Hindi", "Hin"); those releases are listed first. */
+export const isHindiRelease = (name: unknown): boolean => /(?:^|[^a-z0-9])(?:hindi|hin)(?:$|[^a-z0-9])/i.test(String(name || ''));
+
 export function torrentResultKey(result: TorrentSearchResult): string {
   return String(result.guid || result.infoHash || result.magnetUrl || result.downloadUrl || result.title);
 }
@@ -329,6 +332,8 @@ export function groupTorrentResults(results: TorrentSearchResult[]): TorrentQual
 
       const variants = Array.from(uniqueVariants.values())
         .sort((a, b) => {
+          const hindiDifference = Number(isHindiRelease(b.result.title)) - Number(isHindiRelease(a.result.title));
+          if (hindiDifference !== 0) return hindiDifference;
           const qualityDifference = b.quality.rank - a.quality.rank;
           if (qualityDifference !== 0) return qualityDifference;
           const seederDifference = (Number(b.result.seeders) || 0) - (Number(a.result.seeders) || 0);

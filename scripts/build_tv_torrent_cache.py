@@ -152,6 +152,9 @@ def resolution_of(title: str) -> str:
     return {"4k": "2160p", "8k": "2160p", "1440p": "1080p", "576p": "480p"}.get(value, value)
 
 
+HINDI = re.compile(r"(?:^|[^a-z0-9])(?:hindi|hin)(?:$|[^a-z0-9])", re.IGNORECASE)
+
+
 def select_releases(candidates: list[dict], show_title: str, per_bucket: int = PER_BUCKET, cap: int = MAX_PER_SHOW,
                     year: int | str | None = None, require_year: bool = False) -> list[dict]:
     """Per season (and per 'complete'): the best-seeded pack of each resolution, then the next best
@@ -162,7 +165,7 @@ def select_releases(candidates: list[dict], show_title: str, per_bucket: int = P
     """
     buckets: dict[tuple[str, int], list[dict]] = defaultdict(list)
     seen: set[str] = set()
-    for item in sorted(candidates, key=lambda c: (-int(c.get("seeders") or 0), -int(c.get("leechers") or 0))):
+    for item in sorted(candidates, key=lambda c: (not HINDI.search(str(c.get("title") or "")), -int(c.get("seeders") or 0), -int(c.get("leechers") or 0))):
         digest = str(item.get("infoHash") or "").lower()
         if not HEX40.match(digest) or digest in seen:
             continue
@@ -180,7 +183,7 @@ def select_releases(candidates: list[dict], show_title: str, per_bucket: int = P
             first_per_resolution.setdefault(resolution_of(row["title"]), row)
         picked = list(first_per_resolution.values())[:per_bucket]
         picked += [row for row in rows if row not in picked][: max(0, per_bucket - len(picked))]
-        out.extend(sorted(picked, key=lambda row: (-int(row.get("seeders") or 0), row["infoHash"])))
+        out.extend(sorted(picked, key=lambda row: (not HINDI.search(str(row.get("title") or "")), -int(row.get("seeders") or 0), row["infoHash"])))
     return out[:cap]
 
 
@@ -417,11 +420,15 @@ async def run(args: argparse.Namespace) -> int:
         older = older_namesakes(all_tv_rows(args.seed_dir))
         rows = [r for r in rows if f"tv:{str(r.get('tmdbId') or r.get('id'))}" not in excluded]
         todo = [r for r in rows if args.refresh or f"tv:{str(r.get('tmdbId') or r.get('id'))}" not in existing.get("titles", {})]
+        if args.add_hindi:   # series that have packs (or none) but no Hindi pack yet; their saved packs are kept
+            todo = [r for r in rows if not any(HINDI.search(str(x.get("title") or "")) for x in
+                    (existing.get("titles", {}).get(f"tv:{str(r.get('tmdbId') or r.get('id'))}") or {}).get("releases", []))]
         if args.title:   # try one series (or a few): matched by part of the name, searched even if it already has an entry
             wanted = args.title.casefold()
             todo = [r for r in rows if wanted in str(r.get("title") or "").casefold()]
+        miss_prefix = "hindi:" if args.add_hindi else ""
         if not args.ignore_rest and not args.title:
-            rest = [r for r in todo if torrent_misses.resting(misses, f"tv:{str(r.get('tmdbId') or r.get('id'))}")]
+            rest = [r for r in todo if torrent_misses.resting(misses, miss_prefix + f"tv:{str(r.get('tmdbId') or r.get('id'))}")]
             todo = [r for r in todo if r not in rest]
             if rest:
                 print(f"  {section}: {len(rest)} series resting (nobody had them in the last {torrent_misses.DAYS} days)")
@@ -444,14 +451,21 @@ async def run(args: argparse.Namespace) -> int:
                       + (f" (complete: {any(r['scope'] == 'complete' for r in chosen)}, seasons: {seasons})" if chosen else ""))
                 for line in lines:
                     print(line)
+                if args.add_hindi:
+                    chosen = [r for r in chosen if HINDI.search(str(r.get("title") or ""))]
                 if chosen:
                     found[f"tv:{show.get('tmdbId') or show.get('id')}"] = entry_for(show, chosen)
 
         await asyncio.gather(*(one(i, show) for i, show in enumerate(todo, 1)))
+        if args.add_hindi:   # keep what was saved, put the Hindi packs first
+            for key, entry in found.items():
+                old = (existing.get("titles", {}).get(key) or {}).get("releases", [])
+                have = {r["infoHash"] for r in entry["releases"]}
+                entry["releases"] += [r for r in old if r.get("infoHash") not in have]
         if record_misses:
             for show in todo:
                 key = f"tv:{show.get('tmdbId') or show.get('id')}"
-                torrent_misses.record(key, key in found, misses)
+                torrent_misses.record(miss_prefix + key, key in found, misses)
             torrent_misses.save(misses)
         totals.update(shows=len(rows), searched=len(todo), withPacks=len(found))
         stale_excluded = excluded & set(existing.get("titles", {}))
@@ -460,7 +474,7 @@ async def run(args: argparse.Namespace) -> int:
         if not args.dry_run and (found or args.refresh or stale_excluded):
             size = write_atomic(target, merge_section(
                 existing, found, section, built_at,
-                {f"tv:{show.get('tmdbId') or show.get('id')}" for show in todo} | excluded))
+                ({f"tv:{show.get('tmdbId') or show.get('id')}" for show in todo} if not args.add_hindi else set(found)) | excluded))
             print(f"  {section}: wrote {len(found)} series, file now {size / 1024:.1f} KiB")
     print(f"total: {totals['withPacks']}/{totals['searched']} searched series have packs"
           f"{' (dry run, nothing written)' if args.dry_run else ''}")
@@ -479,6 +493,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--debug", action="store_true", help="print every query with its result and pack counts")
     parser.add_argument("--source", choices=("fast", "prowlarr", "all"), default="all",
                         help="fast = Knaben + normal providers; prowlarr = Prowlarr only (second pass)")
+    parser.add_argument("--add-hindi", action="store_true", help="only look for Hindi packs for series that have none; keeps saved packs")
     parser.add_argument("--ignore-rest", action="store_true", help="also search series tried within the rest period")
     parser.add_argument("--dry-run", action="store_true")
     return asyncio.run(run(parser.parse_args(argv)))

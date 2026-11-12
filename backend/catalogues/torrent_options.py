@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
+from search.hindi import is_hindi
+
 SECTIONS = (
     "hollywood", "bollywood", "marvel", "dc", "highest-rated",
     "korean", "pakistani", "anime", "favourites",
@@ -183,9 +185,9 @@ def lookup(
                 merged[digest] = row
     if media == "tv":
         rows = sorted(merged.values(), key=lambda r: (
-            r["scope"] != "complete", r["season"], -r["seeders"], -r["leechers"], r["infoHash"]))
+            r["scope"] != "complete", r["season"], not is_hindi(r.get("title")), -r["seeders"], -r["leechers"], r["infoHash"]))
         return rows[:MAX_TV_RESULTS]
-    rows = sorted(merged.values(), key=lambda r: (-r["seeders"], -r["leechers"], r["infoHash"]))
+    rows = sorted(merged.values(), key=lambda r: (not is_hindi(r.get("title")), -r["seeders"], -r["leechers"], r["infoHash"]))
     return rows[:(MAX_LARGE_RESULTS if only_large else MAX_RESULTS)]
 
 
