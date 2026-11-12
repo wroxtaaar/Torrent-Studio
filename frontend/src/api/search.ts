@@ -358,11 +358,13 @@ export const searchApi = {
   },
 
   // Torrents (qBittorrent WebAPI)
-  async searchTorrents(query: string, limit = 50, signal?: AbortSignal, prepareTrace?: { id: string; intent: 'explicit-card-click' }): Promise<TorrentSearchResult[]> {
+  async searchTorrents(query: string, limit = 50, signal?: AbortSignal, prepareTrace?: { id: string; intent: 'explicit-card-click' }, alsoHindi = true): Promise<TorrentSearchResult[]> {
     const params = new URLSearchParams({
       q: query,
       limit: String(Math.min(Math.max(limit, 1), 50))
     });
+    // false: the caller runs the "<query> hindi" search itself, so the first results do not wait for it.
+    if (!alsoHindi) params.set('also_hindi', 'false');
 
     // Search is served by the Render backend alongside the Seedr API.
     // Use the same API base in development and production so the frontend

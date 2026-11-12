@@ -1305,6 +1305,7 @@ async def api_search_metadata_batch(
 @router.get("/api/search")
 async def api_search(request: Request, q: str = Query(..., min_length=1), limit: int = Query(50, ge=1, le=50),
                      any_size: bool = Query(False),
+                     also_hindi: bool = Query(True),
                      source: str = Query("all", pattern="^(all|fast|prowlarr)$")):
     prepare_intent = request.headers.get("x-prepare-intent", "missing")
     prepare_trace = request.headers.get("x-prepare-trace", "missing")
@@ -1319,7 +1320,7 @@ async def api_search(request: Request, q: str = Query(..., min_length=1), limit:
     size_token = _SIZE_WINDOW_DISABLED.set(True) if any_size else None
     source_token = _SEARCH_SOURCE.set(source)
     try:
-        if is_hindi(q):
+        if is_hindi(q) or not also_hindi:   # also_hindi=false: the app asks for the "<q> hindi" search itself
             return hindi_first(await search_1337x(q, limit))
         # Our users watch in Hindi: always look for the Hindi releases too, and list them first.
         plain, hindi = await asyncio.gather(

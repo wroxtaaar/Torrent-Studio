@@ -302,7 +302,21 @@ export function useSearchRunner({ setFranchiseGridPage, setActiveFranchiseSearch
           );
         }
       } else {
-        const livePromise = api.searchTorrents(trimmed, 50, controller.signal);
+        // The normal search shows its results first; the Hindi search runs alongside and its results are added when they arrive.
+        const livePromise = api.searchTorrents(trimmed, 50, controller.signal, undefined, false);
+        if (!/(?:^|[^a-z0-9])(?:hindi|hin)(?:$|[^a-z0-9])/i.test(trimmed)) {
+          void api.searchTorrents(trimmed + ' hindi', 50, controller.signal, undefined, false).then(hindiRows => {
+            if (generation !== searchGenerationRef.current || controller.signal.aborted || !hindiRows.length) return;
+            setResults(previous => {
+              const byKey = new Map<string, TorrentSearchResult>();
+              [...previous, ...hindiRows].forEach(row => {
+                const key = torrentResultKey(row);
+                if (!byKey.has(key)) byKey.set(key, row);
+              });
+              return Array.from(byKey.values());
+            });
+          }).catch(() => { /* the Hindi extras are optional */ });
+        }
         // Do not make live torrent results wait for the seven catalogue lookups.
         // Cached catalogue matches are merged independently as each search completes.
         const liveResults = await livePromise;
