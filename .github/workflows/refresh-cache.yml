@@ -5,7 +5,7 @@ name: Refresh catalogue cache
 # scripts/vps/refresh-trigger.txt. Ordinary commits do NOT start it.
 on:
   schedule:
-    - cron: "0 22 * * 6"   # Saturday 22:00 UTC = Sunday 03:30 IST
+    - cron: "30 0 * * 1"   # Monday 00:30 UTC = Monday 06:00 IST (the trending week starts Monday UTC, so the label is the new week)
   workflow_dispatch:
   push:
     branches: [main]
