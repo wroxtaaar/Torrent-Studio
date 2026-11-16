@@ -489,8 +489,6 @@ async def _tmdb_fetch_movie_catalogue(catalogue_key: str, page: int, released_on
         title = str(item.get("title") or item.get("original_title") or "").strip()
         if not title:
             continue
-        if catalogue_key == "latest-bollywood" and _is_bollywood_comedy_special(item):
-            continue
         release_date = str(item.get("release_date") or "").strip()
         if released_only and not _tmdb_release_date_is_released(release_date, today):
             continue
@@ -926,8 +924,6 @@ def _cache_only_regional_movie_catalogue(catalogue_key: str, page: int) -> dict[
                     tmdb_id = 0
                 if tmdb_id <= 0:
                     continue
-            if catalogue_key == "latest-bollywood" and _is_bollywood_comedy_special(row):
-                continue
             release_date = str(row.get("releaseDate") or row.get("release_date") or "").strip()
             if release_date and not _tmdb_release_date_is_released(release_date[:10], today):
                 continue
@@ -1005,7 +1001,8 @@ async def _fetch_paginated_regional_movie_catalogue(
     source_cache_variant = (
         "|trending-v5" if is_trending and catalogue_key.endswith("-pakistani")
         else "|trending-v4" if is_trending
-        else "|released-v7" if catalogue_key.endswith("-pakistani") or catalogue_key == "latest-bollywood"
+        else "|released-v8" if catalogue_key == "latest-bollywood"
+        else "|released-v7" if catalogue_key.endswith("-pakistani")
         else "|released-v6"
     )
     source_cache_prefix = catalogue_key + source_cache_variant
@@ -1055,8 +1052,6 @@ async def _fetch_paginated_regional_movie_catalogue(
             if not isinstance(row, dict):
                 continue
             if catalogue_key.endswith("-pakistani") and not _is_pakistani_movie_row(row):
-                continue
-            if is_bollywood_latest and _is_bollywood_comedy_special(row):
                 continue
             title_key = re.sub(r"[^a-z0-9]+", "", str(row.get("title") or row.get("name") or "").casefold())
             # Filter known catalogue contamination before pagination, allowing
