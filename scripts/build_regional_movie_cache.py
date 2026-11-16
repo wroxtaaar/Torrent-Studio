@@ -144,6 +144,18 @@ def detail_score(movie, entry):
     ])
 
 
+def detail_missing(movie, entry):
+    """Names of the card details detail_score() found missing (for the log of titles left out)."""
+    ott = movie.get("ottAvailability") or {}
+    has_ott = bool(ott.get("streamingProviders") or ott.get("rentProviders") or ott.get("buyProviders")) or (
+        bool(ott) and ott.get("incomplete") is False)
+    details = entry.get("torrentDetails")
+    checks = [("poster", bool(movie.get("posterUrl"))), ("synopsis", bool(str(movie.get("overview") or "").strip())),
+              ("imdb rating", movie.get("imdbRating") not in (None, "", 0)), ("streaming info", has_ott),
+              ("torrent", bool(isinstance(details, dict) and details.get("results")))]
+    return [name for name, ok in checks if not ok]
+
+
 def movie_tmdb_id(movie):
     value = movie.get("tmdbId") or movie.get("id")
     return int(value) if str(value).isdigit() else 0
@@ -350,7 +362,11 @@ def build_movies(old):
                 break
         if cat in DETAIL_ORDERED:
             # Most complete cards first (newest first among equals); the rest follow and fill in on later runs.
-            final = sorted(final, key=lambda m: (m.get("detailScore", 0), str(m.get("releaseDate") or "")), reverse=True)[:FINAL_PER_CATALOGUE]
+            final = sorted(final, key=lambda m: (m.get("detailScore", 0), str(m.get("releaseDate") or "")), reverse=True)
+            for movie in final[FINAL_PER_CATALOGUE:]:   # compared but not shown: say why
+                missing = detail_missing(movie, movies.get(movie_key(movie)) or {})
+                print(f"  left out of {cat}: {movie.get('title')} ({movie.get('year')}) score {movie.get('detailScore', 0)}/5, missing: {', '.join(missing) or 'nothing (ranked lower by date)'}", flush=True)
+            final = final[:FINAL_PER_CATALOGUE]
         if cat in IMDB_ORDER_RANK:
             ranks = IMDB_ORDER_RANK[cat]
             # Highest Rated Hollywood is a curated IMDb Top 250 list, not a general
