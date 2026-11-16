@@ -124,7 +124,7 @@ def load_nexstream_failures():
 NEXSTREAM_FAILED = load_nexstream_failures()
 
 
-DETAIL_ORDERED = {"latest-bollywood"}  # catalogues ordered by how complete each card is
+DETAIL_ORDERED: set[str] = set()  # catalogues ordered by how complete each card is (none: every list keeps its own order, first 54)
 DETAIL_POOL = int(os.getenv("REGIONAL_CACHE_DETAIL_POOL", "108"))  # candidates compared before taking the top 54
 
 
