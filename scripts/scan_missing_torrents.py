@@ -326,6 +326,7 @@ def main() -> int:
     ap.add_argument("--add-hindi", action="store_true",
                     help="only look for Hindi releases of listed movies that have none saved; keeps saved releases")
     ap.add_argument("--skip-animated", action="store_true", help="leave out animated movies")
+    ap.add_argument("--only", default="", help="only titles containing this text (for checking one title)")
     ap.add_argument("--ignore-rest", action="store_true", help="also search titles that were tried within the rest period")
     args = ap.parse_args()
     global SKIP_ANIMATED
@@ -360,6 +361,8 @@ def main() -> int:
             todo = [t for t in todo if t not in resting]
             if resting:
                 print(f"[{section}] {len(resting)} titles resting (nobody had them in the last {torrent_misses.DAYS} days)", flush=True)
+        if args.only:
+            todo = [t for t in todo if args.only.lower() in str(t[1].get("title") or "").lower()]
         print(f"[{section}] {len(todo)} titles without torrents ({args.source})", flush=True)
         found = 0
         for i, (key, row) in enumerate(todo, 1):
@@ -372,6 +375,10 @@ def main() -> int:
                     print(f"  ! {title}: {q}: {exc}", flush=True)
                     continue
                 answered += 1
+                got = [r for r in map(to_release, rows) if r]
+                if args.only:
+                    print(f"    query {q!r}: {len(rows)} rows, {len(got)} usable, {sum(1 for r in got if HINDI.search(r['title']))} Hindi, "
+                          f"{sum(1 for r in got if HINDI.search(r['title']) and r['infoHash'])} Hindi with hash", flush=True)
                 cands += [r for r in map(to_release, rows) if r and (not args.add_hindi or HINDI.search(r["title"]))]
                 if pick(cands, title, year, limits):
                     break
