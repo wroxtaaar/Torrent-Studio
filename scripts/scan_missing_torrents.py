@@ -247,6 +247,20 @@ def titles_to_scan(section: str, pages: int) -> tuple[dict, Path, list[tuple[str
     return out, path, todo
 
 
+SKIP_ANIMATED = False
+
+
+def is_animated(sub, row):
+    if "animated" in sub.lower():
+        return True
+    for g in row.get("genres") or []:
+        name = g.get("name") if isinstance(g, dict) else g
+        gid = g.get("id") if isinstance(g, dict) else g
+        if gid == 16 or str(name).lower() == "animation":
+            return True
+    return False
+
+
 HINDI = re.compile(r"(?:^|[^a-z0-9])(?:hindi|hin)(?:$|[^a-z0-9])", re.IGNORECASE)
 
 
@@ -268,6 +282,8 @@ def hindi_todo(section: str, pages: int) -> tuple[dict, Path, list[tuple[str, di
             tid = row.get("tmdbId") or row.get("id")
             key = f"movie:{tid}"
             if not tid or key in seen or key in NATIVE or is_series_row(sub, node, row):
+                continue
+            if SKIP_ANIMATED and is_animated(sub, row):
                 continue
             seen.add(key)
             if not any(HINDI.search(r.get("title", "")) for r in (out["titles"].get(key) or {}).get("releases", [])):
@@ -309,8 +325,11 @@ def main() -> int:
                     help="fast = normal providers only; prowlarr = Prowlarr only (second pass); all = fast, then Prowlarr if empty")
     ap.add_argument("--add-hindi", action="store_true",
                     help="only look for Hindi releases of listed movies that have none saved; keeps saved releases")
+    ap.add_argument("--skip-animated", action="store_true", help="leave out animated movies")
     ap.add_argument("--ignore-rest", action="store_true", help="also search titles that were tried within the rest period")
     args = ap.parse_args()
+    global SKIP_ANIMATED
+    SKIP_ANIMATED = args.skip_animated
     global SOURCE
     SOURCE = args.source
     misses = torrent_misses.load()
