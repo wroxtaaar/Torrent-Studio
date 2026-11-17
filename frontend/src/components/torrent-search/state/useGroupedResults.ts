@@ -65,7 +65,7 @@ export function useGroupedResults({ results, resolutionFilter, sizeSort, timeSor
         'thor the dark world', 'thunderbolts'
       ]);
       const isSpiderMan = (title: string) => /spider\s*man|spider\s*verse|into the spider|across the spider/i.test(title);
-      const isXMen = (title: string) => /x\s*men|wolverine|deadpool|new mutants|dark phoenix/i.test(title);
+      const isXMen = (title: string) => /x\s*men|wolverine|deadpool|new mutants|dark phoenix|^logan$/i.test(title);
       const isSony = (title: string) => isSpiderMan(title) || /venom|morbius|kraven|madame web/i.test(title);
       groups = groups.filter(group => {
         const title = normalize(group.title);

@@ -28,7 +28,7 @@ export function useVisibleMovieCatalogue({ movieCatalogue, isMarvelEnglishResult
         'thor: ragnarok','thor: the dark world','thunderbolts'
       ]);
       const isSpiderMan = (title: string) => /spider[- ]?man|spider[- ]verse|into the spider|across the spider/i.test(title);
-      const isXMen = (title: string) => /x[- ]?men|wolverine|deadpool|new mutants|dark phoenix/i.test(title);
+      const isXMen = (title: string) => /x[- ]?men|wolverine|deadpool|new mutants|dark phoenix|^logan$/i.test(title);
       const isSony = (title: string) => isSpiderMan(title) || /venom|morbius|kraven|madame web/i.test(title);
       movies = movies.filter(movie => {
         const title = titleOf(movie);

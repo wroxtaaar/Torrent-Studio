@@ -54,6 +54,9 @@ if [ -z "${SKIP_SCANS:-}" ]; then
 # Pass 2: Prowlarr (slower) only for what is still empty and not resting. Titles nobody has rest for two weeks.
 timeout 3h "$PY" "$D/../scan_missing_torrents.py" --sections hollywood,bollywood,anime --source prowlarr || echo "movie prowlarr scan failed; continuing"
 timeout 2h "$PY" "$D/../build_tv_torrent_cache.py" --seed-dir "$HOME_DIR/seed" --section bollywood --source prowlarr || echo "series prowlarr scan failed; continuing"
+# Pass 3: Hindi releases for every cached section (titles that have torrents but none in Hindi). Resting titles are skipped.
+timeout 2h "$PY" "$D/../scan_missing_torrents.py" --sections hollywood,favourites,marvel,dc --add-hindi --source all || echo "hindi backfill failed; continuing"
+timeout 1h "$PY" "$D/../scan_missing_torrents.py" --sections highest-rated --pages 3 --add-hindi --source all || echo "highest-rated hindi backfill failed; continuing"
 fi
 bash "$D/refresh_and_publish.sh" publish-only
 echo "$(date -Is) published; restarting $CONTAINER"

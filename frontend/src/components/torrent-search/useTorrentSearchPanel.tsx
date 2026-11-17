@@ -693,7 +693,8 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
   // Sorting the Classics by rating or oldest-first needs every page, not just the visible one:
   // fetch the remaining cached pages one after another (cheap, they are stored files).
   useEffect(() => {
-    if (!activeFranchiseSearchMode || isDefaultClassicsSort(classicsSort)) return;
+    const marvelFiltered = activeFranchiseSearchMode === 'marvel' && marvelFilmFilter !== 'all';
+    if (!activeFranchiseSearchMode || (isDefaultClassicsSort(classicsSort) && !marvelFiltered)) return;
     const totalPages = Math.ceil(catalogueExpectedTitles / franchiseGridPageSize);
     if (totalPages <= 1) return;
     let cancelled = false;
@@ -703,7 +704,7 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       }
     })();
     return () => { cancelled = true; };
-  }, [activeFranchiseSearchMode, classicsSort.key, classicsSort.direction, catalogueExpectedTitles]);
+  }, [activeFranchiseSearchMode, classicsSort.key, classicsSort.direction, catalogueExpectedTitles, marvelFilmFilter]);
   // Every web series / anime row currently loaded, so their cards can show an IMDb rating too.
   const tvItemsForImdb = useMemo(() => {
     const fromCatalogue = [regionalWebSeriesCatalogue, dcWebSeriesCatalogue, marvelWebSeriesCatalogue]
