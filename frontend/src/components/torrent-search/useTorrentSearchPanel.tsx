@@ -176,7 +176,10 @@ export function useTorrentSearchPanel({ seedrFiles, seedrDeletedFolderIds, onPre
       setNexStreamEpisodes(view.nexStreamEpisodes ?? []);
       setNexStreamEpisodesError(view.nexStreamEpisodesError ?? '');
       setNexStreamEpisodesStatus(view.nexStreamEpisodesStatus ?? null);
-      yenime.setYenimeEpisodePicker(view.yenimeEpisodePicker ?? null);
+      // The Yenime episode picker is a transient dialog whose state (the MAL request) is not saved in the history entry.
+      // Restoring just the picker brought back an empty one after Back / Forward, so Back simply closes it.
+      yenime.setYenimeEpisodePicker(null);
+      yenime.setYenimeRequest(null);
       yenime.setYenimePlayer(view.yenimePlayer ?? null);
       yenime.setYenimeSelectedSeason(view.yenimeSelectedSeason ?? 1);
       yenime.setYenimeSeasons(view.yenimeSeasons ?? []);
