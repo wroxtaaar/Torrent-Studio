@@ -27,3 +27,12 @@ export function yenimeMalIdForTitle(title: string): number | undefined {
 export function isAnimeCatalogue(catalogue: string | null | undefined): boolean {
   return catalogue === 'classics-anime';
 }
+
+/**
+ * Series kept in the Anime lists that are Western animation, not anime: they have no MAL id, so Yenime cannot play them.
+ * They open the normal episode picker (VidRift / NexStream) instead. TMDB series ids.
+ */
+export const NON_ANIME_TV_IDS = new Set<number>([246, 33880]);   // Avatar: The Last Airbender, The Legend of Korra
+
+export const isNonAnimeShow = (show: { id?: number | string | null; tmdbId?: number | string | null }): boolean =>
+  NON_ANIME_TV_IDS.has(Number(show.tmdbId ?? show.id));

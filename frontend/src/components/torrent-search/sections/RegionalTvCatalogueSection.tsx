@@ -1,6 +1,7 @@
 import { Loader2 } from 'lucide-react';
 import type { RegionalTvGroup, RegionalTvMode } from '../types.ts';
 import { imdbRatingKey } from '../grouping.ts';
+import { isNonAnimeShow } from '../yenime.ts';
 import { TvShowTile } from '../TvShowTile.tsx';
 import type { PanelModel } from '../useTorrentSearchPanel.tsx';
 import { CatalogueBar, CATALOGUE_SORTS } from '../CatalogueBar.tsx';
@@ -112,7 +113,7 @@ export function RegionalTvCatalogueSection({ vm }: { vm: PanelModel }) {
                 imdb={imdbRatingsByKey[imdbRatingKey(show.title, show.year, 'tv')]}
                 torrents={isHighestRatedTv || activeRegionalSection !== 'hollywood'}
                 onPlay={() => {
-                  if (activeRegionalSection === 'anime') openYenimeRequest(show.title, show.year, show.malId, 1, show.id);
+                  if (activeRegionalSection === 'anime' && !isNonAnimeShow(show)) openYenimeRequest(show.title, show.year, show.malId, 1, show.id);
                   else playCatalogueTvWithNexStream(show);
                 }}
               />
