@@ -22,7 +22,11 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
   const isHighestRatedTvView = vm.activeTopSection === 'highest-rated' && Boolean(vm.regionalWebSeriesCatalogue?.catalogue.startsWith('highest-rated-'));
   if (isRegionalTvView || isHighestRatedTvView) return null;
 
-  const { activeTopSection, catalogueExpectedTitles, classicsContentTab, classicsSort, dcWebSeriesCatalogue, dcWebSeriesError, dcWebSeriesLoading, error, expandedSearchGroupKey, franchiseGridPage, franchiseGridPageSize, groupedResults, imdbRatingsByKey, isSearching, loadDcWebSeriesPage, marvelWebSeriesCatalogue, marvelWebSeriesError, marvelWebSeriesLoading, metadataPosterFailed, movieCatalogue, movieTorrentPreviewGroup, nexStreamLoading, nexStreamLoadingTitle, nexStreamResolvingId, nexStreamResults, onPlaySeedrFile, openYenimeRequest, pendingPosterAction, playCatalogueTvWithNexStream, playWithNexStream, playingTorrentKey, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, prepareMovieTorrent, prepareStateFor, preparedActionsFor, preparedForResult, preparingTorrentKey, regionalWebSeriesCatalogue, regionalWebSeriesError, regionalWebSeriesLoading, renderFranchisePagination, results, searchAvailabilityByGroup, searchMetadata, searchMetadataStatus, searchNexStreamTitles, searchPosterUrlsRef, selectedMovieTorrentQualityByGroup, selectedQualityByGroup, setExpandedSearchGroupKey, setMarvelWebSeriesCatalogue, setMarvelWebSeriesError, setMarvelWebSeriesLoading, setMetadataPosterFailed, setMovieTorrentPreviewCatalogueId, setMovieTorrentPreviewGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setPlayingTorrentKey, setRegionalWebSeriesCatalogue, setRegionalWebSeriesError, setRegionalWebSeriesLoading, setSelectedMovieTorrentQualityByGroup, setSelectedQualityByGroup, showDcWebSeries, showMarvelWebSeries, sortedResults, startPosterBackgroundWorkers, openFranchiseCard } = vm;
+  const { activeTopSection, catalogueExpectedTitles, marvelFilmFilter, classicsContentTab, classicsSort, dcWebSeriesCatalogue, dcWebSeriesError, dcWebSeriesLoading, error, expandedSearchGroupKey, franchiseGridPage, franchiseGridPageSize, groupedResults, imdbRatingsByKey, isSearching, loadDcWebSeriesPage, marvelWebSeriesCatalogue, marvelWebSeriesError, marvelWebSeriesLoading, metadataPosterFailed, movieCatalogue, movieTorrentPreviewGroup, nexStreamLoading, nexStreamLoadingTitle, nexStreamResolvingId, nexStreamResults, onPlaySeedrFile, openYenimeRequest, pendingPosterAction, playCatalogueTvWithNexStream, playWithNexStream, playingTorrentKey, posterBackgroundQueueRef, posterBackgroundQueuedRef, posterFirstPageReadyRef, posterLoadedRef, posterOverrides, prepareMovieTorrent, prepareStateFor, preparedActionsFor, preparedForResult, preparingTorrentKey, regionalWebSeriesCatalogue, regionalWebSeriesError, regionalWebSeriesLoading, renderFranchisePagination, results, searchAvailabilityByGroup, searchMetadata, searchMetadataStatus, searchNexStreamTitles, searchPosterUrlsRef, selectedMovieTorrentQualityByGroup, selectedQualityByGroup, setExpandedSearchGroupKey, setMarvelWebSeriesCatalogue, setMarvelWebSeriesError, setMarvelWebSeriesLoading, setMetadataPosterFailed, setMovieTorrentPreviewCatalogueId, setMovieTorrentPreviewGroup, setMovieTorrentSearchError, setNexStreamError, setPendingPosterAction, setPlayingTorrentKey, setRegionalWebSeriesCatalogue, setRegionalWebSeriesError, setRegionalWebSeriesLoading, setSelectedMovieTorrentQualityByGroup, setSelectedQualityByGroup, showDcWebSeries, showMarvelWebSeries, sortedResults, startPosterBackgroundWorkers, openFranchiseCard } = vm;
+  // A Marvel filter (MCU / Spiderman / X-Men) shows only some titles, so its pages follow the filtered count, not the whole catalogue's.
+  const pagedTotal = activeTopSection === 'marvel' && !showMarvelWebSeries && marvelFilmFilter !== 'all'
+    ? groupedResults.length
+    : Math.max(groupedResults.length, catalogueExpectedTitles);
   return (
     <>
       {(results.length > 0 || regionalWebSeriesLoading || Boolean(regionalWebSeriesError) || Boolean(regionalWebSeriesCatalogue) || showDcWebSeries || (activeTopSection === 'classics' && classicsContentTab !== null)) && (
@@ -180,7 +184,7 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
               })()}
             </section>
           )}
-          {!isSearching && renderFranchisePagination(Math.max(groupedResults.length, catalogueExpectedTitles))}
+          {!isSearching && renderFranchisePagination(pagedTotal)}
           <div
             className="grid grid-cols-2 items-stretch gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 lg:rounded-2xl lg:border-0 lg:bg-transparent lg:gap-4 lg:w-full lg:max-w-none lg:mx-0 lg:p-0 lg:divide-y-0 lg:overflow-visible"
           >
@@ -417,7 +421,7 @@ export function SearchResultsSection({ vm }: { vm: PanelModel }) {
               );
             })}
           </div>
-          {!isSearching && renderFranchisePagination(Math.max(groupedResults.length, catalogueExpectedTitles), 'bottom')}
+          {!isSearching && renderFranchisePagination(pagedTotal, 'bottom')}
           </>
           )}
         </div>
